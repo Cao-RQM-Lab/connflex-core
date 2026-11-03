@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import shapely
 from shapely import MultiPolygon, Polygon
+from shapely.geometry.base import BaseGeometry
 
 from connflex_core.geometry.beams import find_beams
 from connflex_core.geometry.bodies import layered_components, select_anchor
@@ -22,8 +24,8 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
     layer to estimate the surviving buried oxide, the anchor handle polygon is selected, every
     polygon without a connection to it through the stack is dropped, bodies are assembled by
     overlap through the opened device layer, the oxide, and the handle, each body gets its mass
-    properties from the stack, and the device regions removed by the opening are qualified as
-    beams.
+    properties from the stack with the release openings removed from its device layer, and the
+    device regions removed by the opening are qualified as beams.
     """
     tolerance = params.simplify_tolerance
     margin = params.beam_overlap_margin
@@ -45,6 +47,7 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
     box = surviving_box(
         device, handle, release, holes, params.release_distance, params.buffer_resolution
     )
+    openings = shapely.union_all([*holes, *(release.geoms if release is not None else [])])
 
     handle_parts = _by_area(handle)
     anchor = select_anchor(handle_parts, params.anchor)
@@ -70,6 +73,7 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
             if layer == 0:
                 body_of[i] = index
         polygons = [MultiPolygon(group) for group in grouped]
+        massive = [_without(polygons[0], openings), polygons[1], polygons[2]]
         bodies.append(
             Body(
                 index=index,
@@ -77,7 +81,7 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
                 device=polygons[0],
                 box=polygons[1],
                 handle=polygons[2],
-                inertial=mass_properties(polygons, stack),
+                inertial=mass_properties(massive, stack),
             )
         )
 
@@ -91,6 +95,10 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
         thickness=stack.device.thickness,
     )
     return Structure(bodies=tuple(bodies), beams=tuple(beams), rejected=tuple(rejected))
+
+
+def _without(geometry: MultiPolygon, openings: BaseGeometry) -> MultiPolygon:
+    return geometry if openings.is_empty else as_multipolygon(geometry.difference(openings))
 
 
 def _by_area(geometry: MultiPolygon) -> list[Polygon]:

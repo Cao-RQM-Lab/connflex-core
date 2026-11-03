@@ -32,8 +32,10 @@ def params() -> Callable[..., ExtractionParams]:
 
 
 @pytest.fixture
-def layout_um() -> Callable[[list[Polygon], list[Polygon]], Layout]:
-    def make(device: list[Polygon], handle: list[Polygon]) -> Layout:
-        return Layout.from_shapely(device=device, handle=handle, unit=UM)
+def layout_um() -> Callable[..., Layout]:
+    def make(
+        device: list[Polygon], handle: list[Polygon], release: list[Polygon] | None = None
+    ) -> Layout:
+        return Layout.from_shapely(device=device, handle=handle, release=release, unit=UM)
 
     return make

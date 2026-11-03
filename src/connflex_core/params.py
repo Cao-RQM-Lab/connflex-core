@@ -16,7 +16,8 @@ class ExtractionParams:
 
     Attributes:
         release_hole_max_area: Holes inside device polygons at or below this area are release
-            holes. They enter the release estimate and are then filled.
+            holes. They enter the release estimate, are removed from the device-layer mass,
+            and are filled for connectivity and beam extraction.
         release_distance: Isotropic undercut applied to the surviving buried oxide.
         body_min_width: Features narrower than this are not rigid bodies and become beam
             candidates. Also the default upper width bound of a beam.

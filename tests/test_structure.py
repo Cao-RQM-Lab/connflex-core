@@ -1,7 +1,7 @@
 import json
 from collections.abc import Callable
 
-from shapely import Polygon, box
+from shapely import box
 
 from connflex_core import ExtractionParams, Layout, Stack, extract
 
@@ -9,7 +9,7 @@ from connflex_core import ExtractionParams, Layout, Stack, extract
 def test_graph_and_tree_describe_the_structure(
     stack: Stack,
     params: Callable[..., ExtractionParams],
-    layout_um: Callable[[list[Polygon], list[Polygon]], Layout],
+    layout_um: Callable[..., Layout],
 ) -> None:
     device = [box(0, 0, 100, 100), box(100, 45, 300, 55), box(300, 0, 400, 100)]
     structure = extract(layout_um(device, [box(-50, -50, 150, 150)]), stack, params())

@@ -11,7 +11,7 @@ PAD_B = box(300, 0, 400, 100)
 BEAM = box(100, 45, 300, 55)
 HANDLE_A = box(-50, -50, 150, 150)
 Params = Callable[..., ExtractionParams]
-LayoutUm = Callable[[list[Polygon], list[Polygon]], Layout]
+LayoutUm = Callable[..., Layout]
 
 
 def at(x: float, y: float) -> Point:
@@ -104,3 +104,20 @@ def test_anchor_can_be_chosen_by_point(stack: Stack, params: Params, layout_um: 
     assert structure.anchor.device.contains(at(350, 50))
     assert len(structure.bodies) == 2
     assert len(structure.beams) == 1
+
+
+def test_release_openings_are_removed_from_the_device_mass(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    hole = box(340, 40, 345, 45)
+    solid_mass = 2330 * 25 * UM * (100 * UM) ** 2
+    hole_mass = 2330 * 25 * UM * (5 * UM) ** 2
+
+    perforated = Polygon(PAD_B.exterior, [hole.exterior])
+    structure = extract(layout_um([PAD_A, BEAM, perforated], [HANDLE_A]), stack, params())
+    assert structure.bodies[1].inertial.mass == pytest.approx(solid_mass - hole_mass)
+
+    structure = extract(
+        layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A], release=[hole]), stack, params()
+    )
+    assert structure.bodies[1].inertial.mass == pytest.approx(solid_mass - hole_mass)
