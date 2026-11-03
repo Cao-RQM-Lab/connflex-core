@@ -25,6 +25,7 @@ def beam(length: float, width: float, thickness: float, angle: float = 0.0) -> B
         start=(0.0, 0.0, -thickness / 2),
         end=end,
         polygon=box(0, -width / 2, length, width / 2),
+        net=0,
     )
 
 

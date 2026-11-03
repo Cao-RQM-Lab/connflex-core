@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import shapely
-from shapely import MultiPolygon, Polygon
+from shapely import MultiPolygon, Polygon, STRtree
 from shapely.geometry.base import BaseGeometry
 
+from connflex_core.electrical.nets import find_nets
 from connflex_core.geometry.beams import find_beams
 from connflex_core.geometry.bodies import layered_components, select_anchor
 from connflex_core.geometry.heal import as_multipolygon, heal, opening, snap
@@ -25,7 +26,8 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
     polygon without a connection to it through the stack is dropped, bodies are assembled by
     overlap through the opened device layer, the oxide, and the handle, each body gets its mass
     properties from the stack with the release openings removed from its device layer, and the
-    device regions removed by the opening are qualified as beams.
+    device regions removed by the opening are qualified as beams. The remaining device and
+    handle polygons are the conductors of the electrical nets, joined through the vias.
     """
     tolerance = params.simplify_tolerance
     margin = params.beam_overlap_margin
@@ -61,6 +63,14 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
     anchor = kept[2].index(anchor)
     device = MultiPolygon(device_parts)
 
+    vias = [] if layout.vias is None else list(layout.vias.geoms)
+    nets = find_nets(device_parts, handle_parts, vias)
+    conductors = STRtree(device_parts)
+
+    def net_of(polygon: Polygon) -> int:
+        (i,) = conductors.query(polygon.representative_point(), predicate="within")
+        return nets.conductors[int(i)].net
+
     body_parts = _by_area(opening(device, params.body_min_width / 2))
     components = layered_components([body_parts, box_parts, handle_parts], seed=(2, anchor))
     layers = (body_parts, box_parts, handle_parts)
@@ -82,6 +92,7 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
                 box=polygons[1],
                 handle=polygons[2],
                 inertial=mass_properties(massive, stack),
+                nets=tuple(net_of(part) for part in grouped[0]),
             )
         )
 
@@ -93,12 +104,14 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
         width_min=params.beam_width_min,
         width_max=width_max,
         thickness=stack.device.thickness,
+        net_of=net_of,
     )
     return Structure(
         bodies=tuple(bodies),
         beams=tuple(beams),
         rejected=tuple(rejected),
         material=stack.device.material,
+        nets=nets,
     )
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import shapely
 from shapely import MultiPolygon, Polygon, STRtree
@@ -20,11 +20,12 @@ def find_beams(
     width_min: float,
     width_max: float,
     thickness: float,
+    net_of: Callable[[Polygon], int],
 ) -> tuple[list[Beam], list[RejectedCandidate]]:
     """Qualify the device regions outside the bodies as beams joining exactly two bodies.
 
     ``body_parts`` are the device-layer polygons of all bodies and ``body_of`` maps each part
-    to its body index.
+    to its body index. ``net_of`` gives the net of a device-layer region.
     """
     tree = STRtree(list(body_parts))
     candidates = as_multipolygon(device.difference(shapely.union_all(list(body_parts))))
@@ -67,6 +68,7 @@ def find_beams(
                 start=(start.x, start.y, z),
                 end=(end.x, end.y, z),
                 polygon=candidate,
+                net=net_of(candidate),
             )
         )
     return beams, rejected

@@ -11,6 +11,7 @@ import numpy as np
 from shapely import MultiPolygon, Polygon
 from shapely.geometry import mapping
 
+from connflex_core.electrical.nets import Nets
 from connflex_core.materials import Material
 from connflex_core.mechanics.inertia import MassProperties
 from connflex_core.params import SolveOptions
@@ -32,6 +33,7 @@ class Body:
         box: Surviving buried oxide polygons.
         handle: Handle-layer polygons.
         inertial: Mass, center of mass, and inertia tensor.
+        nets: Net of each polygon in ``device``, in order.
     """
 
     index: int
@@ -40,6 +42,7 @@ class Body:
     box: MultiPolygon
     handle: MultiPolygon
     inertial: MassProperties
+    nets: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -55,6 +58,7 @@ class Beam:
         start: Attachment point on the first body, (x, y, z) at the device mid-plane.
         end: Attachment point on the second body.
         polygon: The device-layer region of the beam.
+        net: Net of the device conductor the beam belongs to.
     """
 
     index: int
@@ -65,6 +69,7 @@ class Beam:
     start: tuple[float, float, float]
     end: tuple[float, float, float]
     polygon: Polygon
+    net: int
 
 
 @dataclass(frozen=True)
@@ -89,12 +94,14 @@ class Structure:
         beams: Accepted beams.
         rejected: Beam candidates that did not qualify, with the reason for each.
         material: Device-layer material, which sets the beam stiffness.
+        nets: Electrical nets of the conductors that remain after pruning.
     """
 
     bodies: tuple[Body, ...]
     beams: tuple[Beam, ...]
     rejected: tuple[RejectedCandidate, ...]
     material: Material
+    nets: Nets
 
     @property
     def anchor(self) -> Body:
@@ -136,6 +143,7 @@ class Structure:
                     "mass": body.inertial.mass,
                     "center": body.inertial.center.tolist(),
                     "inertia": body.inertial.inertia.tolist(),
+                    "nets": list(body.nets),
                 }
                 for body in self.bodies
             ],
@@ -149,6 +157,7 @@ class Structure:
                     "start": list(beam.start),
                     "end": list(beam.end),
                     "polygon": mapping(beam.polygon),
+                    "net": beam.net,
                 }
                 for beam in self.beams
             ],
@@ -156,4 +165,5 @@ class Structure:
                 {"polygon": mapping(candidate.polygon), "reason": candidate.reason}
                 for candidate in self.rejected
             ],
+            "nets": self.nets.to_dict(),
         }
