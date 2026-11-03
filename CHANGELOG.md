@@ -10,7 +10,9 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Packaging, code standards, CI, release workflow, and documentation.
 - `Material`, `Layer`, `Stack`, `ExtractionParams`, and `SolveOptions` with
   validation, and `load_config` for TOML process files.
-- `Layout` with shapely and GDS readers and an adapter registry.
+- `Layout` with shapely and GDS readers and an adapter registry. The GDS reader
+  rebuilds holes from their cut lines and verifies every repaired area against
+  the file.
 - `extract` producing a `Structure` of rigid bodies and beams: layer healing,
   release-hole and oxide estimate, anchor selection, pruning, body assembly
   through the stack, beam qualification, a networkx graph, and a JSON tree.
@@ -27,11 +29,5 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Structure.nets`, and `find_nets`.
 - KLayout and gdsfactory readers behind the `klayout` and `gdsfactory` extras,
   with an `all` extra for every reader.
-
-### Fixed
-
-- GDS polygons whose cut line runs along an edge were repaired with the hole
-  filled, merging independent bodies into the anchor. The reader now rebuilds
-  holes from ring nesting and verifies every repaired area against the file.
 
 [Unreleased]: https://github.com/Cao-RQM-Lab/connflex-core/commits/main

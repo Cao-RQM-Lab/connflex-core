@@ -30,6 +30,7 @@ verified.
 ```sh
 act -j lint
 act -j test --matrix os:ubuntu-latest --matrix python-version:3.14
+act -j extras
 act -W .github/workflows/docs.yml -j build
 ```
 

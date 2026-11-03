@@ -79,13 +79,15 @@ publishing an entry point in the `connflex_core.adapters` group.
 ## Describe the process
 
 The stack lists the three SOI layers from the top down. Thickness is required
-for each; the material presets can be overridden field by field.
+for each; the material presets can be overridden field by field. Beam
+stiffness uses the device-layer material; the other layers contribute mass
+only.
 
 ```python
 stack = cf.Stack(
-    device=cf.Layer(thickness=25e-6, material=cf.Material.silicon()),
+    device=cf.Layer(thickness=25e-6, material=cf.Material.silicon(youngs_modulus=130e9)),
     box=cf.Layer(thickness=2e-6, material=cf.Material.oxide()),
-    handle=cf.Layer(thickness=400e-6, material=cf.Material.silicon(youngs_modulus=130e9)),
+    handle=cf.Layer(thickness=400e-6, material=cf.Material.silicon()),
 )
 ```
 

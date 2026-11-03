@@ -16,7 +16,7 @@ PolygonInput = Polygon | MultiPolygon | Iterable[Polygon | MultiPolygon]
 
 @dataclass(frozen=True)
 class LayerMap:
-    """GDS layer and datatype of each layout role.
+    """Layer and datatype of each layout role, for the GDS, KLayout, and gdsfactory readers.
 
     Attributes:
         device: Layer and datatype of the device layer.

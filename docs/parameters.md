@@ -23,7 +23,7 @@ Symbols refer to the [theory of operation](theory.md).
 | `beam_width_min` | | 0 (disabled) | Candidates narrower than this are discarded as slivers. |
 | `beam_width_max` | | = `body_min_width` | Candidates wider than this are discarded as non-slender. |
 | `anchor` | | largest handle polygon | Override by a point inside the intended handle polygon, or by index into the handle polygons ordered by descending area. |
-| `buffer_resolution` | | 8 | Segments per quarter circle of the round release undercut, equation (2). Healing and the body opening use mitred corners. |
+| `buffer_resolution` | | 8 | Segments per quarter circle of the round release undercut, equation (2). Healing and the body opening use mitered corners. |
 | `precision_grid` | | off | Optional snap grid applied before overlay operations. |
 
 ## `Stack`, `Layer`, and `Material`
@@ -35,7 +35,7 @@ Beam stiffness uses the device layer material.
 | --- | --- | --- | --- |
 | `Layer.thickness` | $t_l$ | **required** | Layer thickness, equations (5) and (8). |
 | `Material.density` | $\rho_l$ | silicon 2330, oxide 2200 | Mass density, equation (5). |
-| `Material.youngs_modulus` | $E$ | 169 GPa for silicon | Young's modulus; the default is the $\langle 110 \rangle$ value. |
+| `Material.youngs_modulus` | $E$ | 169 GPa for silicon | Young's modulus. The silicon default is the in-plane $\langle 110 \rangle$ value; beams along $\langle 100 \rangle$ see about 130 GPa. |
 | `Material.poisson_ratio` | $\nu$ | 0.28 | Used to derive $G = E / (2(1 + \nu))$ when `shear_modulus` is not given. |
 | `Material.shear_modulus` | $G$ | derived | Shear modulus for the torsional term, equation (19). |
 | `Material.torsion_model` | $J$ | `"rectangle"` | Saint-Venant torsion constant of a solid rectangle, equation (20). |

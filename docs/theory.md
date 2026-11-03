@@ -8,8 +8,8 @@ symbol that a user can set is listed with its parameter name in the
 
 As a self-contained polygon-to-mechanics simulator, ConnFlex automatically
 extracts mechanical components given a GDS file (or a number of generic
-polygons). ConnFlex is currently optimized for the silicon-on-insulator (SOI)
-process, and expects separate polygon objects for the device, handle, and
+polygons). ConnFlex targets the silicon-on-insulator (SOI) process and
+expects separate polygon objects for the device, handle, and
 optionally device release hole layers.
 
 Let $D$, $H$, and $R$ be the device, handle, and release hole regions,
