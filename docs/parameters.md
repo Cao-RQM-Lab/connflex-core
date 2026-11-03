@@ -22,8 +22,8 @@ Symbols refer to the [theory of operation](theory.md).
 | `beam_overlap_margin` | $\epsilon$ | = `heal_distance` | Expansion of beam candidates so they overlap the bodies they touch, equation (4). |
 | `beam_width_min` | | 0 (disabled) | Candidates narrower than this are discarded as slivers. |
 | `beam_width_max` | | = `body_min_width` | Candidates wider than this are discarded as non-slender. |
-| `anchor` | | largest handle polygon | Override by polygon index or by a point inside the intended handle polygon. |
-| `buffer_resolution` | | 8 | Segments per quarter circle for round buffers. |
+| `anchor` | | largest handle polygon | Override by a point inside the intended handle polygon, or by index into the handle polygons ordered by descending area. |
+| `buffer_resolution` | | 8 | Segments per quarter circle of the round release undercut, equation (2). Healing and the body opening use mitred corners. |
 | `precision_grid` | | off | Optional snap grid applied before overlay operations. |
 
 ## `Stack`, `Layer`, and `Material`

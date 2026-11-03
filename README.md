@@ -34,6 +34,9 @@ stack = cf.Stack(
 params = cf.ExtractionParams(
     release_hole_max_area=100e-12, release_distance=5e-6, body_min_width=10e-6
 )
+
+structure = cf.extract(layout, stack, params)
+structure.bodies, structure.beams, structure.graph
 ```
 
 Inputs are four polygon roles: `device`, `handle`, and optionally `release`

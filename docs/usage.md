@@ -83,3 +83,28 @@ file format is on the [parameters page](parameters.md#toml-files).
 ```python
 stack, params, options = cf.load_config("soi_25um.toml")
 ```
+
+## Extract the structure
+
+```python
+structure = cf.extract(layout, stack, params)
+
+structure.bodies  # rigid bodies, the anchor first; polygons per layer in meters
+structure.beams  # beams joining exactly two bodies: length, width, thickness, end points
+structure.rejected  # beam candidates that did not qualify, each with a reason
+structure.graph  # networkx MultiGraph, bodies as nodes and beams as edges
+structure.to_dict()  # JSON-serializable tree with GeoJSON-style polygons
+```
+
+The stages follow the [theory of operation](theory.md): the device and
+handle layers are healed and simplified, release holes are filled and used
+with the `release` layer to estimate the surviving buried oxide, the anchor
+handle polygon is selected, polygons with no connection to it through the
+stack are dropped, bodies are assembled by overlap through the opened device
+layer, the oxide, and the handle, and the device regions removed by the
+opening become beams when they touch exactly two bodies and their width lies
+within `beam_width_min` and `beam_width_max`.
+
+A candidate that touches one body is a stub, one that touches three or more
+is a junction; both appear in `structure.rejected` with that reason, which is
+the first place to look when an expected beam is missing.

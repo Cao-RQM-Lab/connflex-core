@@ -28,9 +28,11 @@ class ExtractionParams:
         beam_width_min: Candidates with computed width below this are discarded as slivers.
         beam_width_max: Candidates with computed width above this are discarded as non-slender.
             None means body_min_width.
-        anchor: None selects the largest handle polygon, an int selects a handle polygon by
-            index, and a point (x, y) in meters selects the handle polygon containing it.
-        buffer_resolution: Segments per quarter circle for round buffers.
+        anchor: None selects the largest handle polygon, a point (x, y) in meters selects the
+            handle polygon containing it, and an int selects a handle polygon by index in
+            order of descending area.
+        buffer_resolution: Segments per quarter circle of the round release undercut. Healing
+            and the body opening use mitred corners.
         precision_grid: Snap grid applied before overlay operations. None disables snapping.
     """
 
