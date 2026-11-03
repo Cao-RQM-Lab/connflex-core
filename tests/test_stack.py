@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from connflex_core import Layer, Material, Stack
@@ -44,3 +45,5 @@ def test_stack_orders_layers_from_the_top_down() -> None:
         handle=Layer(thickness=400e-6, material=Material.silicon()),
     )
     assert [layer.thickness for layer in stack.layers] == [25e-6, 2e-6, 400e-6]
+    expected = np.array([(0.0, -25e-6), (-25e-6, -27e-6), (-27e-6, -427e-6)])
+    assert np.asarray(stack.z_extents) == pytest.approx(expected)

@@ -42,3 +42,13 @@ class Stack:
     def layers(self) -> tuple[Layer, Layer, Layer]:
         """Layers from the top down."""
         return (self.device, self.box, self.handle)
+
+    @property
+    def z_extents(self) -> tuple[tuple[float, float], ...]:
+        """Top and bottom height of each layer, with the top of the device layer at z = 0."""
+        extents = []
+        top = 0.0
+        for layer in self.layers:
+            extents.append((top, top - layer.thickness))
+            top -= layer.thickness
+        return tuple(extents)

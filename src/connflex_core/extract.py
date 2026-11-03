@@ -9,6 +9,7 @@ from connflex_core.geometry.bodies import layered_components, select_anchor
 from connflex_core.geometry.heal import as_multipolygon, heal, opening, snap
 from connflex_core.geometry.release import fill_release_holes, surviving_box
 from connflex_core.layout import Layout
+from connflex_core.mechanics.inertia import mass_properties
 from connflex_core.model import Body, Structure
 from connflex_core.params import ExtractionParams
 from connflex_core.stack import Stack
@@ -20,8 +21,9 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
     The layers are healed and simplified, release holes are filled and used with the release
     layer to estimate the surviving buried oxide, the anchor handle polygon is selected, every
     polygon without a connection to it through the stack is dropped, bodies are assembled by
-    overlap through the opened device layer, the oxide, and the handle, and the device regions
-    removed by the opening are qualified as beams.
+    overlap through the opened device layer, the oxide, and the handle, each body gets its mass
+    properties from the stack, and the device regions removed by the opening are qualified as
+    beams.
     """
     tolerance = params.simplify_tolerance
     margin = params.beam_overlap_margin
@@ -67,13 +69,15 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
             grouped[layer].append(layers[layer][i])
             if layer == 0:
                 body_of[i] = index
+        polygons = [MultiPolygon(group) for group in grouped]
         bodies.append(
             Body(
                 index=index,
                 anchor=index == 0,
-                device=MultiPolygon(grouped[0]),
-                box=MultiPolygon(grouped[1]),
-                handle=MultiPolygon(grouped[2]),
+                device=polygons[0],
+                box=polygons[1],
+                handle=polygons[2],
+                inertial=mass_properties(polygons, stack),
             )
         )
 

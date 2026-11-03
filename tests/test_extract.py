@@ -29,6 +29,7 @@ def test_clamped_beam_between_an_anchored_and_a_released_pad(
     assert not free.anchor
     assert free.device.contains(at(350, 50))
     assert free.box.is_empty
+    assert free.inertial.mass == pytest.approx(2330 * 25 * UM * (100 * UM) ** 2)
     (beam,) = structure.beams
     assert beam.bodies == (0, 1)
     assert beam.length == pytest.approx(200 * UM, rel=1e-3)

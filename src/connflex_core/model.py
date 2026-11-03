@@ -9,6 +9,8 @@ import networkx as nx
 from shapely import MultiPolygon, Polygon
 from shapely.geometry import mapping
 
+from connflex_core.mechanics.inertia import MassProperties
+
 
 @dataclass(frozen=True)
 class Body:
@@ -20,6 +22,7 @@ class Body:
         device: Device-layer polygons. Empty when the body has none in this layer.
         box: Surviving buried oxide polygons.
         handle: Handle-layer polygons.
+        inertial: Mass, center of mass, and inertia tensor.
     """
 
     index: int
@@ -27,6 +30,7 @@ class Body:
     device: MultiPolygon
     box: MultiPolygon
     handle: MultiPolygon
+    inertial: MassProperties
 
 
 @dataclass(frozen=True)
@@ -106,6 +110,9 @@ class Structure:
                     "device": mapping(body.device),
                     "box": mapping(body.box),
                     "handle": mapping(body.handle),
+                    "mass": body.inertial.mass,
+                    "center": body.inertial.center.tolist(),
+                    "inertia": body.inertial.inertia.tolist(),
                 }
                 for body in self.bodies
             ],
