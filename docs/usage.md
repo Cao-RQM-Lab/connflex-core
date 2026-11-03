@@ -128,10 +128,10 @@ structure.nets  # electrical nets of remaining device and handle polygons
 structure.to_dict()  # JSON-serializable tree with GeoJSON-style polygons
 ```
 
-Stages follow the [theory of operation](theory.md): device and handle layers
-are healed and simplified, release holes are filled and used with the
-`release` layer to estimate surviving buried oxide, an anchor handle polygon
-is selected, polygons with no connection to it through the stack are dropped,
+Stages follow the [theory of operation](theory.md): release holes are filled,
+device and handle layers are healed and simplified, cavities that healing
+closes are filled as well, the holes and the `release` layer give the
+surviving buried oxide, an anchor handle polygon is selected, polygons with no connection to it through the stack are dropped,
 bodies are assembled by overlap through the opened device layer, oxide, and
 handle, and device regions removed by the opening become beams when they
 touch exactly two bodies and their width lies within `beam_width_min` and

@@ -24,8 +24,9 @@ def extract(
 ) -> Structure:
     """Extract rigid bodies, beams, and electrical nets from a layout.
 
-    Layers are healed and simplified. Release holes are filled and, with the release layer,
-    give the surviving buried oxide. An anchor handle polygon is selected and every polygon
+    Release holes inside the device layer are filled, the layers are healed and simplified,
+    and holes that healing closes are filled as well. The holes and the release layer give
+    the surviving buried oxide. An anchor handle polygon is selected and every polygon
     with no connection to it through the stack is dropped. Bodies are assembled by overlap
     through the opened device layer, oxide, and handle; each gets mass properties from the
     stack with release openings removed from its device layer. Device regions removed by
@@ -42,7 +43,10 @@ def extract(
         raise ValueError("extraction parameters are not resolved")
 
     with stage("heal", progress) as current:
-        device = heal(layout.device, params.heal_distance, tolerance)
+        device, holes = fill_release_holes(layout.device, params.release_hole_max_area)
+        device = heal(device, params.heal_distance, tolerance)
+        device, closed = fill_release_holes(device, params.release_hole_max_area)
+        holes += closed
         handle = heal(layout.handle, params.heal_distance, tolerance)
         release = None
         if layout.release is not None:
@@ -51,15 +55,16 @@ def extract(
             device = snap(device, params.precision_grid)
             handle = snap(handle, params.precision_grid)
             release = None if release is None else snap(release, params.precision_grid)
-        current.count(device=len(device.geoms), handle=len(handle.geoms))
+            if holes:
+                holes = list(snap(MultiPolygon(holes), params.precision_grid).geoms)
+        current.count(device=len(device.geoms), handle=len(handle.geoms), holes=len(holes))
 
     with stage("release", progress) as current:
-        device, holes = fill_release_holes(device, params.release_hole_max_area)
         box = surviving_box(
             device, handle, release, holes, params.release_distance, params.buffer_resolution
         )
         openings = shapely.union_all([*holes, *(release.geoms if release is not None else [])])
-        current.count(holes=len(holes), box=len(box.geoms))
+        current.count(box=len(box.geoms))
 
     handle_parts = _by_area(handle)
     anchor = select_anchor(handle_parts, params.anchor)

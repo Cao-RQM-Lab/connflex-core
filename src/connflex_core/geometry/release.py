@@ -11,7 +11,11 @@ from connflex_core.geometry.heal import as_multipolygon
 
 
 def fill_release_holes(device: MultiPolygon, max_area: float) -> tuple[MultiPolygon, list[Polygon]]:
-    """Fill holes of at most ``max_area`` in device polygons and return them separately."""
+    """Fill holes of at most ``max_area`` in device polygons and return them separately.
+
+    Called on the raw layout, so healing runs on the filled outlines rather than on every
+    hole outline, and again on the healed layout for cavities that healing closes.
+    """
     filled: list[Polygon] = []
     holes: list[Polygon] = []
     for polygon in device.geoms:

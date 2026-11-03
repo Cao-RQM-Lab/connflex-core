@@ -122,6 +122,13 @@ def test_release_openings_are_removed_from_the_device_mass(
     )
     assert structure.bodies[1].inertial.mass == pytest.approx(solid_mass - hole_mass)
 
+    straddling = box(390, 40, 410, 45)
+    structure = extract(
+        layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A], release=[straddling]), stack, params()
+    )
+    inside_mass = 2330 * 25 * UM * (10 * UM) * (5 * UM)
+    assert structure.bodies[1].inertial.mass == pytest.approx(solid_mass - inside_mass)
+
     corner = box(380, 80, 388, 88)
     perforated = Polygon(PAD_B.exterior, [corner.exterior])
     structure = extract(layout_um([PAD_A, BEAM, perforated], [HANDLE_A]), stack, params())
@@ -140,3 +147,18 @@ def test_candidates_joined_by_a_sliver_narrower_than_heal_distance_are_separate_
     assert len(structure.beams) == 2
     assert all(beam.width == pytest.approx(10 * UM, rel=1e-3) for beam in structure.beams)
     assert all(beam.length == pytest.approx(200 * UM, rel=1e-3) for beam in structure.beams)
+
+
+def test_cavity_that_healing_closes_is_a_release_hole(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    cavity, slit = box(40, 40, 45, 45), box(45, 42, 100, 42.015)
+    pad = PAD_A.difference(cavity.union(slit))
+    structure = extract(layout_um([pad, BEAM, PAD_B], [HANDLE_A]), stack, params())
+    anchor = structure.bodies[0]
+    assert len(anchor.device.geoms[0].interiors) == 0
+    assert not anchor.box.intersects(at(42.5, 42.5))
+    assert anchor.box.contains(at(30, 30))
+    device_mass = anchor.inertial.mass - 2330 * 400 * UM * anchor.handle.area
+    device_mass -= 2200 * 2 * UM * anchor.box.area
+    assert device_mass == pytest.approx(2330 * 25 * UM * (100 * 100 - 5 * 5) * UM * UM, rel=1e-4)

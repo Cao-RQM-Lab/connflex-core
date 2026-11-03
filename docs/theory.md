@@ -77,6 +77,14 @@ by dividing its geometric area by its length, and its thickness $t$ is the
 device layer thickness.
 
 !!! note "Implementation choices"
+    Release holes inside the device layer are identified and filled before the
+    healing of (1), so healing runs on the filled outlines rather than on every
+    hole outline. Healing adds material and never removes it, so it cannot merge
+    holes; it can only close a cavity whose wall has a gap narrower than
+    $2 r_h$. The healed polygons are therefore scanned once more and any cavity
+    at or below $A_\text{min}$ that healing closed joins the release holes.
+    Holes found in the first pass keep their drawn outlines.
+
     The width uses the area of the unexpanded candidate $D - B$, so the
     expansion by $\epsilon$ cannot inflate it. Beam endpoints are placed at the
     overlap centroids at the device mid-plane, $z = -t_\text{device}/2$.

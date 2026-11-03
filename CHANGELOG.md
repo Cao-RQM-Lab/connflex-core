@@ -13,8 +13,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Layout` with shapely and GDS readers and an adapter registry. The GDS reader
   rebuilds holes from cut lines and verifies every repaired area against the
   file.
-- `extract` producing a `Structure` of rigid bodies and beams: layer healing,
-  release-hole and oxide estimate, anchor selection, pruning, body assembly
+- `extract` producing a `Structure` of rigid bodies and beams: release holes
+  identified before healing and again after it, layer healing, oxide estimate, anchor selection, pruning, body assembly
   through the stack, beam qualification with slivers narrower than
   `heal_distance` dropped, a networkx graph, and a JSON tree.
 - Mass, center of mass, and inertia tensor of every body by triangulated
