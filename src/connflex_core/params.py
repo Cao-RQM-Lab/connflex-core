@@ -33,7 +33,7 @@ class ExtractionParams:
             handle polygon containing it, and an int selects a handle polygon by index in
             order of descending area.
         buffer_resolution: Segments per quarter circle of the round release undercut. Healing
-            and the body opening use mitred corners.
+            and the body opening use mitered corners.
         precision_grid: Snap grid applied before overlay operations. None disables snapping.
     """
 

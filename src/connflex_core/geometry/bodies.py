@@ -46,15 +46,15 @@ def layered_components(layers: Sequence[Sequence[Polygon]], seed: Node) -> list[
         while queue:
             node = queue.popleft()
             component.append(node)
-            for neighbour in _overlapping_neighbours(layers, trees, node):
-                if neighbour not in visited:
-                    visited.add(neighbour)
-                    queue.append(neighbour)
+            for neighbor in _overlapping_neighbors(layers, trees, node):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
         components.append(component)
     return components
 
 
-def _overlapping_neighbours(
+def _overlapping_neighbors(
     layers: Sequence[Sequence[Polygon]], trees: Sequence[STRtree], node: Node
 ) -> Iterator[Node]:
     layer, index = node
