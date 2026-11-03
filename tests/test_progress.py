@@ -111,3 +111,16 @@ def test_extract_reports_every_stage_in_order(
     assert totals["mass"] == len(structure.bodies)
     assert totals["beams"] == len(structure.beams) + len(structure.rejected)
     assert len(caplog.records) == 2 * len(EXTRACT_STAGES)
+
+
+def test_modal_and_static_report_assemble_and_solve(
+    stack: Stack, params: Callable[..., ExtractionParams], layout_um: Callable[..., Layout]
+) -> None:
+    structure = extract(layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A]), stack, params())
+    for solve in (
+        lambda recorder: structure.modal(progress=recorder),
+        lambda recorder: structure.static({1: [1e-6, 0, 0, 0, 0, 0]}, progress=recorder),
+    ):
+        recorder = Recorder()
+        solve(recorder)
+        assert recorder.runs == [Run("assemble", None, 0, True), Run("solve", None, 0, True)]

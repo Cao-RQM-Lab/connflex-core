@@ -15,6 +15,7 @@ from connflex_core.electrical.nets import Nets
 from connflex_core.materials import Material
 from connflex_core.mechanics.inertia import MassProperties
 from connflex_core.params import SolveOptions
+from connflex_core.progress import Progress
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -118,17 +119,21 @@ class Structure:
             graph.add_edge(*beam.bodies, key=beam.index, beam=beam)
         return graph
 
-    def modal(self, options: SolveOptions | None = None) -> ModalResult:
+    def modal(
+        self, options: SolveOptions | None = None, *, progress: Progress | None = None
+    ) -> ModalResult:
         """Resonant frequencies and mode shapes of the assembled system."""
         from connflex_core.mechanics.modal import modal
 
-        return modal(self, options)
+        return modal(self, options, progress=progress)
 
-    def static(self, loads: Mapping[int, Sequence[float]]) -> NDArray[np.float64]:
+    def static(
+        self, loads: Mapping[int, Sequence[float]], *, progress: Progress | None = None
+    ) -> NDArray[np.float64]:
         """Displacements under static generalized forces, keyed by body index."""
         from connflex_core.mechanics.modal import static
 
-        return static(self, loads)
+        return static(self, loads, progress=progress)
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-serializable tree with polygons as GeoJSON-style mappings."""

@@ -15,6 +15,7 @@ from numpy.typing import NDArray
 from connflex_core.mechanics.assembly import Dof, assemble
 from connflex_core.model import Structure
 from connflex_core.params import SolveOptions
+from connflex_core.progress import Progress, stage
 
 
 @dataclass(frozen=True, eq=False)
@@ -48,34 +49,41 @@ class ModalResult:
         )
 
 
-def modal(structure: Structure, options: SolveOptions | None = None) -> ModalResult:
+def modal(
+    structure: Structure, options: SolveOptions | None = None, *, progress: Progress | None = None
+) -> ModalResult:
     """Solve the generalized eigenproblem of the assembled matrices for resonant modes.
 
     The dense solver returns all modes or the lowest ``n_modes``. The sparse solver uses
     shift-invert iteration about ``sigma`` and needs ``n_modes`` smaller than the number of
-    degrees of freedom and a nonsingular shifted stiffness.
+    degrees of freedom and a nonsingular shifted stiffness. Stages assemble and solve log
+    through the ``connflex_core`` logger and report to ``progress``.
     """
     options = options or SolveOptions()
-    system = assemble(structure)
+    with stage("assemble", progress) as current:
+        system = assemble(structure)
+        current.count(dofs=len(system.dofs), beams=len(structure.beams))
     size = system.mass.shape[0]
     if size == 0:
         raise ValueError("structure has no movable bodies")
     count = size if options.n_modes is None else min(options.n_modes, size)
-    if options.method == "sparse":
-        if count >= size:
-            raise ValueError("sparse solver needs n_modes below the number of degrees of freedom")
-        values, vectors = scipy.sparse.linalg.eigsh(
-            scipy.sparse.csr_matrix(system.stiffness),
-            k=count,
-            M=scipy.sparse.csr_matrix(system.mass),
-            sigma=options.sigma,
-        )
-        order = np.argsort(values)
-        values, vectors = values[order], vectors[:, order]
-    else:
-        values, vectors = scipy.linalg.eigh(
-            system.stiffness, system.mass, subset_by_index=[0, count - 1]
-        )
+    if options.method == "sparse" and count >= size:
+        raise ValueError("sparse solver needs n_modes below the number of degrees of freedom")
+    with stage("solve", progress) as current:
+        if options.method == "sparse":
+            values, vectors = scipy.sparse.linalg.eigsh(
+                scipy.sparse.csr_matrix(system.stiffness),
+                k=count,
+                M=scipy.sparse.csr_matrix(system.mass),
+                sigma=options.sigma,
+            )
+            order = np.argsort(values)
+            values, vectors = values[order], vectors[:, order]
+        else:
+            values, vectors = scipy.linalg.eigh(
+                system.stiffness, system.mass, subset_by_index=[0, count - 1]
+            )
+        current.count(modes=count)
     frequencies = np.sqrt(np.clip(values, 0.0, None)) / (2 * np.pi)
     return ModalResult(
         frequencies_hz=frequencies,
@@ -86,13 +94,18 @@ def modal(structure: Structure, options: SolveOptions | None = None) -> ModalRes
     )
 
 
-def static(structure: Structure, loads: Mapping[int, Sequence[float]]) -> NDArray[np.float64]:
+def static(
+    structure: Structure, loads: Mapping[int, Sequence[float]], *, progress: Progress | None = None
+) -> NDArray[np.float64]:
     """Displacements under static loads.
 
     ``loads`` maps a body index to its six generalized forces (fx, fy, fz, tx, ty, tz) at its
-    center of mass. The result has one entry per row of the assembled matrices.
+    center of mass. The result has one entry per row of the assembled matrices. Stages
+    assemble and solve log through the ``connflex_core`` logger and report to ``progress``.
     """
-    system = assemble(structure)
+    with stage("assemble", progress) as current:
+        system = assemble(structure)
+        current.count(dofs=len(system.dofs), beams=len(structure.beams))
     rows = {body: row for row, (body, name) in enumerate(system.dofs) if name == "ux"}
     force = np.zeros(len(system.dofs))
     for body, load in loads.items():
@@ -101,10 +114,13 @@ def static(structure: Structure, loads: Mapping[int, Sequence[float]]) -> NDArra
         if len(load) != 6:
             raise ValueError(f"load on body {body} must have six components")
         force[rows[body] : rows[body] + 6] = load
-    try:
-        displacement: NDArray[np.float64] = scipy.linalg.solve(
-            system.stiffness, force, assume_a="sym"
-        )
-    except scipy.linalg.LinAlgError as exc:
-        raise ValueError("stiffness matrix is singular: a body has no path to the anchor") from exc
+    with stage("solve", progress):
+        try:
+            displacement: NDArray[np.float64] = scipy.linalg.solve(
+                system.stiffness, force, assume_a="sym"
+            )
+        except scipy.linalg.LinAlgError as exc:
+            raise ValueError(
+                "stiffness matrix is singular: a body has no path to the anchor"
+            ) from exc
     return displacement
