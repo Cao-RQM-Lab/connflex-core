@@ -16,7 +16,7 @@ Symbols refer to the [theory of operation](theory.md).
 | --- | --- | --- | --- |
 | `heal_distance` | $r_h$ | 10 nm | Buffer out then in on the device and handle layers to close hairline gaps, equation (1). |
 | `simplify_tolerance` | $r_h$ | = `heal_distance` | Douglas–Peucker tolerance applied after healing. |
-| `release_hole_max_area` | $A_\text{min}$ | **required** | Holes inside device polygons at or below this area are release holes. |
+| `release_hole_max_area` | $A_\text{min}$ | **required** | Holes inside device polygons at or below this area are release holes: they enter the release estimate, are removed from the device-layer mass, and are filled for connectivity and beam extraction. |
 | `release_distance` | $d$ | **required** | Isotropic undercut of the surviving buried oxide, equation (2). |
 | `body_min_width` | $w_\text{min}$ | **required** | Features narrower than this become beam candidates, equation (3). Also the upper width bound of a beam. |
 | `beam_overlap_margin` | $\epsilon$ | = `heal_distance` | Expansion of beam candidates so they overlap the bodies they touch, equation (4). |

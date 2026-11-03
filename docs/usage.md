@@ -106,8 +106,9 @@ layer, the oxide, and the handle, and the device regions removed by the
 opening become beams when they touch exactly two bodies and their width lies
 within `beam_width_min` and `beam_width_max`. Each body carries its mass,
 center of mass, and inertia tensor, computed layer by layer from the stack
-with exact triangulated quadrature; `body.inertial.matrix` is the 6 by 6 mass
-matrix in the body degrees of freedom.
+with exact triangulated quadrature and with the release openings removed from
+the device layer; `body.inertial.matrix` is the 6 by 6 mass matrix in the body
+degrees of freedom.
 
 A candidate that touches one body is a stub, one that touches three or more
 is a junction; both appear in `structure.rejected` with that reason, which is

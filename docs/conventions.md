@@ -23,7 +23,8 @@ polygons within one role are unioned.
 
 - **`release` absent:** holes inside device polygons with area at or below
   `release_hole_max_area` are the release holes. They enter the oxide
-  survival estimate and are then filled. When a `release` layer is given it is
+  survival estimate, are removed from the device-layer mass, and are filled
+  for connectivity and beam extraction. When a `release` layer is given it is
   unioned with such holes.
 - **`vias` absent:** no vias. Each connected device island and each connected
   handle island is its own net.

@@ -81,7 +81,10 @@ device layer thickness.
     expansion by $\epsilon$ cannot inflate it. Beam endpoints are placed at the
     overlap centroids at the device mid-plane, $z = -t_\text{device}/2$.
     Candidates whose width falls outside the configured bounds are discarded
-    like any other rejected candidate. Beams carry stiffness but no mass.
+    like any other rejected candidate. Beams carry stiffness but no mass. Release
+    openings, whether found as holes in the device layer or drawn on the release
+    layer, are subtracted from the device-layer mass properties of a body; the filled
+    polygons are kept only for connectivity and beam extraction.
 
 ## Body mass and moment of inertia
 
