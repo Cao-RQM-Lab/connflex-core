@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Generated at build time
+src/connflex_core/_version.py
+
+# Tooling caches and reports
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Docs build output
+site/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Local planning notes
+PLAN.md
+
+# AI assistant files
+CLAUDE.md
+AGENTS.md
+.claude/
+.agent/
+.agents/
+.codex/
+
+# Secrets
+.env
+.secrets

@@ -1,0 +1,36 @@
+name: Bug report
+description: A wrong result, a crash, or behavior that differs from the documentation.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the full traceback if there was one.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest script or layout that shows the problem.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: params
+    attributes:
+      label: Stack and extraction parameters
+      render: toml
+  - type: input
+    id: version
+    attributes:
+      label: connflex-core version
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Python version and operating system
+    validations:
+      required: true

@@ -1,0 +1,103 @@
+[build-system]
+requires = ["hatchling>=1.27", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "connflex-core"
+dynamic = ["version"]
+description = "Reduced-order mechanical models and electrical nets from GDS layouts and polygons"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Cao Reconfigurable Quantum Materials Lab at UC Berkeley" }]
+keywords = ["MEMS", "GDS", "SOI", "polygon", "mechanics", "modal analysis", "shapely"]
+classifiers = [
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering",
+  "Typing :: Typed",
+]
+dependencies = [
+  "shapely>=2.1",
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "networkx>=3.1",
+]
+
+[project.optional-dependencies]
+gds = ["gdstk>=0.9"]
+gdsfactory = ["gdsfactory>=9.46"]
+klayout = ["klayout>=0.29"]
+all = ["connflex-core[gds,gdsfactory,klayout]"]
+dev = [
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "black>=25.1",
+  "ruff>=0.14",
+  "mypy>=1.18",
+  "pre-commit>=4.0",
+  "build>=1.2",
+  "twine>=6.0",
+]
+docs = [
+  "mkdocs-material>=9.6",
+  "mkdocstrings[python]>=0.30",
+]
+
+[project.urls]
+Homepage = "https://github.com/Cao-RQM-Lab/connflex-core"
+Documentation = "https://cao-rqm-lab.github.io/connflex-core/"
+Repository = "https://github.com/Cao-RQM-Lab/connflex-core"
+Issues = "https://github.com/Cao-RQM-Lab/connflex-core/issues"
+Discussions = "https://github.com/Cao-RQM-Lab/connflex-core/discussions"
+Changelog = "https://github.com/Cao-RQM-Lab/connflex-core/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/connflex_core"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [".github", "docs", "mkdocs.yml", ".pre-commit-config.yaml", ".actrc"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312", "py313", "py314"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM", "RUF", "NPY", "PT"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src", "tests"]
+strict = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["shapely.*", "networkx.*", "scipy.*", "gdstk.*", "gdsfactory.*", "klayout.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+xfail_strict = true
+
+[tool.coverage.run]
+source = ["connflex_core"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true

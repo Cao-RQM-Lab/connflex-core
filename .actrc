@@ -1,0 +1,4 @@
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+--container-architecture linux/amd64
+--env SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0
+--env PATH=/opt/acttoolcache/node/24.19.0/x64/bin:/opt/acttoolcache/node/20.20.2/x64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
