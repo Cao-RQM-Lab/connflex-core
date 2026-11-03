@@ -80,6 +80,9 @@ device layer thickness.
     The width uses the area of the unexpanded candidate $D - B$, so the
     expansion by $\epsilon$ cannot inflate it. Beam endpoints are placed at the
     overlap centroids at the device mid-plane, $z = -t_\text{device}/2$.
+    Candidate parts narrower than $r_h$ are removed by an opening before
+    qualification, since the body opening in (3) does not reproduce device edges
+    exactly and would otherwise leave hairlines that join separate candidates.
     Candidates whose width falls outside the configured bounds are discarded
     like any other rejected candidate. Beams carry stiffness but no mass. Release
     openings, whether found as holes in the device layer or drawn on the release

@@ -129,3 +129,14 @@ def test_release_openings_are_removed_from_the_device_mass(
     expected_x = (350 * pad_area - 384 * hole_area) / (pad_area - hole_area) * UM
     expected_y = (50 * pad_area - 84 * hole_area) / (pad_area - hole_area) * UM
     assert structure.bodies[1].inertial.center[:2] == pytest.approx([expected_x, expected_y])
+
+
+def test_candidates_joined_by_a_sliver_narrower_than_heal_distance_are_separate_beams(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    legs = [box(100, 15, 300, 25), box(100, 75, 300, 85)]
+    bridge = box(200, 25, 200.002, 75)
+    structure = extract(layout_um([PAD_A, *legs, bridge, PAD_B], [HANDLE_A]), stack, params())
+    assert len(structure.beams) == 2
+    assert all(beam.width == pytest.approx(10 * UM, rel=1e-3) for beam in structure.beams)
+    assert all(beam.length == pytest.approx(200 * UM, rel=1e-3) for beam in structure.beams)

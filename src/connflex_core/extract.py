@@ -82,8 +82,7 @@ def extract(
     conductors = STRtree(device_parts)
 
     def net_of(polygon: Polygon) -> int:
-        (i,) = conductors.query(polygon.representative_point(), predicate="within")
-        return nets.conductors[int(i)].net
+        return nets.conductors[int(conductors.nearest(polygon.representative_point()))].net
 
     with stage("opening", progress) as current:
         body_parts = _by_area(opening(device, params.body_min_width / 2))
@@ -119,7 +118,7 @@ def extract(
             current.advance()
 
     with stage("candidates", progress) as current:
-        candidates = beam_candidates(device, body_parts)
+        candidates = beam_candidates(device, body_parts, params.heal_distance)
         current.count(candidates=len(candidates.geoms))
     with stage("beams", progress, total=len(candidates.geoms)) as current:
         beams, rejected = find_beams(

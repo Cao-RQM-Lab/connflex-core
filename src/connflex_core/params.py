@@ -22,6 +22,7 @@ class ExtractionParams:
         body_min_width: Features narrower than this are not rigid bodies and become beam
             candidates. Also the default upper width bound of a beam.
         heal_distance: Buffer out then in on device and handle layers to close hairline gaps.
+            Beam candidates narrower than this are dropped as slivers of the body opening.
         simplify_tolerance: Douglas-Peucker tolerance applied after healing. None means
             heal_distance.
         beam_overlap_margin: Expansion of beam candidates so they overlap the bodies they touch.

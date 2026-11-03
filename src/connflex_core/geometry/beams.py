@@ -7,13 +7,20 @@ from collections.abc import Callable, Sequence
 import shapely
 from shapely import MultiPolygon, Polygon, STRtree
 
-from connflex_core.geometry.heal import as_multipolygon
+from connflex_core.geometry.heal import as_multipolygon, opening
 from connflex_core.model import Beam, RejectedCandidate
 
 
-def beam_candidates(device: MultiPolygon, body_parts: Sequence[Polygon]) -> MultiPolygon:
-    """Device regions outside the bodies."""
-    return as_multipolygon(device.difference(shapely.union_all(list(body_parts))))
+def beam_candidates(
+    device: MultiPolygon, body_parts: Sequence[Polygon], sliver: float
+) -> MultiPolygon:
+    """Device regions outside the bodies, with parts narrower than ``sliver`` removed.
+
+    The body opening does not reproduce device edges bit for bit, so the difference leaves
+    hairlines along them that would join separate candidates into one.
+    """
+    outside = as_multipolygon(device.difference(shapely.union_all(list(body_parts))))
+    return opening(outside, sliver / 2)
 
 
 def find_beams(
