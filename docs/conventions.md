@@ -40,5 +40,5 @@ polygons within one role are unioned.
 ## Units
 
 SI throughout: meters, square meters, kilograms, pascals, hertz. The GDS
-reader applies the unit stored in the file. The shapely, gdsfactory, and
-klayout readers take a `unit` scale factor.
+reader applies the unit stored in the file. The shapely reader takes a
+`unit` scale factor.

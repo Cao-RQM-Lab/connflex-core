@@ -6,14 +6,11 @@ Python 3.11 or newer.
 pip install connflex-core
 ```
 
-Readers for layout formats are optional extras:
+The GDS reader is an optional extra:
 
 | Extra | Installs | Notes |
 | --- | --- | --- |
 | `gds` | gdstk | Reads GDSII files. |
-| `gdsfactory` | gdsfactory 9.46 or newer | Accepts gdsfactory components. Large dependency tree. |
-| `klayout` | klayout | Accepts klayout cells. The klayout package is GPL-3 licensed and is only imported when installed. |
-| `all` | all of the above | |
 
 ```sh
 pip install "connflex-core[gds]"

@@ -18,7 +18,6 @@ Python 3.11 or newer.
 ```sh
 pip install connflex-core          # core
 pip install "connflex-core[gds]"   # with the gdstk reader for GDS files
-pip install "connflex-core[all]"   # with the gdsfactory and klayout readers too
 ```
 
 ## Usage
