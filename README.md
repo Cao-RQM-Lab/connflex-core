@@ -3,7 +3,7 @@
 [![CI](https://github.com/Cao-RQM-Lab/connflex-core/actions/workflows/ci.yml/badge.svg)](https://github.com/Cao-RQM-Lab/connflex-core/actions/workflows/ci.yml)
 [![Docs](https://github.com/Cao-RQM-Lab/connflex-core/actions/workflows/docs.yml/badge.svg)](https://cao-rqm-lab.github.io/connflex-core/)
 [![PyPI](https://img.shields.io/pypi/v/connflex-core.svg)](https://pypi.org/project/connflex-core/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Cao-RQM-Lab/connflex-core/blob/main/LICENSE)
 
 Headless Python library that turns a GDS layout, or any set of polygons, of a
 silicon-on-insulator (SOI) MEMS process into a reduced-order mechanical model:
@@ -60,7 +60,7 @@ node tree, and numpy arrays. All units are SI.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Bugs and feature requests go to
+See [CONTRIBUTING.md](https://github.com/Cao-RQM-Lab/connflex-core/blob/main/CONTRIBUTING.md). Bugs and feature requests go to
 [GitHub Issues](https://github.com/Cao-RQM-Lab/connflex-core/issues),
 questions to
 [GitHub Discussions](https://github.com/Cao-RQM-Lab/connflex-core/discussions).
@@ -73,4 +73,4 @@ authors, and the authors are responsible for the final code and documentation.
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](https://github.com/Cao-RQM-Lab/connflex-core/blob/main/LICENSE).
