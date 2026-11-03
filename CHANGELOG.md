@@ -17,5 +17,8 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Mass, center of mass, and inertia tensor of every body by triangulated
   quadrature over the stack, with the 6 by 6 body mass matrix. Release openings are
   removed from the device-layer mass.
+- Beam stiffness: torsion constant with the short-beam correction, the local
+  12 by 12 Euler-Bernoulli matrix, and the transformation onto body degrees of
+  freedom.
 
 [Unreleased]: https://github.com/Cao-RQM-Lab/connflex-core/commits/main
