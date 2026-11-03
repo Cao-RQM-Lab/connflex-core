@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from os import PathLike
 from typing import TYPE_CHECKING
@@ -22,7 +23,8 @@ def load_gds(path: str | PathLike[str], *, layers: LayerMap, cell: str | None = 
 
     The unit stored in the file is applied. ``cell`` names the cell to read and is required
     when the file has more than one top-level cell. Polygons with cut lines, which is how
-    GDSII stores holes, are repaired into polygons with holes.
+    GDSII stores holes, are repaired into polygons with holes, and the repaired area is
+    verified against the file's polygon.
     """
     try:
         import gdstk
@@ -40,7 +42,16 @@ def load_gds(path: str | PathLike[str], *, layers: LayerMap, cell: str | None = 
         found = top.get_polygons(
             apply_repetitions=True, include_paths=True, depth=None, layer=spec[0], datatype=spec[1]
         )
-        polygons = [part for polygon in found for part in _polygons(_repair(polygon.points))]
+        polygons: list[Polygon] = []
+        for index, polygon in enumerate(found):
+            parts = _polygons(_repair(polygon.points))
+            area, expected = sum(part.area for part in parts), polygon.area()
+            if not math.isclose(area, expected, rel_tol=1e-6):
+                raise ValueError(
+                    f"polygon {index} on {role} layer {spec} in cell {top.name!r} of {path} "
+                    f"has area {area:g} after repair but {expected:g} in the file"
+                )
+            polygons.extend(parts)
         if polygons:
             roles[role] = polygons
         elif role in ("device", "handle"):
@@ -64,7 +75,7 @@ def _top_cell(library: gdstk.Library, name: str | None, path: str) -> gdstk.Cell
 
 
 def _repair(points: Sequence[tuple[float, float]]) -> BaseGeometry:
-    return shapely.make_valid(Polygon(points))
+    return shapely.make_valid(Polygon(points), method="structure", keep_collapsed=False)
 
 
 def _polygons(geometry: BaseGeometry) -> list[Polygon]:
