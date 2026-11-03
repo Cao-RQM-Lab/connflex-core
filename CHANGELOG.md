@@ -23,4 +23,10 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Assembly of the 6N by 6N mass and stiffness matrices, modal analysis with
   dense and sparse solvers, `ModalResult` with `.npz` export, and a static solve.
 
+### Fixed
+
+- GDS polygons whose cut line runs along an edge were repaired with the hole
+  filled, merging independent bodies into the anchor. The reader now rebuilds
+  holes from ring nesting and verifies every repaired area against the file.
+
 [Unreleased]: https://github.com/Cao-RQM-Lab/connflex-core/commits/main

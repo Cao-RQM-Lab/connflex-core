@@ -23,7 +23,8 @@ and `vias`. Every polygon marks where the named feature is present; see the
 
     The file's unit is applied. Pass `cell="NAME"` when the file has more than
     one top-level cell. Holes stored as cut lines are repaired into polygons
-    with holes.
+    with holes, and each repaired polygon must keep the area recorded in the
+    file; a mismatch is an error naming the polygon.
 
 === "shapely"
 
