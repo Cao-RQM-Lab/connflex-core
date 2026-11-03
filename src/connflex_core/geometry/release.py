@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
-import shapely
 from shapely import MultiPolygon, Polygon
 
 from connflex_core.geometry.heal import as_multipolygon
@@ -33,14 +30,16 @@ def fill_release_holes(device: MultiPolygon, max_area: float) -> tuple[MultiPoly
 def surviving_box(
     device: MultiPolygon,
     handle: MultiPolygon,
-    release: MultiPolygon | None,
-    holes: Sequence[Polygon],
+    openings: MultiPolygon,
     distance: float,
     resolution: int,
 ) -> MultiPolygon:
-    """Oxide protected by both layers, minus openings, eroded by undercut ``distance``."""
+    """Oxide protected by both layers, minus ``openings``, eroded by undercut ``distance``.
+
+    ``openings`` holds the release holes and the release layer as disjoint polygons. It is
+    built once by ``extract`` and shared with the mass properties.
+    """
     protected = device.intersection(handle)
-    openings = [*holes, *(release.geoms if release is not None else [])]
-    if openings:
-        protected = protected.difference(shapely.union_all(openings))
+    if not openings.is_empty:
+        protected = protected.difference(openings)
     return as_multipolygon(protected.buffer(-distance, quad_segs=resolution))

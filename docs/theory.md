@@ -83,7 +83,11 @@ device layer thickness.
     holes; it can only close a cavity whose wall has a gap narrower than
     $2 r_h$. The healed polygons are therefore scanned once more and any cavity
     at or below $A_\text{min}$ that healing closed joins the release holes.
-    Holes found in the first pass keep their drawn outlines.
+    Holes found in the first pass keep their drawn outlines. Interior rings of a
+    valid polygon are disjoint, and a cavity closed by healing lay in open
+    space before it, so the release holes never overlap one another; they are
+    unioned only with a drawn release layer. The resulting openings are built
+    once and serve both the oxide estimate in (2) and the mass properties.
 
     The width uses the area of the unexpanded candidate $D - B$, so the
     expansion by $\epsilon$ cannot inflate it. Beam endpoints are placed at the

@@ -36,7 +36,7 @@ def test_small_holes_are_filled_and_reported() -> None:
 def test_surviving_box_excludes_openings_and_undercut() -> None:
     plate = MultiPolygon([box(0, 0, 100 * UM, 100 * UM)])
     opening_ = MultiPolygon([box(40 * UM, 40 * UM, 60 * UM, 60 * UM)])
-    survivor = surviving_box(plate, plate, opening_, [], distance=5 * UM, resolution=8)
+    survivor = surviving_box(plate, plate, opening_, distance=5 * UM, resolution=8)
     assert survivor.bounds == pytest.approx((5 * UM, 5 * UM, 95 * UM, 95 * UM))
     assert not survivor.intersects(Polygon(box(36 * UM, 50 * UM, 64 * UM, 50.1 * UM)))
     assert survivor.contains(Polygon(box(20 * UM, 48 * UM, 30 * UM, 52 * UM)))
