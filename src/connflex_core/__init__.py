@@ -15,6 +15,7 @@ from connflex_core.mechanics.inertia import MassProperties
 from connflex_core.mechanics.modal import ModalResult
 from connflex_core.model import Beam, Body, RejectedCandidate, Structure
 from connflex_core.params import ExtractionParams, SolveOptions
+from connflex_core.progress import Progress
 from connflex_core.stack import Layer, Stack
 
 __version__ = version("connflex-core")
@@ -31,6 +32,7 @@ __all__ = [
     "Material",
     "ModalResult",
     "Nets",
+    "Progress",
     "RejectedCandidate",
     "SolveOptions",
     "Stack",
