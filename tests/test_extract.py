@@ -121,3 +121,11 @@ def test_release_openings_are_removed_from_the_device_mass(
         layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A], release=[hole]), stack, params()
     )
     assert structure.bodies[1].inertial.mass == pytest.approx(solid_mass - hole_mass)
+
+    corner = box(380, 80, 388, 88)
+    perforated = Polygon(PAD_B.exterior, [corner.exterior])
+    structure = extract(layout_um([PAD_A, BEAM, perforated], [HANDLE_A]), stack, params())
+    pad_area, hole_area = 100 * 100, 8 * 8
+    expected_x = (350 * pad_area - 384 * hole_area) / (pad_area - hole_area) * UM
+    expected_y = (50 * pad_area - 84 * hole_area) / (pad_area - hole_area) * UM
+    assert structure.bodies[1].inertial.center[:2] == pytest.approx([expected_x, expected_y])
