@@ -1,23 +1,52 @@
 import logging
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import pytest
+from shapely import box
 
+from connflex_core import ExtractionParams, Layout, Stack, extract
 from connflex_core.progress import stage
+
+EXTRACT_STAGES = [
+    "heal",
+    "release",
+    "prune",
+    "nets",
+    "opening",
+    "bodies",
+    "mass",
+    "candidates",
+    "beams",
+]
+PAD_A, BEAM, PAD_B = box(0, 0, 100, 100), box(100, 45, 300, 55), box(300, 0, 400, 100)
+HANDLE_A = box(-50, -50, 150, 150)
+
+
+@dataclass
+class Run:
+    name: str
+    total: int | None
+    done: int = 0
+    finished: bool = False
 
 
 class Recorder:
     def __init__(self) -> None:
-        self.events: list[tuple[object, ...]] = []
+        self.runs: list[Run] = []
 
     def start(self, stage: str, total: int | None) -> None:
-        self.events.append(("start", stage, total))
+        assert not self.runs or self.runs[-1].finished
+        self.runs.append(Run(stage, total))
 
     def advance(self, n: int = 1) -> None:
-        self.events.append(("advance", n))
+        assert not self.runs[-1].finished
+        self.runs[-1].done += n
 
     def finish(self) -> None:
-        self.events.append(("finish",))
+        assert not self.runs[-1].finished
+        self.runs[-1].finished = True
 
 
 def test_package_logger_is_silent_without_a_handler() -> None:
@@ -34,7 +63,7 @@ def test_stage_logs_both_ends_and_forwards_events(caplog: pytest.LogCaptureFixtu
         current.advance(2)
         current.advance()
         current.count(device=5, handle=1)
-    assert recorder.events == [("start", "heal", 3), ("advance", 2), ("advance", 1), ("finish",)]
+    assert recorder.runs == [Run("heal", 3, 3, True)]
     messages = [record.getMessage() for record in caplog.records]
     assert messages[0] == "heal: started"
     assert re.fullmatch(r"heal: done in \d+\.\d+ s, device 5, handle 1", messages[1])
@@ -50,7 +79,7 @@ def test_stage_finishes_the_callback_when_the_body_raises(
         stage("release", recorder),
     ):
         raise RuntimeError
-    assert recorder.events == [("start", "release", None), ("finish",)]
+    assert recorder.runs == [Run("release", None, 0, True)]
     assert [record.getMessage() for record in caplog.records] == ["release: started"]
 
 
@@ -58,3 +87,27 @@ def test_stage_without_a_callback_only_logs(caplog: pytest.LogCaptureFixture) ->
     with caplog.at_level(logging.INFO, logger="connflex_core"), stage("prune", None) as current:
         current.advance()
     assert len(caplog.records) == 2
+
+
+def test_extract_reports_every_stage_in_order(
+    stack: Stack,
+    params: Callable[..., ExtractionParams],
+    layout_um: Callable[..., Layout],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    recorder = Recorder()
+    with caplog.at_level(logging.INFO, logger="connflex_core"):
+        structure = extract(
+            layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A]), stack, params(), progress=recorder
+        )
+    assert [run.name for run in recorder.runs] == EXTRACT_STAGES
+    assert all(run.finished for run in recorder.runs)
+    assert all(run.total is None or run.done == run.total for run in recorder.runs)
+    totals = {run.name: run.total for run in recorder.runs}
+    assert totals["bodies"] == sum(
+        len(body.device.geoms) + len(body.box.geoms) + len(body.handle.geoms)
+        for body in structure.bodies
+    )
+    assert totals["mass"] == len(structure.bodies)
+    assert totals["beams"] == len(structure.beams) + len(structure.rejected)
+    assert len(caplog.records) == 2 * len(EXTRACT_STAGES)

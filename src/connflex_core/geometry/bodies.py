@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 
 from shapely import Point, Polygon, STRtree
 
@@ -27,11 +27,13 @@ def select_anchor(handle: Sequence[Polygon], anchor: int | tuple[float, float] |
     raise ValueError(f"anchor point {anchor} lies in no handle polygon")
 
 
-def layered_components(layers: Sequence[Sequence[Polygon]], seed: Node) -> list[list[Node]]:
+def layered_components(
+    layers: Sequence[Sequence[Polygon]], seed: Node, advance: Callable[[], None] | None = None
+) -> list[list[Node]]:
     """Connected components where polygons in adjacent layers connect when they overlap.
 
     Nodes are ``(layer, index)`` pairs. The component containing ``seed`` comes first;
-    others follow in layer and index order.
+    others follow in layer and index order. ``advance`` is called once per polygon claimed.
     """
     trees = [STRtree(list(layer)) for layer in layers]
     visited: set[Node] = set()
@@ -46,6 +48,8 @@ def layered_components(layers: Sequence[Sequence[Polygon]], seed: Node) -> list[
         while queue:
             node = queue.popleft()
             component.append(node)
+            if advance is not None:
+                advance()
             for neighbor in _overlapping_neighbors(layers, trees, node):
                 if neighbor not in visited:
                     visited.add(neighbor)

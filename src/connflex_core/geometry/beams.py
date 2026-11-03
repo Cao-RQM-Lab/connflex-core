@@ -11,8 +11,13 @@ from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.model import Beam, RejectedCandidate
 
 
+def beam_candidates(device: MultiPolygon, body_parts: Sequence[Polygon]) -> MultiPolygon:
+    """Device regions outside the bodies."""
+    return as_multipolygon(device.difference(shapely.union_all(list(body_parts))))
+
+
 def find_beams(
-    device: MultiPolygon,
+    candidates: MultiPolygon,
     body_parts: Sequence[Polygon],
     body_of: Sequence[int],
     *,
@@ -21,18 +26,21 @@ def find_beams(
     width_max: float,
     thickness: float,
     net_of: Callable[[Polygon], int],
+    advance: Callable[[], None] | None = None,
 ) -> tuple[list[Beam], list[RejectedCandidate]]:
-    """Qualify device regions outside the bodies as beams joining exactly two bodies.
+    """Qualify beam candidates as beams joining exactly two bodies.
 
     ``body_parts`` are the device-layer polygons of all bodies and ``body_of`` maps each part
-    to its body index. ``net_of`` gives the net of a device-layer region.
+    to its body index. ``net_of`` gives the net of a device-layer region. ``advance`` is
+    called once per candidate.
     """
     tree = STRtree(list(body_parts))
-    candidates = as_multipolygon(device.difference(shapely.union_all(list(body_parts))))
     z = -thickness / 2
     beams: list[Beam] = []
     rejected: list[RejectedCandidate] = []
     for candidate in candidates.geoms:
+        if advance is not None:
+            advance()
         expanded = candidate.buffer(margin, join_style="mitre")
         touched: dict[int, list[Polygon]] = {}
         for j in tree.query(expanded, predicate="intersects"):
