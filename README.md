@@ -36,7 +36,8 @@ params = cf.ExtractionParams(
 )
 
 structure = cf.extract(layout, stack, params)
-structure.bodies, structure.beams, structure.graph
+result = structure.modal()
+print(result.frequencies_hz[:5])
 ```
 
 Inputs are four polygon roles: `device`, `handle`, and optionally `release`

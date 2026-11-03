@@ -113,3 +113,28 @@ degrees of freedom.
 A candidate that touches one body is a stub, one that touches three or more
 is a junction; both appear in `structure.rejected` with that reason, which is
 the first place to look when an expected beam is missing.
+
+## Solve
+
+```python
+result = structure.modal()
+result = structure.modal(cf.SolveOptions(n_modes=10, method="sparse"))
+
+result.frequencies_hz  # ascending
+result.modes  # one column per mode, mass-normalized; rows follow result.dofs
+result.dofs  # (body index, "ux" | "uy" | "uz" | "tx" | "ty" | "tz") per row
+result.mass, result.stiffness  # assembled 6N by 6N matrices, anchor removed
+result.to_npz("modes.npz")
+
+displacement = structure.static({1: [1e-6, 0, 0, 0, 0, 0]})  # fx, fy, fz, tx, ty, tz
+```
+
+The matrices are assembled from the body mass matrices and the effective
+beam stiffness of equations (33) to (35), with the anchor's rows and columns
+dropped. The dense solver returns all modes or the lowest `n_modes`; the
+sparse solver uses shift-invert iteration about `sigma` and needs `n_modes`
+below the number of degrees of freedom. Static loads act at the center of
+mass of the named body.
+
+Mode shapes mix translations in meters and rotations in radians, so compare
+components of the same kind when reading them.

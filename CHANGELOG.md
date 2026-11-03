@@ -20,5 +20,7 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Beam stiffness: torsion constant with the short-beam correction, the local
   12 by 12 Euler-Bernoulli matrix, and the transformation onto body degrees of
   freedom.
+- Assembly of the 6N by 6N mass and stiffness matrices, modal analysis with
+  dense and sparse solvers, `ModalResult` with `.npz` export, and a static solve.
 
 [Unreleased]: https://github.com/Cao-RQM-Lab/connflex-core/commits/main
