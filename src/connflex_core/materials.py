@@ -17,7 +17,7 @@ class Material:
     Attributes:
         density: Mass density in kilograms per cubic meter.
         youngs_modulus: Young's modulus in pascals.
-        poisson_ratio: Poisson's ratio, used to derive the shear modulus when it is not given.
+        poisson_ratio: Poisson's ratio, used to derive shear modulus when it is not given.
         shear_modulus: Shear modulus in pascals. Derived as E / (2 (1 + nu)) when omitted.
         torsion_model: Torsion constant model for beams. "rectangle" is the Saint-Venant
             constant of a solid rectangle.

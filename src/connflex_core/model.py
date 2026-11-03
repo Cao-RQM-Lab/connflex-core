@@ -52,12 +52,12 @@ class Beam:
     Attributes:
         index: Position in ``Structure.beams``.
         bodies: Indices of the two bodies joined, ascending.
-        length: Distance between the attachment points, in meters.
-        width: In-plane width: the beam area divided by the length.
+        length: Distance between attachment points, in meters.
+        width: In-plane width: beam area divided by length.
         thickness: Device layer thickness.
-        start: Attachment point on the first body, (x, y, z) at the device mid-plane.
+        start: Attachment point on the first body, (x, y, z) at device mid-plane.
         end: Attachment point on the second body.
-        polygon: The device-layer region of the beam.
+        polygon: Device-layer region of the beam.
         net: Net of the device conductor the beam belongs to.
     """
 
@@ -77,7 +77,7 @@ class RejectedCandidate:
     """A device-layer region narrower than a body that did not qualify as a beam.
 
     Attributes:
-        polygon: The region.
+        polygon: Rejected region.
         reason: Why it was rejected.
     """
 
@@ -90,11 +90,11 @@ class Structure:
     """Rigid bodies and beams extracted from a layout.
 
     Attributes:
-        bodies: All bodies, the anchor first.
+        bodies: All bodies, anchor first.
         beams: Accepted beams.
-        rejected: Beam candidates that did not qualify, with the reason for each.
-        material: Device-layer material, which sets the beam stiffness.
-        nets: Electrical nets of the conductors that remain after pruning.
+        rejected: Beam candidates that did not qualify, each with a reason.
+        material: Device-layer material, which sets beam stiffness.
+        nets: Electrical nets of conductors that remain after pruning.
     """
 
     bodies: tuple[Body, ...]
@@ -105,12 +105,12 @@ class Structure:
 
     @property
     def anchor(self) -> Body:
-        """The immovable anchor body."""
+        """Immovable anchor body."""
         return self.bodies[0]
 
     @property
     def graph(self) -> nx.MultiGraph[int]:
-        """Bodies as nodes and beams as edges, with the objects as ``body`` and ``beam`` attributes."""
+        """Bodies as nodes and beams as edges, with objects as ``body`` and ``beam`` attributes."""
         graph: nx.MultiGraph[int] = nx.MultiGraph()
         for body in self.bodies:
             graph.add_node(body.index, body=body)

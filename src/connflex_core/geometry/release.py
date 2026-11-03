@@ -11,7 +11,7 @@ from connflex_core.geometry.heal import as_multipolygon
 
 
 def fill_release_holes(device: MultiPolygon, max_area: float) -> tuple[MultiPolygon, list[Polygon]]:
-    """Fill holes of at most ``max_area`` in the device polygons and return them separately."""
+    """Fill holes of at most ``max_area`` in device polygons and return them separately."""
     filled: list[Polygon] = []
     holes: list[Polygon] = []
     for polygon in device.geoms:
@@ -34,7 +34,7 @@ def surviving_box(
     distance: float,
     resolution: int,
 ) -> MultiPolygon:
-    """Oxide protected by both layers, minus the openings, eroded by the undercut ``distance``."""
+    """Oxide protected by both layers, minus openings, eroded by undercut ``distance``."""
     protected = device.intersection(handle)
     openings = [*holes, *(release.geoms if release is not None else [])]
     if openings:

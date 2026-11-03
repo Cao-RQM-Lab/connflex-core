@@ -1,6 +1,6 @@
 """Layout readers.
 
-An adapter is a callable ``adapter(source, **options) -> Layout``. The built-in adapters are
+An adapter is a callable ``adapter(source, **options) -> Layout``. Built-in adapters are
 ``shapely``, ``gds``, ``klayout``, and ``gdsfactory``. Other packages add adapters with
 ``register`` or through the ``connflex_core.adapters`` entry-point group.
 """

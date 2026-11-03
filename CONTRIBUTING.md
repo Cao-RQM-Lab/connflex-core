@@ -20,12 +20,11 @@ pytest
 mkdocs build --strict
 ```
 
-The GitHub Actions workflows run locally with [act](https://github.com/nektos/act)
-and Docker. `.actrc` selects the runner image, the amd64 architecture, a
-fixed package version, and a PATH that keeps node available after
-setup-python. Artifact upload steps fail under act because its artifact
-server does not support the current upload protocol; every other step is
-verified.
+GitHub Actions workflows run locally with [act](https://github.com/nektos/act)
+and Docker. `.actrc` selects the runner image, amd64 architecture, a fixed
+package version, and a PATH that keeps node available after setup-python.
+Artifact upload steps fail under act because its artifact server does not
+support the current upload protocol; every other step is verified.
 
 ```sh
 act -j lint
@@ -46,9 +45,9 @@ act -W .github/workflows/docs.yml -j build
   `adapters/` behind optional extras.
 - The package ships `py.typed` and mypy runs in strict mode with type stubs
   for every dependency. A new dependency brings its stubs into the `dev`
-  extra and into the mypy hook in `.pre-commit-config.yaml`. Only the
-  gdsfactory and klayout readers are exempt, through the mypy overrides in
-  `pyproject.toml`, because the hook does not install those extras.
+  extra and the mypy hook in `.pre-commit-config.yaml`. Only gdsfactory and
+  klayout readers are exempt, through mypy overrides in `pyproject.toml`,
+  because the hook does not install those extras.
 - SI units inside the library. Readers convert on the way in.
 - No GUI, plotting, or notebook code.
 
@@ -63,9 +62,9 @@ under **Unreleased** in `CHANGELOG.md`.
    new version.
 2. After merging, create an annotated tag `vX.Y.Z` and a GitHub release from
    it.
-3. The release workflow builds the distribution, checks the tag against the
-   built version, smoke-installs the wheel, and publishes to PyPI after a
+3. The release workflow builds the distribution, checks that the tag matches
+   the built version, smoke-installs the wheel, and publishes to PyPI after a
    maintainer approves the `pypi` environment. Releases marked as pre-release
    go to TestPyPI.
 
-The version is derived from the tag by hatch-vcs.
+hatch-vcs derives the version from the tag.

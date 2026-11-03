@@ -16,12 +16,12 @@ class ExtractionParams:
 
     Attributes:
         release_hole_max_area: Holes inside device polygons at or below this area are release
-            holes. They enter the release estimate, are removed from the device-layer mass,
-            and are filled for connectivity and beam extraction.
+            holes. They enter the release estimate, are removed from device-layer mass, and
+            are filled for connectivity and beam extraction.
         release_distance: Isotropic undercut applied to the surviving buried oxide.
         body_min_width: Features narrower than this are not rigid bodies and become beam
             candidates. Also the default upper width bound of a beam.
-        heal_distance: Buffer out then in on the device and handle layers to close hairline gaps.
+        heal_distance: Buffer out then in on device and handle layers to close hairline gaps.
         simplify_tolerance: Douglas-Peucker tolerance applied after healing. None means
             heal_distance.
         beam_overlap_margin: Expansion of beam candidates so they overlap the bodies they touch.
@@ -33,7 +33,7 @@ class ExtractionParams:
             handle polygon containing it, and an int selects a handle polygon by index in
             order of descending area.
         buffer_resolution: Segments per quarter circle of the round release undercut. Healing
-            and the body opening use mitered corners.
+            and body opening use mitered corners.
         precision_grid: Snap grid applied before overlay operations. None disables snapping.
     """
 

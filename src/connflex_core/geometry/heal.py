@@ -8,7 +8,7 @@ from shapely.geometry.base import BaseGeometry
 
 
 def as_multipolygon(geometry: BaseGeometry) -> MultiPolygon:
-    """Collect the polygonal parts of any geometry into a MultiPolygon."""
+    """Collect polygonal parts of any geometry into a MultiPolygon."""
     parts = [
         part
         for part in shapely.get_parts(geometry)

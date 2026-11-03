@@ -21,13 +21,13 @@ from connflex_core.stack import Stack
 def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure:
     """Extract rigid bodies, beams, and electrical nets from a layout.
 
-    The layers are healed and simplified. Release holes are filled and, with the release
-    layer, give the surviving buried oxide. The anchor handle polygon is selected and every
-    polygon with no connection to it through the stack is dropped. Bodies are assembled by
-    overlap through the opened device layer, the oxide, and the handle; each gets its mass
-    properties from the stack with the release openings removed from its device layer. The
-    device regions removed by the opening are qualified as beams. The remaining device and
-    handle polygons are the conductors of the nets, joined through the vias.
+    Layers are healed and simplified. Release holes are filled and, with the release layer,
+    give the surviving buried oxide. An anchor handle polygon is selected and every polygon
+    with no connection to it through the stack is dropped. Bodies are assembled by overlap
+    through the opened device layer, oxide, and handle; each gets mass properties from the
+    stack with release openings removed from its device layer. Device regions removed by
+    the opening are qualified as beams. Remaining device and handle polygons are conductors
+    of the nets, joined through vias.
     """
     tolerance = params.simplify_tolerance
     margin = params.beam_overlap_margin

@@ -21,10 +21,10 @@ if TYPE_CHECKING:
 def load_gds(path: str | PathLike[str], *, layers: LayerMap, cell: str | None = None) -> Layout:
     """Read a GDSII file into a layout.
 
-    The unit stored in the file is applied. ``cell`` names the cell to read and is required
-    when the file has more than one top-level cell. Polygons with cut lines, which is how
-    GDSII stores holes, are repaired into polygons with holes, and the repaired area is
-    verified against the file's polygon.
+    File units are applied. ``cell`` names the cell to read and is required when a file has
+    more than one top-level cell. Polygons with cut lines, which is how GDSII stores holes,
+    are repaired into polygons with holes, and each repaired area is verified against the
+    file's polygon.
     """
     try:
         import gdstk

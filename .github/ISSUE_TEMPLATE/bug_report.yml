@@ -6,14 +6,14 @@ body:
     id: what
     attributes:
       label: What happened
-      description: Include the full traceback if there was one.
+      description: Include any traceback in full.
     validations:
       required: true
   - type: textarea
     id: repro
     attributes:
       label: Minimal reproduction
-      description: The smallest script or layout that shows the problem.
+      description: Smallest script or layout that shows the problem.
       render: python
     validations:
       required: true

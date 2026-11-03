@@ -41,8 +41,8 @@ class MassProperties:
     Attributes:
         mass: Mass in kilograms.
         center: Center of mass (x, y, z) in meters, global frame.
-        inertia: 3 by 3 inertia tensor about the center of mass, axes parallel to the
-            global axes, in kilogram square meters.
+        inertia: 3 by 3 inertia tensor about the center of mass, axes parallel to global
+            axes, in kilogram square meters.
     """
 
     mass: float
@@ -51,7 +51,7 @@ class MassProperties:
 
     @property
     def matrix(self) -> NDArray[np.float64]:
-        """6 by 6 mass matrix in the body degrees of freedom, equation (14)."""
+        """6 by 6 mass matrix in body degrees of freedom, equation (14)."""
         matrix = np.zeros((6, 6))
         matrix[:3, :3] = self.mass * np.eye(3)
         matrix[3:, 3:] = self.inertia
@@ -59,7 +59,7 @@ class MassProperties:
 
 
 def area_moments(geometry: MultiPolygon) -> AreaMoments:
-    """Area moments by constrained Delaunay triangulation and the edge-midpoint rule.
+    """Area moments by constrained Delaunay triangulation and edge-midpoint rule.
 
     The midpoint rule integrates polynomials of degree two exactly on each triangle,
     equation (11).

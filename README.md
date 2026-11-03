@@ -9,7 +9,7 @@ Headless Python library that turns a GDS layout, or any set of polygons, of a
 silicon-on-insulator (SOI) MEMS process into a reduced-order mechanical model:
 rigid bodies joined by Euler-Bernoulli beams, their mass and stiffness
 matrices, and the resonant modes of the assembled system. It also derives the
-electrical nets of the layout. There is no GUI.
+layout's electrical nets. There is no GUI.
 
 ## Installation
 
@@ -17,8 +17,8 @@ Python 3.11 or newer.
 
 ```sh
 pip install connflex-core          # core
-pip install "connflex-core[gds]"   # with the gdstk reader for GDS files
-pip install "connflex-core[all]"   # with the KLayout and gdsfactory readers too
+pip install "connflex-core[gds]"   # gdstk reader for GDS files
+pip install "connflex-core[all]"   # every reader: gdstk, KLayout, gdsfactory
 ```
 
 ## Usage
@@ -44,8 +44,9 @@ print(result.frequencies_hz[:5])
 Inputs are four polygon roles: `device`, `handle`, and optionally `release`
 and `vias`. Every polygon marks where the named feature is present. Readers
 exist for GDS files, KLayout layouts, gdsfactory components, and shapely
-geometries, and other readers plug in through a small adapter registry. The stack, parameters, and solve options can also be
-loaded from one TOML file. All units are SI.
+geometries, and other readers plug in through a small adapter registry.
+Stack, parameters, and solve options can also be loaded from one TOML file.
+All units are SI.
 
 ## Documentation
 

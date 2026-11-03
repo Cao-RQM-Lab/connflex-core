@@ -24,11 +24,11 @@ ROLES = ("device", "box", "handle")
 def load_config(path: str | PathLike[str]) -> tuple[Stack, ExtractionParams, SolveOptions]:
     """Load a stack, extraction parameters, and solve options from one TOML file.
 
-    The file holds the tables ``[stack.device]``, ``[stack.box]``, ``[stack.handle]``, and
+    The file holds tables ``[stack.device]``, ``[stack.box]``, ``[stack.handle]``, and
     ``[extraction]``, and optionally ``[solve]`` and ``[materials.<name>]``. Each stack table
     gives a ``thickness`` and names its ``material``, which is a preset (``silicon`` or
     ``oxide``) or a ``[materials.<name>]`` table. A materials table overrides fields of the
-    preset of the same name or defines a new material. Unknown keys are errors.
+    same-named preset or defines a new material. Unknown keys are errors.
     """
     with open(path, "rb") as f:
         data = tomllib.load(f)

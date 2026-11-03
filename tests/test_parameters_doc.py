@@ -1,4 +1,4 @@
-"""The parameters page and the configuration classes must list the same fields."""
+"""Parameters page and configuration classes must list the same fields."""
 
 import dataclasses
 import re

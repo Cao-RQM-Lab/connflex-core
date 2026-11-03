@@ -16,13 +16,13 @@ PolygonInput = Polygon | MultiPolygon | Iterable[Polygon | MultiPolygon]
 
 @dataclass(frozen=True)
 class LayerMap:
-    """Layer and datatype of each layout role, for the GDS, KLayout, and gdsfactory readers.
+    """Layer and datatype of each layout role, for GDS, KLayout, and gdsfactory readers.
 
     Attributes:
-        device: Layer and datatype of the device layer.
-        handle: Layer and datatype of the handle layer.
-        release: Layer and datatype of the release openings, or None when there are none.
-        vias: Layer and datatype of the vias, or None when there are none.
+        device: Device layer and datatype.
+        handle: Handle layer and datatype.
+        release: Release-opening layer and datatype, or None when there are none.
+        vias: Via layer and datatype, or None when there are none.
     """
 
     device: tuple[int, int]
@@ -42,7 +42,7 @@ class Layout:
         device: Device-layer silicon.
         handle: Handle-layer silicon.
         release: Release openings, or None.
-        vias: Regions where the device layer is electrically connected to the handle, or None.
+        vias: Regions where device and handle layers are electrically connected, or None.
     """
 
     device: MultiPolygon
@@ -72,7 +72,7 @@ class Layout:
 
 
 def normalize(role: str, polygons: PolygonInput, unit: float) -> MultiPolygon:
-    """Validate, union, and scale the polygons of one role."""
+    """Validate, union, and scale one role's polygons."""
     if unit <= 0:
         raise ValueError(f"unit must be positive, got {unit}")
     items = [polygons] if isinstance(polygons, Polygon | MultiPolygon) else list(polygons)

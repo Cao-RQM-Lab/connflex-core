@@ -30,7 +30,7 @@ def select_anchor(handle: Sequence[Polygon], anchor: int | tuple[float, float] |
 def layered_components(layers: Sequence[Sequence[Polygon]], seed: Node) -> list[list[Node]]:
     """Connected components where polygons in adjacent layers connect when they overlap.
 
-    Nodes are ``(layer, index)`` pairs. The component containing ``seed`` comes first; the
+    Nodes are ``(layer, index)`` pairs. The component containing ``seed`` comes first;
     others follow in layer and index order.
     """
     trees = [STRtree(list(layer)) for layer in layers]

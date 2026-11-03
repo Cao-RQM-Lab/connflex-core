@@ -7,7 +7,7 @@
 | `device` | yes | device-layer silicon is present here |
 | `handle` | yes | handle-layer silicon is present here |
 | `release` | no | a release opening is etched here, so device silicon is absent |
-| `vias` | no | the device layer is electrically connected to the handle layer here |
+| `vias` | no | device and handle layers are electrically connected here |
 
 ## Positive polygons
 
@@ -22,9 +22,9 @@ polygons within one role are unioned.
 ## Optional layers
 
 - **`release` absent:** holes inside device polygons with area at or below
-  `release_hole_max_area` are the release holes. They enter the oxide
-  survival estimate, are removed from the device-layer mass, and are filled
-  for connectivity and beam extraction. When a `release` layer is given it is
+  `release_hole_max_area` are release holes. They enter the oxide survival
+  estimate, are removed from device-layer mass, and are filled for
+  connectivity and beam extraction. When a `release` layer is given it is
   unioned with such holes.
 - **`vias` absent:** no vias. Each connected device island and each connected
   handle island is its own net.
@@ -40,6 +40,6 @@ polygons within one role are unioned.
 
 ## Units
 
-SI throughout: meters, square meters, kilograms, pascals, hertz. The GDS,
+SI throughout: meters, square meters, kilograms, pascals, hertz. GDS,
 KLayout, and gdsfactory readers apply the unit stored in the file or
 database. The shapely reader takes a `unit` scale factor.

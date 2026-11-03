@@ -18,7 +18,7 @@ def from_klayout(
 ) -> Layout:
     """Read a KLayout layout or cell into a layout.
 
-    The database unit is applied and instances are flattened. For a ``Layout``, ``cell`` names
+    Database units are applied and instances are flattened. For a ``Layout``, ``cell`` names
     the cell to read and is required when there is more than one top cell; a ``Cell`` is read
     as given.
     """

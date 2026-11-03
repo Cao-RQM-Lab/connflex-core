@@ -4,7 +4,7 @@ Headless Python library that turns a GDS layout, or any set of polygons, of a
 silicon-on-insulator (SOI) MEMS process into a reduced-order mechanical model:
 rigid bodies joined by Euler-Bernoulli beams, their mass and stiffness
 matrices, and the resonant modes of the assembled system. It also derives the
-electrical nets of the layout.
+layout's electrical nets.
 
 | Step | Input | Output |
 | --- | --- | --- |

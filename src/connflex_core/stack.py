@@ -14,7 +14,7 @@ class Layer:
 
     Attributes:
         thickness: Layer thickness in meters.
-        material: Material of the layer.
+        material: Layer material.
     """
 
     thickness: float
@@ -26,10 +26,10 @@ class Layer:
 
 @dataclass(frozen=True)
 class Stack:
-    """SOI layer stack, listed from the top down.
+    """SOI layer stack, listed from top down.
 
     Attributes:
-        device: Device layer. Its material also sets the beam stiffness.
+        device: Device layer. Its material also sets beam stiffness.
         box: Buried oxide layer.
         handle: Handle layer.
     """
@@ -40,12 +40,12 @@ class Stack:
 
     @property
     def layers(self) -> tuple[Layer, Layer, Layer]:
-        """Layers from the top down."""
+        """Layers from top down."""
         return (self.device, self.box, self.handle)
 
     @property
     def z_extents(self) -> tuple[tuple[float, float], ...]:
-        """Top and bottom height of each layer, with the top of the device layer at z = 0."""
+        """Top and bottom height of each layer, with the device layer's top at z = 0."""
         extents = []
         top = 0.0
         for layer in self.layers:

@@ -20,7 +20,7 @@ class Conductor:
         index: Position in ``Nets.conductors``.
         layer: ``"device"`` or ``"handle"``.
         polygon: The region, in meters.
-        net: Index of the net the conductor belongs to.
+        net: Index of the conductor's net.
     """
 
     index: int
@@ -36,8 +36,8 @@ class Via:
     Attributes:
         index: Position in ``Nets.vias``.
         polygon: The via region, in meters.
-        device: Indices of the device conductors it overlaps.
-        handle: Indices of the handle conductors it overlaps. A via with no conductor on
+        device: Indices of device conductors it overlaps.
+        handle: Indices of handle conductors it overlaps. A via with no conductor on
             one side joins nothing.
     """
 
@@ -74,7 +74,7 @@ class Nets:
         return graph
 
     def conductor_at(self, point: Point | tuple[float, float], layer: str) -> Conductor:
-        """The conductor of ``layer`` covering ``point``."""
+        """Conductor of ``layer`` covering ``point``."""
         point = Point(point)
         for conductor in self.conductors:
             if conductor.layer == layer and conductor.polygon.covers(point):

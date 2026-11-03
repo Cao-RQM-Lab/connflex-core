@@ -18,7 +18,7 @@ def torsion_constant(width: float, thickness: float) -> float:
 
 
 def effective_torsion_constant(width: float, thickness: float, length: float, beta: float) -> float:
-    """Torsion constant with the short-beam stiffening factor, equation (21)."""
+    """Torsion constant with short-beam stiffening factor, equation (21)."""
     a = max(width, thickness)
     return torsion_constant(width, thickness) * (1 + beta * a**2 / length**2)
 
@@ -26,8 +26,8 @@ def effective_torsion_constant(width: float, thickness: float, length: float, be
 def local_stiffness(beam: Beam, material: Material) -> Matrix:
     """12 by 12 Euler-Bernoulli stiffness in the beam frame, equations (16) to (19).
 
-    The local x axis runs along the beam, y lies in the plane, and z points out of the
-    plane. Degrees of freedom are ordered as in equation (12) for each end.
+    Local x runs along the beam, y lies in plane, and z points out of plane. Degrees of
+    freedom are ordered as in equation (12) for each end.
     """
     e, g = material.youngs_modulus, material.shear_modulus
     if g is None:
@@ -81,8 +81,8 @@ def local_stiffness(beam: Beam, material: Material) -> Matrix:
 def transformation(beam: Beam, center_a: Matrix, center_b: Matrix) -> Matrix:
     """12 by 12 map from beam-end forces to body forces, equation (31).
 
-    Each block is the end offset from the body center of mass followed by the rotation
-    from the beam frame to the global frame.
+    Each block is the end offset from the body center of mass followed by rotation from
+    beam frame to global frame.
     """
     start, end = np.asarray(beam.start), np.asarray(beam.end)
     direction = end - start
@@ -96,7 +96,7 @@ def transformation(beam: Beam, center_a: Matrix, center_b: Matrix) -> Matrix:
 def effective_stiffness(
     beam: Beam, material: Material, center_a: Matrix, center_b: Matrix
 ) -> Matrix:
-    """12 by 12 stiffness felt by the two bodies, equation (33)."""
+    """12 by 12 stiffness felt by both bodies, equation (33)."""
     t = transformation(beam, center_a, center_b)
     return t @ local_stiffness(beam, material) @ t.T
 

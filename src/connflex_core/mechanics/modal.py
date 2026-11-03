@@ -49,7 +49,7 @@ class ModalResult:
 
 
 def modal(structure: Structure, options: SolveOptions | None = None) -> ModalResult:
-    """Solve the generalized eigenproblem of the assembled matrices for the resonant modes.
+    """Solve the generalized eigenproblem of the assembled matrices for resonant modes.
 
     The dense solver returns all modes or the lowest ``n_modes``. The sparse solver uses
     shift-invert iteration about ``sigma`` and needs ``n_modes`` smaller than the number of
@@ -59,13 +59,11 @@ def modal(structure: Structure, options: SolveOptions | None = None) -> ModalRes
     system = assemble(structure)
     size = system.mass.shape[0]
     if size == 0:
-        raise ValueError("the structure has no movable bodies")
+        raise ValueError("structure has no movable bodies")
     count = size if options.n_modes is None else min(options.n_modes, size)
     if options.method == "sparse":
         if count >= size:
-            raise ValueError(
-                "the sparse solver needs n_modes below the number of degrees of freedom"
-            )
+            raise ValueError("sparse solver needs n_modes below the number of degrees of freedom")
         values, vectors = scipy.sparse.linalg.eigsh(
             scipy.sparse.csr_matrix(system.stiffness),
             k=count,
@@ -91,7 +89,7 @@ def modal(structure: Structure, options: SolveOptions | None = None) -> ModalRes
 def static(structure: Structure, loads: Mapping[int, Sequence[float]]) -> NDArray[np.float64]:
     """Displacements under static loads.
 
-    ``loads`` maps a body index to its six generalized forces (fx, fy, fz, tx, ty, tz) at the
+    ``loads`` maps a body index to its six generalized forces (fx, fy, fz, tx, ty, tz) at its
     center of mass. The result has one entry per row of the assembled matrices.
     """
     system = assemble(structure)
@@ -108,7 +106,5 @@ def static(structure: Structure, loads: Mapping[int, Sequence[float]]) -> NDArra
             system.stiffness, force, assume_a="sym"
         )
     except scipy.linalg.LinAlgError as exc:
-        raise ValueError(
-            "the stiffness matrix is singular: a body has no path to the anchor"
-        ) from exc
+        raise ValueError("stiffness matrix is singular: a body has no path to the anchor") from exc
     return displacement

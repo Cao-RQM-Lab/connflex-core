@@ -6,7 +6,7 @@ Python 3.11 or newer.
 pip install connflex-core
 ```
 
-The readers for layout files and tools are optional extras:
+Readers for layout files and tools are optional extras:
 
 | Extra | Installs | Notes |
 | --- | --- | --- |

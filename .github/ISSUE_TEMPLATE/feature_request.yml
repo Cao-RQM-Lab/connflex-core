@@ -6,14 +6,14 @@ body:
     id: problem
     attributes:
       label: Problem
-      description: What you are trying to do and why the current library does not let you.
+      description: What you are trying to do and what stops you today.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: Proposed solution
-      description: What the API or behavior should look like. For modeling changes, cite the theory.
+      description: How the API or behavior should look. For modeling changes, cite the theory.
     validations:
       required: true
   - type: textarea

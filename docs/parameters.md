@@ -14,28 +14,28 @@ Symbols refer to the [theory of operation](theory.md).
 
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
-| `heal_distance` | $r_h$ | 10 nm | Buffer out then in on the device and handle layers to close hairline gaps, equation (1). |
+| `heal_distance` | $r_h$ | 10 nm | Buffer out then in on device and handle layers to close hairline gaps, equation (1). |
 | `simplify_tolerance` | $r_h$ | = `heal_distance` | Douglas–Peucker tolerance applied after healing. |
-| `release_hole_max_area` | $A_\text{min}$ | **required** | Holes inside device polygons at or below this area are release holes: they enter the release estimate, are removed from the device-layer mass, and are filled for connectivity and beam extraction. |
+| `release_hole_max_area` | $A_\text{min}$ | **required** | Holes inside device polygons at or below this area are release holes: they enter the release estimate, are removed from device-layer mass, and are filled for connectivity and beam extraction. |
 | `release_distance` | $d$ | **required** | Isotropic undercut of the surviving buried oxide, equation (2). |
 | `body_min_width` | $w_\text{min}$ | **required** | Features narrower than this become beam candidates, equation (3). Also the upper width bound of a beam. |
 | `beam_overlap_margin` | $\epsilon$ | = `heal_distance` | Expansion of beam candidates so they overlap the bodies they touch, equation (4). |
 | `beam_width_min` | | 0 (disabled) | Candidates narrower than this are discarded as slivers. |
 | `beam_width_max` | | = `body_min_width` | Candidates wider than this are discarded as non-slender. |
 | `anchor` | | largest handle polygon | Override by a point inside the intended handle polygon, or by index into the handle polygons ordered by descending area. |
-| `buffer_resolution` | | 8 | Segments per quarter circle of the round release undercut, equation (2). Healing and the body opening use mitered corners. |
+| `buffer_resolution` | | 8 | Segments per quarter circle of the round release undercut, equation (2). Healing and body opening use mitered corners. |
 | `precision_grid` | | off | Optional snap grid applied before overlay operations. |
 
 ## `Stack`, `Layer`, and `Material`
 
-The stack lists the SOI layers from the top down: `device`, `box`, `handle`.
-Beam stiffness uses the device layer material.
+A stack lists the SOI layers from top down: `device`, `box`, `handle`. Beam
+stiffness uses the device-layer material.
 
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
 | `Layer.thickness` | $t_l$ | **required** | Layer thickness, equations (5) and (8). |
 | `Material.density` | $\rho_l$ | silicon 2330, oxide 2200 | Mass density, equation (5). |
-| `Material.youngs_modulus` | $E$ | 169 GPa for silicon | Young's modulus. The silicon default is the in-plane $\langle 110 \rangle$ value; beams along $\langle 100 \rangle$ see about 130 GPa. |
+| `Material.youngs_modulus` | $E$ | 169 GPa for silicon | Young's modulus. Silicon's default is the in-plane $\langle 110 \rangle$ value; beams along $\langle 100 \rangle$ see about 130 GPa. |
 | `Material.poisson_ratio` | $\nu$ | 0.28 | Used to derive $G = E / (2(1 + \nu))$ when `shear_modulus` is not given. |
 | `Material.shear_modulus` | $G$ | derived | Shear modulus for the torsional term, equation (19). |
 | `Material.torsion_model` | $J$ | `"rectangle"` | Saint-Venant torsion constant of a solid rectangle, equation (20). |

@@ -16,7 +16,7 @@ Dof = tuple[int, str]
 
 @dataclass(frozen=True, eq=False)
 class SystemMatrices:
-    """Assembled matrices over the movable bodies, equations (34) and (35).
+    """Assembled matrices over movable bodies, equations (34) and (35).
 
     Attributes:
         mass: 6N by 6N block-diagonal mass matrix.
@@ -31,7 +31,7 @@ class SystemMatrices:
 
 
 def assemble(structure: Structure) -> SystemMatrices:
-    """Assemble the mass and stiffness matrices; the anchor's rows and columns are dropped."""
+    """Assemble mass and stiffness matrices; the anchor's rows and columns are dropped."""
     movable = [body for body in structure.bodies if not body.anchor]
     offset = {body.index: 6 * position for position, body in enumerate(movable)}
     size = 6 * len(movable)

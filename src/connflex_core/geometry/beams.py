@@ -22,7 +22,7 @@ def find_beams(
     thickness: float,
     net_of: Callable[[Polygon], int],
 ) -> tuple[list[Beam], list[RejectedCandidate]]:
-    """Qualify the device regions outside the bodies as beams joining exactly two bodies.
+    """Qualify device regions outside the bodies as beams joining exactly two bodies.
 
     ``body_parts`` are the device-layer polygons of all bodies and ``body_of`` maps each part
     to its body index. ``net_of`` gives the net of a device-layer region.
