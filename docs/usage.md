@@ -1,8 +1,8 @@
 # Usage
 
-All quantities are SI. The GDS reader applies the unit stored in the file;
-the shapely reader takes a `unit` scale factor, for example `unit=1e-6` for
-polygons drawn in micrometers.
+All quantities are SI. The GDS, KLayout, and gdsfactory readers apply the
+unit stored in the file or database; the shapely reader takes a `unit` scale
+factor, for example `unit=1e-6` for polygons drawn in micrometers.
 
 ## Load a layout
 
@@ -25,6 +25,35 @@ and `vias`. Every polygon marks where the named feature is present; see the
     one top-level cell. Holes stored as cut lines are repaired into polygons
     with holes, and each repaired polygon must keep the area recorded in the
     file; a mismatch is an error naming the polygon.
+
+=== "KLayout"
+
+    ```python
+    import klayout.db as kdb
+
+    import connflex_core as cf
+
+    source = kdb.Layout()
+    source.read("resonator.gds")
+    layout = cf.from_klayout(source, layers=cf.LayerMap(device=(1, 0), handle=(2, 0)))
+    ```
+
+    Takes a `Layout` or a `Cell`. The database unit is applied and instances
+    are flattened. Pass `cell="NAME"` when a layout has more than one top
+    cell.
+
+=== "gdsfactory"
+
+    ```python
+    import gdsfactory as gf
+
+    import connflex_core as cf
+
+    component = gf.import_gds("resonator.gds")
+    layout = cf.from_gdsfactory(component, layers=cf.LayerMap(device=(1, 0), handle=(2, 0)))
+    ```
+
+    The component's database unit is applied and instances are flattened.
 
 === "shapely"
 
@@ -95,6 +124,7 @@ structure.bodies[1].inertial  # mass, center of mass, inertia tensor, 6 by 6 mas
 structure.beams  # beams joining exactly two bodies: length, width, thickness, end points
 structure.rejected  # beam candidates that did not qualify, each with a reason
 structure.graph  # networkx MultiGraph, bodies as nodes and beams as edges
+structure.nets  # electrical nets of the remaining device and handle polygons
 structure.to_dict()  # JSON-serializable tree with GeoJSON-style polygons
 ```
 
@@ -114,6 +144,26 @@ degrees of freedom.
 A candidate that touches one body is a stub, one that touches three or more
 is a junction; both appear in `structure.rejected` with that reason, which is
 the first place to look when an expected beam is missing.
+
+## Electrical nets
+
+```python
+nets = structure.nets
+nets.count  # number of nets
+nets.conductors  # connected device regions, then handle regions, each with its net
+nets.vias  # each via with the conductors it joins on both sides
+nets.graph  # networkx MultiGraph, conductors as nodes and vias as edges
+nets.conductor_at((x, y), "device")  # the conductor covering a point
+
+structure.beams[0].net  # net of the beam's device conductor
+structure.bodies[0].nets  # net of each device polygon of the body
+```
+
+Each connected device region and each connected handle region is one
+conductor. A via joins every conductor it overlaps on both sides, and the
+nets are the connected components. A via that overlaps no conductor on one
+side is ignored with a warning. Polygons dropped by the anchor pruning are
+not conductors. `cf.find_nets` computes the same from any lists of polygons.
 
 ## Solve
 

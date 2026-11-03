@@ -45,8 +45,9 @@ act -W .github/workflows/docs.yml -j build
   `adapters/` behind optional extras.
 - The package ships `py.typed` and mypy runs in strict mode with type stubs
   for every dependency. A new dependency brings its stubs into the `dev`
-  extra and into the mypy hook in `.pre-commit-config.yaml`. Only readers
-  without stubs are exempt, in the mypy overrides in `pyproject.toml`.
+  extra and into the mypy hook in `.pre-commit-config.yaml`. Only the
+  gdsfactory and klayout readers are exempt, through the mypy overrides in
+  `pyproject.toml`, because the hook does not install those extras.
 - SI units inside the library. Readers convert on the way in.
 - No GUI, plotting, or notebook code.
 

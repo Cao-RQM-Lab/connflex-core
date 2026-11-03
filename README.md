@@ -18,6 +18,7 @@ Python 3.11 or newer.
 ```sh
 pip install connflex-core          # core
 pip install "connflex-core[gds]"   # with the gdstk reader for GDS files
+pip install "connflex-core[all]"   # with the KLayout and gdsfactory readers too
 ```
 
 ## Usage
@@ -42,8 +43,8 @@ print(result.frequencies_hz[:5])
 
 Inputs are four polygon roles: `device`, `handle`, and optionally `release`
 and `vias`. Every polygon marks where the named feature is present. Readers
-exist for GDS files and shapely geometries, and other readers plug in through
-a small adapter registry. The stack, parameters, and solve options can also be
+exist for GDS files, KLayout layouts, gdsfactory components, and shapely
+geometries, and other readers plug in through a small adapter registry. The stack, parameters, and solve options can also be
 loaded from one TOML file. All units are SI.
 
 ## Documentation

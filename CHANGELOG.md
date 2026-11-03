@@ -22,6 +22,11 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   freedom.
 - Assembly of the 6N by 6N mass and stiffness matrices, modal analysis with
   dense and sparse solvers, `ModalResult` with `.npz` export, and a static solve.
+- Electrical nets: connected device and handle polygons as conductors, vias
+  joining the conductors they overlap, net tags on beams and body polygons,
+  `Structure.nets`, and `find_nets`.
+- KLayout and gdsfactory readers behind the `klayout` and `gdsfactory` extras,
+  with an `all` extra for every reader.
 
 ### Fixed
 
