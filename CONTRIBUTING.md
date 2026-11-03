@@ -49,6 +49,11 @@ act -W .github/workflows/docs.yml -j build
   klayout readers are exempt, through mypy overrides in `pyproject.toml`,
   because the hook does not install those extras.
 - SI units inside the library. Readers convert on the way in.
+- Every pipeline stage runs inside `stage()` from `connflex_core.progress`,
+  which logs start and finish through the `connflex_core` logger and reports
+  to the optional `progress` callback. Loops over polygons, bodies, or
+  candidates advance once per item. No `print`, verbose flags, or logging
+  handlers in the library.
 - No GUI, plotting, or notebook code.
 
 ## Pull requests

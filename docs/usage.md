@@ -187,3 +187,48 @@ degrees of freedom. Static loads act at the named body's center of mass.
 
 Mode shapes mix translations in meters and rotations in radians, so compare
 components of the same kind when reading them.
+
+## Progress and logging
+
+Each stage of `extract`, `modal`, and `static` logs when it starts and when it
+finishes, with elapsed time and counts, through the standard `connflex_core`
+logger. The logger is silent until a handler is attached:
+
+```python
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+```
+
+```text
+2026-11-03 12:00:01,452 heal: started
+2026-11-03 12:00:13,850 heal: done in 12.40 s, device 1203, handle 7
+```
+
+For a progress bar, pass any object with `start(stage, total)`, `advance(n)`,
+and `finish()` as `progress`. `total` is the number of `advance` calls to
+expect, or `None` when a stage is one indivisible operation. With tqdm:
+
+```python
+from tqdm import tqdm
+
+
+class Bar:
+    def start(self, stage, total):
+        self.bar = tqdm(desc=stage, total=total)
+
+    def advance(self, n=1):
+        self.bar.update(n)
+
+    def finish(self):
+        self.bar.close()
+
+
+structure = cf.extract(layout, stack, params, progress=Bar())
+result = structure.modal(progress=Bar())
+```
+
+`extract` reports heal, release, prune, nets, opening, bodies, mass,
+candidates, and beams, in that order. `modal` and `static` report assemble and
+solve. Prune, bodies, mass, and beams advance once per polygon, body, or
+candidate; the other stages are single operations.

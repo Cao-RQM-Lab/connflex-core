@@ -46,7 +46,8 @@ and `vias`. Every polygon marks where the named feature is present. Readers
 exist for GDS files, KLayout layouts, gdsfactory components, and shapely
 geometries, and other readers plug in through a small adapter registry.
 Stack, parameters, and solve options can also be loaded from one TOML file.
-All units are SI.
+All units are SI. Long stages log through the `connflex_core` logger and can
+report to a progress callback.
 
 ## Documentation
 

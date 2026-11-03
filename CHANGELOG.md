@@ -28,5 +28,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Structure.nets`, and `find_nets`.
 - KLayout and gdsfactory readers behind `klayout` and `gdsfactory` extras,
   with an `all` extra for every reader.
+- Progress reporting: every stage of `extract`, `modal`, and `static` logs
+  start and finish through the `connflex_core` logger, and an optional
+  `progress` callback with `start`, `advance`, and `finish` receives the same
+  stages, advancing per item where a loop runs.
 
 [Unreleased]: https://github.com/Cao-RQM-Lab/connflex-core/commits/main
