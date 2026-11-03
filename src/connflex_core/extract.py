@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import shapely
 from shapely import MultiPolygon, Polygon, STRtree
-from shapely.geometry.base import BaseGeometry
 
 from connflex_core.electrical.nets import find_nets
 from connflex_core.geometry.beams import beam_candidates, find_beams
 from connflex_core.geometry.bodies import layered_components, select_anchor
 from connflex_core.geometry.heal import as_multipolygon, heal, opening, snap
-from connflex_core.geometry.release import fill_release_holes, surviving_box
+from connflex_core.geometry.release import fill_release_holes, openings_within, surviving_box
 from connflex_core.layout import Layout
 from connflex_core.mechanics.inertia import mass_properties
 from connflex_core.model import Body, Structure
@@ -30,7 +29,8 @@ def extract(
     when a release layer is present. An anchor handle polygon is selected and every polygon
     with no connection to it through the stack is dropped. Bodies are assembled by overlap
     through the opened device layer, oxide, and handle; each gets mass properties from the
-    stack with release openings removed from its device layer. Device regions removed by
+    stack, with the moments of the release openings inside it subtracted from its device
+    layer. Device regions removed by
     the opening are qualified as beams. Remaining device and handle polygons are conductors
     of the nets, joined through vias.
 
@@ -68,7 +68,9 @@ def extract(
         box = surviving_box(
             device, handle, openings, params.release_distance, params.buffer_resolution
         )
-        current.count(openings=len(openings.geoms), box=len(box.geoms))
+        opening_parts = list(openings.geoms)
+        opening_tree = STRtree(opening_parts)
+        current.count(openings=len(opening_parts), box=len(box.geoms))
 
     handle_parts = _by_area(handle)
     anchor = select_anchor(handle_parts, params.anchor)
@@ -112,7 +114,7 @@ def extract(
                 if layer == 0:
                     body_of[i] = index
             polygons = [MultiPolygon(group) for group in grouped]
-            massive = [_without(polygons[0], openings), polygons[1], polygons[2]]
+            inside = openings_within(opening_tree, opening_parts, polygons[0])
             bodies.append(
                 Body(
                     index=index,
@@ -120,7 +122,7 @@ def extract(
                     device=polygons[0],
                     box=polygons[1],
                     handle=polygons[2],
-                    inertial=mass_properties(massive, stack),
+                    inertial=mass_properties(polygons, stack, openings=inside),
                     nets=tuple(net_of(part) for part in grouped[0]),
                 )
             )
@@ -149,10 +151,6 @@ def extract(
         material=stack.device.material,
         nets=nets,
     )
-
-
-def _without(geometry: MultiPolygon, openings: BaseGeometry) -> MultiPolygon:
-    return geometry if openings.is_empty else as_multipolygon(geometry.difference(openings))
 
 
 def _by_area(geometry: MultiPolygon) -> list[Polygon]:

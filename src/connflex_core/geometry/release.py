@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from shapely import MultiPolygon, Polygon
+from collections.abc import Sequence
+
+from shapely import MultiPolygon, Polygon, STRtree
 
 from connflex_core.geometry.heal import as_multipolygon
 
@@ -43,3 +45,21 @@ def surviving_box(
     if not openings.is_empty:
         protected = protected.difference(openings)
     return as_multipolygon(protected.buffer(-distance, quad_segs=resolution))
+
+
+def openings_within(
+    tree: STRtree, openings: Sequence[Polygon], geometry: MultiPolygon
+) -> list[Polygon]:
+    """Openings inside ``geometry``: those it covers as drawn, those crossing its edge clipped.
+
+    ``tree`` indexes ``openings``. The result is disjoint, so its area moments can be
+    subtracted from those of ``geometry``.
+    """
+    inside: list[Polygon] = []
+    for part in geometry.geoms:
+        covered = {int(i) for i in tree.query(part, predicate="covers")}
+        inside.extend(openings[i] for i in sorted(covered))
+        for i in tree.query(part, predicate="intersects"):
+            if int(i) not in covered:
+                inside.extend(as_multipolygon(openings[int(i)].intersection(part)).geoms)
+    return inside

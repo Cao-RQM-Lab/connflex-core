@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 import shapely
 from numpy.typing import NDArray
-from shapely import MultiPolygon
+from shapely import MultiPolygon, Polygon
 
 from connflex_core.stack import Stack
 
@@ -32,6 +32,16 @@ class AreaMoments:
     xx: float
     yy: float
     xy: float
+
+    def __sub__(self, other: AreaMoments) -> AreaMoments:
+        return AreaMoments(
+            self.area - other.area,
+            self.x - other.x,
+            self.y - other.y,
+            self.xx - other.xx,
+            self.yy - other.yy,
+            self.xy - other.xy,
+        )
 
 
 @dataclass(frozen=True, eq=False)
@@ -85,13 +95,19 @@ def area_moments(geometry: MultiPolygon) -> AreaMoments:
     )
 
 
-def mass_properties(layers: Sequence[MultiPolygon], stack: Stack) -> MassProperties:
+def mass_properties(
+    layers: Sequence[MultiPolygon], stack: Stack, openings: Sequence[Polygon] = ()
+) -> MassProperties:
     """Mass properties of a body from its polygons in each stack layer, listed top down.
 
     Each layer is a uniform extrusion between its top and bottom heights, equations (5)
-    to (10).
+    to (10). ``openings`` are disjoint release openings lying inside the first layer; their
+    moments are subtracted from it, which equals integrating over the perforated polygon
+    without triangulating a polygon with thousands of holes.
     """
     moments = [area_moments(geometry) for geometry in layers]
+    if openings:
+        moments[0] = moments[0] - area_moments(MultiPolygon(openings))
     densities = [layer.material.density for layer in stack.layers]
     extents = stack.z_extents
     masses = [

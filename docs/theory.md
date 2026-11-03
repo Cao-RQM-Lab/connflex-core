@@ -99,7 +99,12 @@ device layer thickness.
     like any other rejected candidate. Beams carry stiffness but no mass. Release
     openings, whether found as holes in the device layer or drawn on the release
     layer, are subtracted from the device-layer mass properties of a body; the filled
-    polygons are kept only for connectivity and beam extraction.
+    polygons are kept only for connectivity and beam extraction. The subtraction
+    works on the moments: the quadrature of (11) is applied to the filled device
+    polygons of a body and to the openings it contains, and the latter are taken
+    away. An opening that crosses the body boundary is clipped to it first. The
+    result equals integrating over the perforated polygon, while only small,
+    hole-free polygons are ever triangulated.
 
 ## Body mass and moment of inertia
 
