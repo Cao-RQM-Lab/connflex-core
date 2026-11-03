@@ -9,6 +9,7 @@ from connflex_core.extract import extract
 from connflex_core.layout import LayerMap, Layout
 from connflex_core.materials import Material
 from connflex_core.mechanics.inertia import MassProperties
+from connflex_core.mechanics.modal import ModalResult
 from connflex_core.model import Beam, Body, RejectedCandidate, Structure
 from connflex_core.params import ExtractionParams, SolveOptions
 from connflex_core.stack import Layer, Stack
@@ -24,6 +25,7 @@ __all__ = [
     "Layout",
     "MassProperties",
     "Material",
+    "ModalResult",
     "RejectedCandidate",
     "SolveOptions",
     "Stack",

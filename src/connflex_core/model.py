@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import networkx as nx
+import numpy as np
 from shapely import MultiPolygon, Polygon
 from shapely.geometry import mapping
 
+from connflex_core.materials import Material
 from connflex_core.mechanics.inertia import MassProperties
+from connflex_core.params import SolveOptions
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
+    from connflex_core.mechanics.modal import ModalResult
 
 
 @dataclass(frozen=True)
@@ -79,11 +88,13 @@ class Structure:
         bodies: All bodies, the anchor first.
         beams: Accepted beams.
         rejected: Beam candidates that did not qualify, with the reason for each.
+        material: Device-layer material, which sets the beam stiffness.
     """
 
     bodies: tuple[Body, ...]
     beams: tuple[Beam, ...]
     rejected: tuple[RejectedCandidate, ...]
+    material: Material
 
     @property
     def anchor(self) -> Body:
@@ -99,6 +110,18 @@ class Structure:
         for beam in self.beams:
             graph.add_edge(*beam.bodies, key=beam.index, beam=beam)
         return graph
+
+    def modal(self, options: SolveOptions | None = None) -> ModalResult:
+        """Resonant frequencies and mode shapes of the assembled system."""
+        from connflex_core.mechanics.modal import modal
+
+        return modal(self, options)
+
+    def static(self, loads: Mapping[int, Sequence[float]]) -> NDArray[np.float64]:
+        """Displacements under static generalized forces, keyed by body index."""
+        from connflex_core.mechanics.modal import static
+
+        return static(self, loads)
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-serializable tree with polygons as GeoJSON-style mappings."""

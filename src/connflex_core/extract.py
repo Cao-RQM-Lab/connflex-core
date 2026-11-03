@@ -94,7 +94,12 @@ def extract(layout: Layout, stack: Stack, params: ExtractionParams) -> Structure
         width_max=width_max,
         thickness=stack.device.thickness,
     )
-    return Structure(bodies=tuple(bodies), beams=tuple(beams), rejected=tuple(rejected))
+    return Structure(
+        bodies=tuple(bodies),
+        beams=tuple(beams),
+        rejected=tuple(rejected),
+        material=stack.device.material,
+    )
 
 
 def _without(geometry: MultiPolygon, openings: BaseGeometry) -> MultiPolygon:
