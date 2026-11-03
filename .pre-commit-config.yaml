@@ -24,6 +24,5 @@ repos:
     hooks:
       - id: mypy
         args: []
-        pass_filenames: false
         additional_dependencies:
           [numpy, scipy, scipy-stubs, shapely, types-shapely, networkx, types-networkx, gdstk, pytest]
