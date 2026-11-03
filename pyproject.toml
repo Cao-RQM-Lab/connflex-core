@@ -41,6 +41,9 @@ dev = [
   "black>=25.1",
   "ruff>=0.14",
   "mypy>=1.18",
+  "types-shapely",
+  "types-networkx",
+  "scipy-stubs",
   "pre-commit>=4.0",
   "build>=1.2",
   "twine>=6.0",
@@ -87,7 +90,7 @@ strict = true
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = ["shapely.*", "networkx.*", "scipy.*", "gdstk.*", "gdsfactory.*", "klayout.*"]
+module = ["gdsfactory.*", "klayout.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

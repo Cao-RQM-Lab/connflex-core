@@ -7,6 +7,9 @@ pytest-cov==7.1.0
 black==26.10.1
 ruff==0.17.3
 mypy==2.4.1
+types-shapely==2.1.0.20261030
+types-networkx==3.6.1.20261031
+scipy-stubs==1.18.1.1
 pre-commit==4.7.0
 build==1.6.1
 twine==7.0.0

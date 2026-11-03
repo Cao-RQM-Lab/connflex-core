@@ -43,6 +43,10 @@ act -W .github/workflows/docs.yml -j build
   [parameters page](https://cao-rqm-lab.github.io/connflex-core/parameters/).
 - Core code imports only shapely, numpy, scipy, and networkx. Readers live in
   `adapters/` behind optional extras.
+- The package ships `py.typed` and mypy runs in strict mode with type stubs
+  for every dependency. A new dependency brings its stubs into the `dev`
+  extra and into the mypy hook in `.pre-commit-config.yaml`. Only readers
+  without stubs are exempt, in the mypy overrides in `pyproject.toml`.
 - SI units inside the library. Readers convert on the way in.
 - No GUI, plotting, or notebook code.
 
