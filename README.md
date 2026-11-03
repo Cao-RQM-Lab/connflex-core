@@ -35,17 +35,13 @@ stack = cf.Stack(
 params = cf.ExtractionParams(
     release_hole_max_area=100e-12, release_distance=5e-6, body_min_width=10e-6
 )
-
-structure = cf.extract(layout, stack, params)
-result = structure.modal()
-print(result.frequencies_hz[:5])
 ```
 
 Inputs are four polygon roles: `device`, `handle`, and optionally `release`
 and `vias`. Every polygon marks where the named feature is present. Readers
-exist for GDS files, shapely geometries, gdsfactory components, and klayout
-cells. Outputs are a mechanical graph, an electrical net graph, a serializable
-node tree, and numpy arrays. All units are SI.
+exist for GDS files and shapely geometries, and other readers plug in through
+a small adapter registry. The stack, parameters, and solve options can also be
+loaded from one TOML file. All units are SI.
 
 ## Documentation
 
