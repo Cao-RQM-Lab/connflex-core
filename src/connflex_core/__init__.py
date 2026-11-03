@@ -4,6 +4,8 @@ from importlib.metadata import version
 
 from connflex_core import adapters
 from connflex_core.adapters.gds import load_gds
+from connflex_core.adapters.gdsfactory_ import from_gdsfactory
+from connflex_core.adapters.klayout_ import from_klayout
 from connflex_core.config import load_config
 from connflex_core.electrical.nets import Conductor, Nets, Via, find_nets
 from connflex_core.extract import extract
@@ -38,6 +40,8 @@ __all__ = [
     "adapters",
     "extract",
     "find_nets",
+    "from_gdsfactory",
+    "from_klayout",
     "load_config",
     "load_gds",
 ]

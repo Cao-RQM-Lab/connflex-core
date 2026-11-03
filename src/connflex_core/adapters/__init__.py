@@ -1,7 +1,7 @@
 """Layout readers.
 
 An adapter is a callable ``adapter(source, **options) -> Layout``. The built-in adapters are
-``shapely`` and ``gds``. Other packages add adapters with :func:`register` or through the
+``shapely``, ``gds``, ``klayout``, and ``gdsfactory``. Other packages add adapters with :func:`register` or through the
 ``connflex_core.adapters`` entry-point group.
 """
 
@@ -18,6 +18,8 @@ Adapter = Callable[..., Layout]
 _BUILTIN = {
     "shapely": ("connflex_core.adapters.shapely_", "from_shapely"),
     "gds": ("connflex_core.adapters.gds", "load_gds"),
+    "klayout": ("connflex_core.adapters.klayout_", "from_klayout"),
+    "gdsfactory": ("connflex_core.adapters.gdsfactory_", "from_gdsfactory"),
 }
 _REGISTRY: dict[str, Adapter] = {}
 _discovered = False

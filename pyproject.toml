@@ -32,6 +32,9 @@ dependencies = [
 
 [project.optional-dependencies]
 gds = ["gdstk>=0.9"]
+klayout = ["klayout>=0.29"]
+gdsfactory = ["gdsfactory>=9"]
+all = ["connflex-core[gds,klayout,gdsfactory]"]
 dev = [
   "pytest>=8.3",
   "pytest-cov>=6.0",
@@ -86,6 +89,10 @@ files = ["src", "tests"]
 mypy_path = "src"
 strict = true
 warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["gdsfactory.*", "klayout.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

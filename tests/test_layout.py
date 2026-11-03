@@ -34,6 +34,6 @@ def test_empty_role_is_rejected() -> None:
 
 
 def test_registry_lists_adapters_and_rejects_unknown_names() -> None:
-    assert "shapely" in adapters.available()
+    assert {"gds", "gdsfactory", "klayout", "shapely"} <= set(adapters.available())
     with pytest.raises(KeyError, match="shapely"):
         adapters.get("nope")

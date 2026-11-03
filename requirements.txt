@@ -1,6 +1,6 @@
 # Development environment: python -m pip install -r requirements.txt
 # Runtime dependencies are declared in pyproject.toml with lower bounds only.
--e .[gds]
+-e .[all]
 
 pytest==9.2.0
 pytest-cov==7.1.0
