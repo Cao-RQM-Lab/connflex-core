@@ -90,6 +90,7 @@ stack, params, options = cf.load_config("soi_25um.toml")
 structure = cf.extract(layout, stack, params)
 
 structure.bodies  # rigid bodies, the anchor first; polygons per layer in meters
+structure.bodies[1].inertial  # mass, center of mass, inertia tensor, 6 by 6 mass matrix
 structure.beams  # beams joining exactly two bodies: length, width, thickness, end points
 structure.rejected  # beam candidates that did not qualify, each with a reason
 structure.graph  # networkx MultiGraph, bodies as nodes and beams as edges
@@ -103,7 +104,10 @@ handle polygon is selected, polygons with no connection to it through the
 stack are dropped, bodies are assembled by overlap through the opened device
 layer, the oxide, and the handle, and the device regions removed by the
 opening become beams when they touch exactly two bodies and their width lies
-within `beam_width_min` and `beam_width_max`.
+within `beam_width_min` and `beam_width_max`. Each body carries its mass,
+center of mass, and inertia tensor, computed layer by layer from the stack
+with exact triangulated quadrature; `body.inertial.matrix` is the 6 by 6 mass
+matrix in the body degrees of freedom.
 
 A candidate that touches one body is a stub, one that touches three or more
 is a junction; both appear in `structure.rejected` with that reason, which is
