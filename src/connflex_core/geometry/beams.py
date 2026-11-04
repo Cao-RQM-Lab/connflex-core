@@ -55,23 +55,24 @@ def find_beams(
                 touched.setdefault(body_of[j], []).append(body_parts[j])
         if len(touched) != 2:
             noun = "body" if len(touched) == 1 else "bodies"
-            rejected.append(RejectedCandidate(candidate, f"touches {len(touched)} {noun}"))
+            reason = f"touches {len(touched)} {noun}"
+            rejected.append(RejectedCandidate(candidate, reason, tuple(sorted(touched))))
             continue
         (a, parts_a), (b, parts_b) = sorted(touched.items())
         start = expanded.intersection(shapely.union_all(parts_a)).centroid
         end = expanded.intersection(shapely.union_all(parts_b)).centroid
         length = start.distance(end)
         if length <= 0:
-            rejected.append(RejectedCandidate(candidate, "zero length"))
+            rejected.append(RejectedCandidate(candidate, "zero length", (a, b)))
             continue
         width = candidate.area / length
         if width < width_min:
             reason = f"width {width:.3g} m is below beam_width_min {width_min:.3g} m"
-            rejected.append(RejectedCandidate(candidate, reason))
+            rejected.append(RejectedCandidate(candidate, reason, (a, b)))
             continue
         if width > width_max:
             reason = f"width {width:.3g} m is above beam_width_max {width_max:.3g} m"
-            rejected.append(RejectedCandidate(candidate, reason))
+            rejected.append(RejectedCandidate(candidate, reason, (a, b)))
             continue
         beams.append(
             Beam(

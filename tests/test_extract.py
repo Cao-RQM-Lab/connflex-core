@@ -72,14 +72,18 @@ def test_candidates_touching_one_or_three_bodies_are_rejected(
     stub = box(100, 45, 150, 55)
     structure = extract(layout_um([PAD_A, stub], [HANDLE_A]), stack, params())
     assert structure.beams == ()
-    assert any("1 bod" in candidate.reason for candidate in structure.rejected)
+    (candidate,) = structure.rejected
+    assert "1 bod" in candidate.reason
+    assert candidate.bodies == (0,)
 
     pad_c = box(150, 300, 250, 400)
     arms = [box(100, 45, 300, 55), box(195, 55, 205, 300)]
     structure = extract(layout_um([PAD_A, PAD_B, pad_c, *arms], [HANDLE_A]), stack, params())
     assert len(structure.bodies) == 3
     assert structure.beams == ()
-    assert any("3 bod" in candidate.reason for candidate in structure.rejected)
+    junctions = [candidate for candidate in structure.rejected if "3 bod" in candidate.reason]
+    assert [candidate.bodies for candidate in junctions] == [(0, 1, 2)]
+    assert [0, 1, 2] in [entry["bodies"] for entry in structure.to_dict()["rejected"]]
 
 
 def test_beam_width_bounds_reject_slivers(

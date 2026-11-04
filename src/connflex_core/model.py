@@ -80,10 +80,12 @@ class RejectedCandidate:
     Attributes:
         polygon: Rejected region.
         reason: Why it was rejected.
+        bodies: Indices of the bodies it touches, ascending.
     """
 
     polygon: Polygon
     reason: str
+    bodies: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -167,7 +169,11 @@ class Structure:
                 for beam in self.beams
             ],
             "rejected": [
-                {"polygon": mapping(candidate.polygon), "reason": candidate.reason}
+                {
+                    "polygon": mapping(candidate.polygon),
+                    "reason": candidate.reason,
+                    "bodies": list(candidate.bodies),
+                }
                 for candidate in self.rejected
             ],
             "nets": self.nets.to_dict(),
