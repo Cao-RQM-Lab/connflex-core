@@ -60,3 +60,16 @@ def test_anchor_defaults_to_the_largest_handle_polygon_and_accepts_overrides() -
         select_anchor(parts, (50.0, 50.0))
     with pytest.raises(ValueError, match="anchor"):
         select_anchor(parts, 2)
+
+
+def test_opening_treats_each_polygon_on_its_own() -> None:
+    def dumbbell(y: float) -> Polygon:
+        parts = [box(0, y, 10, y + 10), box(10, y + 4, 20, y + 6), box(20, y, 30, y + 10)]
+        merged = unary_union(parts)
+        assert isinstance(merged, Polygon)
+        return merged
+
+    opened = opening(MultiPolygon([dumbbell(0), dumbbell(100)]), radius=2)
+    assert len(opened.geoms) == 4
+    assert sorted(part.area for part in opened.geoms) == pytest.approx([100.0] * 4)
+    assert opened.bounds == pytest.approx((0, 0, 30, 110))

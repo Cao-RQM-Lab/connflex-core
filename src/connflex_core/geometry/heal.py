@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import numpy as np
 import shapely
+from numpy.typing import NDArray
 from shapely import MultiPolygon, Polygon
 from shapely.geometry.base import BaseGeometry
 
 
-def as_multipolygon(geometry: BaseGeometry) -> MultiPolygon:
-    """Collect polygonal parts of any geometry into a MultiPolygon."""
+def as_multipolygon(geometry: BaseGeometry | NDArray[np.object_]) -> MultiPolygon:
+    """Collect polygonal parts of a geometry, or of an array of geometries, into a MultiPolygon."""
     parts = [
         part
         for part in shapely.get_parts(geometry)
@@ -24,9 +26,14 @@ def heal(geometry: MultiPolygon, distance: float, tolerance: float) -> MultiPoly
 
 
 def opening(geometry: MultiPolygon, radius: float) -> MultiPolygon:
-    """Remove features narrower than twice ``radius``; wider features come back unchanged."""
-    eroded = geometry.buffer(-radius, join_style="mitre")
-    return as_multipolygon(eroded.buffer(radius, join_style="mitre"))
+    """Remove features narrower than twice ``radius``; wider features come back unchanged.
+
+    Each polygon is opened on its own. The opening of a polygon lies inside it, so the parts
+    of a disjoint set stay disjoint and the union that one buffer over the whole set would
+    perform is skipped.
+    """
+    eroded = shapely.buffer(shapely.get_parts(geometry), -radius, join_style="mitre")
+    return as_multipolygon(shapely.buffer(eroded, radius, join_style="mitre"))
 
 
 def snap(geometry: MultiPolygon, grid: float) -> MultiPolygon:

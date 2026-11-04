@@ -102,6 +102,11 @@ device layer thickness.
     Candidates whose width falls outside the configured bounds are discarded
     like any other rejected candidate. Beams carry stiffness but no mass.
 
+    The opening in (3) and the sliver removal on the candidates are applied
+    polygon by polygon. An opening never leaves its polygon, so the parts of a
+    disjoint set stay disjoint and the result is the same as opening the set as
+    a whole, without the union that a single buffer over the set performs.
+
     Stubs are kept apart from the body polygons. A body's device polygons are
     the output of the opening in (3): they define connectivity through the
     stack, the candidate regions, and the net tags, and widening them with
