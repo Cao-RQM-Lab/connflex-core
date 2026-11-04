@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
+import shapely
 from shapely import Point, Polygon
 
 from connflex_core import LayerMap, load_gds
@@ -61,7 +63,7 @@ def test_several_top_cells_need_a_name(tmp_path: Path) -> None:
 
 
 def test_cut_line_along_an_edge_is_repaired_without_filling_the_hole() -> None:
-    repaired = gds._repair(CUT_LINE)
+    (repaired,) = gds._repair(np.array([Polygon(CUT_LINE)], dtype=object))
     assert repaired.is_valid
     assert repaired.area == pytest.approx(6400, rel=1e-9)
     assert not repaired.covers(Point(-300, 150))
@@ -82,6 +84,6 @@ def test_cut_line_hole_round_trips_through_a_file(tmp_path: Path) -> None:
 def test_repaired_area_is_checked_against_the_file(
     gds_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(gds, "_repair", lambda points: Polygon(points).envelope)
+    monkeypatch.setattr(gds, "_repair", lambda shapes: shapely.envelope(shapes))
     with pytest.raises(ValueError, match=r"polygon 0 on device layer \(1, 0\)"):
         load_gds(gds_file, layers=LAYERS)

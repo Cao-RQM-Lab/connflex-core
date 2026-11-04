@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import math
-from collections.abc import Sequence
 from os import PathLike
 from typing import TYPE_CHECKING
 
+import numpy as np
 import shapely
+from numpy.typing import NDArray
 from shapely import GeometryCollection, MultiPolygon, Polygon
 from shapely.geometry.base import BaseGeometry
 
@@ -24,7 +24,7 @@ def load_gds(path: str | PathLike[str], *, layers: LayerMap, cell: str | None = 
     File units are applied. ``cell`` names the cell to read and is required when a file has
     more than one top-level cell. Polygons with cut lines, which is how GDSII stores holes,
     are repaired into polygons with holes, and each repaired area is verified against the
-    file's polygon.
+    file's polygon. Polygons are handled as arrays; only invalid ones are rebuilt.
     """
     try:
         import gdstk
@@ -43,15 +43,17 @@ def load_gds(path: str | PathLike[str], *, layers: LayerMap, cell: str | None = 
             apply_repetitions=True, include_paths=True, depth=None, layer=spec[0], datatype=spec[1]
         )
         polygons: list[Polygon] = []
-        for index, polygon in enumerate(found):
-            parts = _polygons(_repair(polygon.points))
-            area, expected = sum(part.area for part in parts), polygon.area()
-            if not math.isclose(area, expected, rel_tol=1e-6):
+        if found:
+            shapes = shapely.polygons([shapely.linearrings(polygon.points) for polygon in found])
+            repaired = _repair(shapes)
+            areas = shapely.area(repaired)
+            expected = np.array([polygon.area() for polygon in found])
+            for index in np.flatnonzero(~np.isclose(areas, expected, rtol=1e-6, atol=0.0)):
                 raise ValueError(
                     f"polygon {index} on {role} layer {spec} in cell {top.name!r} of {path} "
-                    f"has area {area:g} after repair but {expected:g} in the file"
+                    f"has area {areas[index]:g} after repair but {expected[index]:g} in the file"
                 )
-            polygons.extend(parts)
+            polygons = [part for shape in repaired for part in _polygons(shape)]
         if polygons:
             roles[role] = polygons
         elif role in ("device", "handle"):
@@ -74,8 +76,15 @@ def _top_cell(library: gdstk.Library, name: str | None, path: str) -> gdstk.Cell
     raise ValueError(f"{path} has no cell named {name!r}")
 
 
-def _repair(points: Sequence[tuple[float, float]]) -> BaseGeometry:
-    return shapely.make_valid(Polygon(points), method="structure", keep_collapsed=False)
+def _repair(shapes: NDArray[np.object_]) -> NDArray[np.object_]:
+    """Rebuild invalid polygons, which is how cut-line holes arrive, and keep valid ones as is."""
+    invalid = ~shapely.is_valid(shapes)
+    if invalid.any():
+        shapes = shapes.copy()
+        shapes[invalid] = shapely.make_valid(
+            shapes[invalid], method="structure", keep_collapsed=False
+        )
+    return shapes
 
 
 def _polygons(geometry: BaseGeometry) -> list[Polygon]:
