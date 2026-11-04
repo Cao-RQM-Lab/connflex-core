@@ -49,3 +49,14 @@ def test_separate_polygons_keep_their_order_and_only_touching_ones_merge() -> No
     assert len(parts) == 51
     assert [part.bounds[0] for part in parts[:50]] == [3 * i for i in range(50)]
     assert parts[50].area == pytest.approx(3.0)
+
+
+def test_polygons_are_stored_in_canonical_vertex_order() -> None:
+    shell = [(0, 0), (10, 0), (10, 10), (0, 10)]
+    holes = [[(1, 1), (2, 1), (2, 2), (1, 2)], [(5, 5), (7, 5), (7, 7), (5, 7)]]
+    drawn = Polygon(shell, holes)
+    redrawn = Polygon(shell[2:] + shell[:2], [holes[1][::-1], holes[0][1:] + holes[0][:1]])
+    handle = box(-1, -1, 11, 11)
+    first = Layout.from_shapely(device=[drawn], handle=handle, unit=1.0)
+    second = Layout.from_shapely(device=[redrawn], handle=handle, unit=1.0)
+    assert first.device.equals_exact(second.device, 0)

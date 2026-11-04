@@ -69,7 +69,10 @@ and `vias`. Every polygon marks where the named feature is present; see the
 
 Polygons within one role are merged where they overlap or touch, invalid
 polygons are rejected with role and index named, and `layout.device` and friends are shapely
-`MultiPolygon` objects in meters.
+`MultiPolygon` objects in meters. Each polygon is stored in canonical vertex order, with
+the exterior ring clockwise from its smallest vertex and holes counterclockwise, so a
+layout drawn with different ring start points, orientations, or hole order extracts to
+bit-identical results.
 
 Readers are looked up by name through `cf.adapters.get(name)`; `cf.adapters.available()`
 lists them. A package adds a reader with `cf.adapters.register(name, function)` or by

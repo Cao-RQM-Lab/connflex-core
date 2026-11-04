@@ -11,7 +11,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Material`, `Layer`, `Stack`, `ExtractionParams`, and `SolveOptions` with
   validation, and `load_config` for TOML process files.
 - `Layout` with shapely and GDS readers and an adapter registry; polygons
-  within a role are merged only where they overlap or touch. The GDS reader
+  within a role are merged only where they overlap or touch and stored in
+  canonical vertex order. The GDS reader
   rebuilds holes from cut lines and verifies every repaired area against the
   file.
 - `extract` producing a `Structure` of rigid bodies and beams: release holes

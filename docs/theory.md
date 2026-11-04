@@ -80,6 +80,21 @@ by dividing its geometric area by its length, and its thickness $t$ is the
 device layer thickness.
 
 !!! note "Implementation choices"
+    Every polygon is put in canonical vertex order when a layout is built: the
+    exterior ring runs clockwise and starts at its lexicographically smallest
+    vertex, each hole runs counterclockwise and starts at its own smallest
+    vertex, and holes are listed in a fixed order given by their coordinates.
+    Polygons keep the order of the input. The Douglas–Peucker simplification
+    that follows (1) treats a ring as an open sequence from its start vertex
+    around to the same vertex: it keeps both ends, keeps the vertex farthest
+    from the chord between them when that distance exceeds $r_h$, and recurses
+    on the two halves. The retained vertices therefore depend on the start
+    vertex, and the same outline listed from another vertex simplifies to a
+    different polygon within $r_h$ of the first. Erosion and expansion do not
+    depend on where a ring starts or which way it runs, so with canonical
+    order every layer downstream of (1) is a function of the drawn shapes
+    alone.
+
     Release holes inside the device layer are identified and filled before the
     healing of (1), so healing runs on the filled outlines rather than on every
     hole outline. Healing adds material and never removes it, so it cannot merge

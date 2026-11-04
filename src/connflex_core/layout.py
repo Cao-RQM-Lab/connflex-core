@@ -38,7 +38,9 @@ class Layout:
     """Polygon layers of one layout, in meters.
 
     Every polygon marks where the feature named by its role is present. Polygons within one
-    role that overlap or touch are merged; the rest keep their order.
+    role that overlap or touch are merged; the rest keep their order. Each polygon is stored
+    in canonical vertex order, so results depend on shapes alone and not on where a ring
+    starts, which way it runs, or how its holes are listed.
 
     Attributes:
         device: Device-layer silicon.
@@ -74,10 +76,12 @@ class Layout:
 
 
 def normalize(role: str, polygons: PolygonInput, unit: float) -> MultiPolygon:
-    """Validate, merge, and scale one role's polygons.
+    """Validate, merge, scale, and canonicalize one role's polygons.
 
     Polygons that overlap or touch are unioned. The others are kept as given, in order, so a
-    role of many separate polygons costs one spatial query instead of a union.
+    role of many separate polygons costs one spatial query instead of a union. Every polygon
+    is then normalized, since simplification later in the pipeline depends on where a ring
+    starts.
     """
     if unit <= 0:
         raise ValueError(f"unit must be positive, got {unit}")
@@ -95,7 +99,7 @@ def normalize(role: str, polygons: PolygonInput, unit: float) -> MultiPolygon:
     if parts.size == 0:
         raise ValueError(f"{role} has no polygons")
     scaled = shapely.transform(_merge_touching(parts), lambda coords: coords * unit)
-    return MultiPolygon(list(scaled))
+    return MultiPolygon(list(shapely.normalize(scaled)))
 
 
 def _merge_touching(parts: NDArray[np.object_]) -> NDArray[np.object_]:
