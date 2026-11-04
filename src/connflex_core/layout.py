@@ -5,8 +5,10 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+import numpy as np
 import shapely
-from shapely import MultiPolygon, Polygon
+from numpy.typing import NDArray
+from shapely import MultiPolygon, Polygon, STRtree
 from shapely.validation import explain_validity
 
 ROLES = ("device", "handle", "release", "vias")
@@ -36,7 +38,7 @@ class Layout:
     """Polygon layers of one layout, in meters.
 
     Every polygon marks where the feature named by its role is present. Polygons within one
-    role are unioned.
+    role that overlap or touch are merged; the rest keep their order.
 
     Attributes:
         device: Device-layer silicon.
@@ -72,15 +74,37 @@ class Layout:
 
 
 def normalize(role: str, polygons: PolygonInput, unit: float) -> MultiPolygon:
-    """Validate, union, and scale one role's polygons."""
+    """Validate, merge, and scale one role's polygons.
+
+    Polygons that overlap or touch are unioned. The others are kept as given, in order, so a
+    role of many separate polygons costs one spatial query instead of a union.
+    """
     if unit <= 0:
         raise ValueError(f"unit must be positive, got {unit}")
     items = [polygons] if isinstance(polygons, Polygon | MultiPolygon) else list(polygons)
-    for index, geometry in enumerate(items):
-        if not geometry.is_valid:
-            raise ValueError(f"{role} polygon {index} is invalid: {explain_validity(geometry)}")
-    union = shapely.transform(shapely.union_all(items), lambda coords: coords * unit)
-    parts = [part for part in shapely.get_parts(union) if isinstance(part, Polygon)]
-    if not parts or all(part.is_empty for part in parts):
+    for index in np.flatnonzero(~shapely.is_valid(np.array(items, dtype=object))):
+        raise ValueError(f"{role} polygon {index} is invalid: {explain_validity(items[index])}")
+    parts = np.array(
+        [
+            part
+            for part in shapely.get_parts(items)
+            if isinstance(part, Polygon) and not part.is_empty
+        ],
+        dtype=object,
+    )
+    if parts.size == 0:
         raise ValueError(f"{role} has no polygons")
-    return MultiPolygon(parts)
+    scaled = shapely.transform(_merge_touching(parts), lambda coords: coords * unit)
+    return MultiPolygon(list(scaled))
+
+
+def _merge_touching(parts: NDArray[np.object_]) -> NDArray[np.object_]:
+    left, right = STRtree(parts).query(parts, predicate="intersects")
+    touching = np.unique(left[left != right])
+    if touching.size == 0:
+        return parts
+    keep = np.ones(parts.size, dtype=bool)
+    keep[touching] = False
+    merged = shapely.get_parts(shapely.union_all(parts[touching]))
+    merged = np.array([part for part in merged if isinstance(part, Polygon)], dtype=object)
+    return np.concatenate([parts[keep], merged])

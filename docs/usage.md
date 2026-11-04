@@ -67,8 +67,8 @@ and `vias`. Every polygon marks where the named feature is present; see the
     )
     ```
 
-Polygons within one role are unioned, invalid polygons are rejected with
-role and index named, and `layout.device` and friends are shapely
+Polygons within one role are merged where they overlap or touch, invalid
+polygons are rejected with role and index named, and `layout.device` and friends are shapely
 `MultiPolygon` objects in meters.
 
 Readers are looked up by name through `cf.adapters.get(name)`; `cf.adapters.available()`

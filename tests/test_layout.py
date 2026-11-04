@@ -37,3 +37,15 @@ def test_registry_lists_adapters_and_rejects_unknown_names() -> None:
     assert {"gds", "gdsfactory", "klayout", "shapely"} <= set(adapters.available())
     with pytest.raises(KeyError, match="shapely"):
         adapters.get("nope")
+
+
+def test_separate_polygons_keep_their_order_and_only_touching_ones_merge() -> None:
+    squares = [box(3 * i, 0, 3 * i + 1, 1) for i in range(50)]
+    overlapping = [box(0, 10, 2, 11), box(1, 10, 3, 11)]
+    layout = Layout.from_shapely(
+        device=[*squares, *overlapping], handle=box(0, 0, 200, 20), unit=1.0
+    )
+    parts = list(layout.device.geoms)
+    assert len(parts) == 51
+    assert [part.bounds[0] for part in parts[:50]] == [3 * i for i in range(50)]
+    assert parts[50].area == pytest.approx(3.0)
