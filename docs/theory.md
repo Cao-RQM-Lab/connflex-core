@@ -88,8 +88,9 @@ device layer thickness.
     at or below $A_\text{min}$ that healing closed joins the release holes.
     Holes found in the first pass keep their drawn outlines. Interior rings of a
     valid polygon are disjoint, and a cavity closed by healing lay in open
-    space before it, so the release holes never overlap one another; they are
-    unioned only with a drawn release layer. The resulting openings are built
+    space before it, so the release holes never overlap one another, and a
+    drawn release layer is unioned by its reader; a union runs only when both
+    are present. The resulting openings are built
     once and serve both the oxide estimate in (2) and the mass properties.
 
     The width uses the area of the unexpanded candidate $D - B$, so the

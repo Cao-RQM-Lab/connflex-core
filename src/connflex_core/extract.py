@@ -25,8 +25,8 @@ def extract(
 
     Release holes inside the device layer are filled, the layers are healed and simplified,
     and holes that healing closes are filled as well. The holes and the release layer give
-    the surviving buried oxide; holes are disjoint by construction, so they are unioned only
-    when a release layer is present. An anchor handle polygon is selected and every polygon
+    the surviving buried oxide; holes are disjoint by construction and the release layer is
+    unioned by its reader, so the two are unioned only when both are present. An anchor handle polygon is selected and every polygon
     with no connection to it through the stack is dropped. Bodies are assembled by overlap
     through the opened device layer, oxide, and handle; each gets mass properties from the
     stack, with the moments of the release openings inside it subtracted from its device
@@ -64,6 +64,8 @@ def extract(
     with stage("release", progress) as current:
         if release is None:
             openings = MultiPolygon(holes)
+        elif not holes:
+            openings = release
         else:
             openings = as_multipolygon(shapely.union_all([*holes, *release.geoms]))
         box = surviving_box(
