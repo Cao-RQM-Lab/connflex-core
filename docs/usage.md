@@ -140,8 +140,8 @@ bodies are assembled by overlap through the opened device layer, oxide, and
 handle, and device regions removed by the opening become beams when they
 touch exactly two bodies and their width lies within `beam_width_min` and
 `beam_width_max`. Each body carries its mass, center of mass, and inertia
-tensor, computed layer by layer from the stack with exact triangulated
-quadrature and with release openings removed from the device layer;
+tensor, computed layer by layer from the stack with exact closed-form edge
+integrals and with release openings removed from the device layer;
 `body.inertial.matrix` is the 6 by 6 mass matrix in body degrees of freedom.
 
 A candidate that touches one body is a stub, one that touches three or more

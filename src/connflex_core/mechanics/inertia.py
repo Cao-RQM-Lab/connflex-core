@@ -69,29 +69,49 @@ class MassProperties:
 
 
 def area_moments(geometry: MultiPolygon) -> AreaMoments:
-    """Area moments by constrained Delaunay triangulation and edge-midpoint rule.
+    """Area moments in closed form over the polygon edges, equations (11a) and (11b).
 
-    The midpoint rule integrates polynomials of degree two exactly on each triangle,
-    equation (11).
+    Exterior rings add and holes subtract, whichever way they are drawn. The edge sums
+    run about the center of the bounding box, where they cancel least, and are moved to
+    the origin by the shift of (11c).
     """
     if geometry.is_empty:
         return AreaMoments(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    triangles = shapely.get_parts(shapely.constrained_delaunay_triangles(geometry))
-    vertices = shapely.get_coordinates(triangles).reshape(-1, 4, 2)[:, :3, :]
-    v0, v1, v2 = vertices[:, 0], vertices[:, 1], vertices[:, 2]
-    cross = (v1[:, 0] - v0[:, 0]) * (v2[:, 1] - v0[:, 1]) - (v2[:, 0] - v0[:, 0]) * (
-        v1[:, 1] - v0[:, 1]
+    polygons = shapely.get_parts(geometry)
+    rings, owner = shapely.get_rings(polygons, return_index=True)
+    coords, ring_of = shapely.get_coordinates(rings, return_index=True)
+    first = np.ones(rings.size, dtype=bool)
+    first[1:] = owner[1:] != owner[:-1]
+    role = np.where(first, 1.0, -1.0)
+    shift = (coords.min(axis=0) + coords.max(axis=0)) / 2
+    coords = coords - shift
+
+    edge = ring_of[:-1] == ring_of[1:]
+    x0, y0 = coords[:-1, 0][edge], coords[:-1, 1][edge]
+    x1, y1 = coords[1:, 0][edge], coords[1:, 1][edge]
+    ring = ring_of[:-1][edge]
+    cross = x0 * y1 - x1 * y0
+    terms = np.stack(
+        [
+            cross / 2,
+            (x0 + x1) * cross / 6,
+            (y0 + y1) * cross / 6,
+            (x0 * x0 + x0 * x1 + x1 * x1) * cross / 12,
+            (y0 * y0 + y0 * y1 + y1 * y1) * cross / 12,
+            (2 * x0 * y0 + x0 * y1 + x1 * y0 + 2 * x1 * y1) * cross / 24,
+        ]
     )
-    weights = np.tile(np.abs(cross) / 6.0, 3)
-    midpoints = np.concatenate([(v0 + v1) / 2, (v1 + v2) / 2, (v2 + v0) / 2])
-    x, y = midpoints[:, 0], midpoints[:, 1]
+    per_ring = np.stack([np.bincount(ring, weights=row, minlength=rings.size) for row in terms])
+    signs = role * np.sign(per_ring[0])
+    area, x, y, xx, yy, xy = (float(value) for value in per_ring @ signs)
+    sx, sy = (float(value) for value in shift)
     return AreaMoments(
-        area=float(weights.sum()),
-        x=float(weights @ x),
-        y=float(weights @ y),
-        xx=float(weights @ (x * x)),
-        yy=float(weights @ (y * y)),
-        xy=float(weights @ (x * y)),
+        area=area,
+        x=x + sx * area,
+        y=y + sy * area,
+        xx=xx + 2 * sx * x + sx * sx * area,
+        yy=yy + 2 * sy * y + sy * sy * area,
+        xy=xy + sx * y + sy * x + sx * sy * area,
     )
 
 
@@ -103,7 +123,7 @@ def mass_properties(
     Each layer is a uniform extrusion between its top and bottom heights, equations (5)
     to (10). ``openings`` are disjoint release openings lying inside the first layer; their
     moments are subtracted from it, which equals integrating over the perforated polygon
-    without triangulating a polygon with thousands of holes.
+    and costs one pass over the vertices of the openings.
     """
     moments = [area_moments(geometry) for geometry in layers]
     if openings:

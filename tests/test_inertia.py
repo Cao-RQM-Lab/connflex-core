@@ -36,15 +36,27 @@ def test_moments_add_over_concave_and_holed_shapes() -> None:
     assert moments_tuple(ring) == pytest.approx(list(difference))
 
 
+def test_moments_ignore_ring_orientation() -> None:
+    outer = [(0, 0), (10, 0), (10, 10), (0, 10)]
+    inner = [(4, 4), (6, 4), (6, 6), (4, 6)]
+    drawn = MultiPolygon([Polygon(outer, [inner])])
+    reversed_rings = MultiPolygon([Polygon(outer[::-1], [inner[::-1]])])
+    assert moments_tuple(area_moments(drawn)) == pytest.approx([96, 480, 480, 3232, 3232, 2400])
+    assert moments_tuple(area_moments(reversed_rings)) == pytest.approx(
+        moments_tuple(area_moments(drawn))
+    )
+
+
 def test_single_plate_matches_the_cuboid_formulas(stack: Stack) -> None:
     a, b, t = 100 * UM, 50 * UM, stack.device.thickness
-    plate = MultiPolygon([box(10 * UM, 20 * UM, 10 * UM + a, 20 * UM + b)])
+    x0, y0 = 4000 * UM, -3000 * UM
+    plate = MultiPolygon([box(x0, y0, x0 + a, y0 + b)])
     props = mass_properties([plate, MultiPolygon(), MultiPolygon()], stack)
     mass = 2330 * t * a * b
     assert props.mass == pytest.approx(mass)
-    assert props.center == pytest.approx([60 * UM, 45 * UM, -t / 2])
+    assert props.center == pytest.approx([x0 + a / 2, y0 + b / 2, -t / 2])
     expected = mass / 12 * np.diag([b * b + t * t, a * a + t * t, a * a + b * b])
-    assert props.inertia == pytest.approx(expected, abs=1e-9 * np.max(expected))
+    assert props.inertia == pytest.approx(expected, abs=1e-11 * np.max(expected))
     assert props.matrix[:3, :3] == pytest.approx(mass * np.eye(3))
     assert props.matrix[3:, 3:] == pytest.approx(props.inertia)
     assert props.matrix[:3, 3:] == pytest.approx(np.zeros((3, 3)))

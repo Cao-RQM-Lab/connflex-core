@@ -20,10 +20,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   through the stack, beam qualification with slivers narrower than
   `heal_distance` dropped, stubs attached to their body, a networkx graph, and
   a JSON tree.
-- Mass, center of mass, and inertia tensor of every body and its stubs by triangulated
-  quadrature over the stack, with the 6 by 6 body mass matrix. Release openings
-  are removed from device-layer mass by subtracting their own moments, so a
-  perforated body is never triangulated.
+- Mass, center of mass, and inertia tensor of every body and its stubs by
+  closed-form edge integrals over the stack, with the 6 by 6 body mass matrix.
+  Release openings are removed from device-layer mass by subtracting their own
+  moments, evaluated in one vectorized pass.
 - Beam stiffness: torsion constant with short-beam correction, local 12 by 12
   Euler-Bernoulli matrix, and transformation onto body degrees of freedom.
 - Assembly of 6N by 6N mass and stiffness matrices, modal analysis with

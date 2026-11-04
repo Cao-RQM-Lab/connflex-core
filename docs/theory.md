@@ -143,11 +143,22 @@ device layer thickness.
     openings, whether found as holes in the device layer or drawn on the release
     layer, are subtracted from the device-layer mass properties of a body; the filled
     polygons are kept only for connectivity and beam extraction. The subtraction
-    works on the moments: the quadrature of (11) is applied to the filled device
-    polygons of a body and to the openings it contains, and the latter are taken
-    away. An opening that crosses the body boundary is clipped to it first. The
-    result equals integrating over the perforated polygon, while only small,
-    hole-free polygons are ever triangulated.
+    works on the moments: the sums of (11b) are evaluated for the filled
+    device polygons of a body and for the openings it contains, and the latter
+    are taken away. An opening that crosses the body boundary is clipped to it
+    first. The result equals integrating over the perforated polygon, and all
+    rings of a geometry are summed in one vectorized pass, so a layout with a
+    hundred thousand openings costs one pass over their vertices and no
+    polygon is triangulated.
+
+    The sums of (11b) are evaluated about the center $\mathbf{c}_0$ of the
+    bounding box of the region and moved to the origin by (11c) with the shift
+    reversed. About the global origin every term of (11b) is of order
+    $|\mathbf{c}_0|^2 A$, whereas the central moments of (10) are of order
+    $\sigma^2 A$ for a body of extent $\sigma$, so a body a few millimeters
+    from the origin would lose about seven significant digits of inertia in
+    the sum. Summed about $\mathbf{c}_0$, the only cancellation left is the
+    shift to the center of mass in (11c).
 
 ## Body mass and moment of inertia
 
@@ -211,16 +222,50 @@ $$
 where $z_{lt}$ and $z_{lb}$ are the top and bottom z-heights of layer $l$ with
 respect to the body center of mass.
 
-Each layer's generic polygon is converted via constrained Delaunay
-triangulation into $n$ triangles $T_n$ with edge midpoints $\mathbf{m}_{n1}$,
-$\mathbf{m}_{n2}$, $\mathbf{m}_{n3}$. Then for any integrand $f$ with degree
-$\leq 2$, the estimation is exact:
+Every integral in (5), (7), and (10) is a polynomial of degree at most two
+over a region bounded by polygons, so it has a closed form in the vertices.
+Let a ring have vertices $(x_i, y_i)$ for $i = 0, \dots, n - 1$, closed by
+$(x_n, y_n) = (x_0, y_0)$ and traversed counterclockwise, and let
 
 $$
-\int f\, dA = \sum_{n} \frac{A_{T_n}}{3} \sum_{i=1}^3 f(\mathbf{m}_{ni}), \tag{11}
+a_i = x_i y_{i+1} - x_{i+1} y_i \tag{11a}
 $$
 
-where $A_{T_n}$ is the area of triangle $T_n$.
+be twice the signed area of the triangle spanned by the origin and edge $i$.
+By Green's theorem, the integrals over the region enclosed by the ring are
+
+$$
+\begin{aligned}
+\int dA &= \frac{1}{2} \sum_{i=0}^{n-1} a_i, \\
+\int x\, dA &= \frac{1}{6} \sum_{i=0}^{n-1} (x_i + x_{i+1})\, a_i, \\
+\int y\, dA &= \frac{1}{6} \sum_{i=0}^{n-1} (y_i + y_{i+1})\, a_i, \\
+\int x^2\, dA &= \frac{1}{12} \sum_{i=0}^{n-1} \left(x_i^2 + x_i x_{i+1} + x_{i+1}^2\right) a_i, \\
+\int y^2\, dA &= \frac{1}{12} \sum_{i=0}^{n-1} \left(y_i^2 + y_i y_{i+1} + y_{i+1}^2\right) a_i, \\
+\int x y\, dA &= \frac{1}{24} \sum_{i=0}^{n-1} \left(2 x_i y_i + x_i y_{i+1} + x_{i+1} y_i + 2 x_{i+1} y_{i+1}\right) a_i.
+\end{aligned} \tag{11b}
+$$
+
+Each term of (11b) is the exact integral of its integrand over the triangle
+spanned by the origin and edge $i$, and these triangles cover the enclosed
+region exactly once with sign, so the sums are exact. Traversing the ring
+clockwise negates every sum; the sums of each ring are therefore multiplied
+by the sign of its own $\tfrac{1}{2} \sum_i a_i$, so the drawn orientation
+does not matter. The integrals over a polygon are those of its exterior ring
+minus those of each hole, and the integrals over a layer region are the sum
+over its polygons. $A_l$ in (5) is $\int dA$, and the centroid in (7) is
+$\bar{x}_l = \int x\, dA / A_l$ and $\bar{y}_l = \int y\, dA / A_l$. The
+integrals of (10) about the center of mass follow from those about the origin
+by the shift to a point $\mathbf{c} = (c_x, c_y)$,
+
+$$
+\begin{aligned}
+\int (x - c_x)\, dA &= \int x\, dA - c_x \int dA, \\
+\int (x - c_x)^2\, dA &= \int x^2\, dA - 2 c_x \int x\, dA + c_x^2 \int dA, \\
+\int (x - c_x)(y - c_y)\, dA &= \int x y\, dA - c_x \int y\, dA - c_y \int x\, dA + c_x c_y \int dA,
+\end{aligned} \tag{11c}
+$$
+
+and likewise for $y$.
 
 The three dimensional degrees of freedom of a body are defined as
 
