@@ -12,7 +12,7 @@ layout's electrical nets.
 | Release estimate | device, handle, release holes, undercut distance | surviving oxide regions |
 | Body extraction | opened device layer, oxide, handle | rigid bodies anchored at the largest handle polygon |
 | Beam extraction | thin device regions bridging two bodies | beams with length, width, thickness |
-| Mass properties | body polygons and layer stack | mass, center of mass, inertia tensor |
+| Mass properties | body and stub polygons and layer stack | mass, center of mass, inertia tensor |
 | Beam stiffness | beam geometry and material | 12 by 12 stiffness on body degrees of freedom |
 | Assembly and solve | all bodies and beams | frequencies and mode shapes |
 | Electrical nets | device, handle, vias | net graph |

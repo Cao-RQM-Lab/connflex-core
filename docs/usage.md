@@ -121,6 +121,7 @@ structure = cf.extract(layout, stack, params)
 
 structure.bodies  # rigid bodies, anchor first; polygons per layer in meters
 structure.bodies[1].inertial  # mass, center of mass, inertia tensor, 6 by 6 mass matrix
+structure.bodies[1].stubs  # device silicon attached to this body alone; mass, no stiffness
 structure.beams  # beams joining exactly two bodies: length, width, thickness, end points
 structure.rejected  # beam candidates that did not qualify, each with a reason
 structure.graph  # networkx MultiGraph, bodies as nodes and beams as edges
@@ -141,8 +142,11 @@ quadrature and with release openings removed from the device layer;
 `body.inertial.matrix` is the 6 by 6 mass matrix in body degrees of freedom.
 
 A candidate that touches one body is a stub, one that touches three or more
-is a junction; both appear in `structure.rejected` with that reason, which is
-the first place to look when an expected beam is missing.
+is a junction; both appear in `structure.rejected` with that reason and the
+bodies touched, which is the first place to look when an expected beam is
+missing. A stub, such as a comb finger, is also attached to its body: it moves
+with it and adds mass and inertia but no stiffness, and it is listed in
+`body.stubs` rather than in `body.device`. A junction adds nothing.
 
 ## Electrical nets
 
@@ -228,7 +232,7 @@ structure = cf.extract(layout, stack, params, progress=Bar())
 result = structure.modal(progress=Bar())
 ```
 
-`extract` reports heal, release, prune, nets, opening, bodies, mass,
-candidates, and beams, in that order. `modal` and `static` report assemble and
+`extract` reports heal, release, prune, nets, opening, bodies, candidates,
+beams, and mass, in that order. `modal` and `static` report assemble and
 solve. Prune, bodies, mass, and beams advance once per polygon, body, or
 candidate; the other stages are single operations.

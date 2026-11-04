@@ -16,8 +16,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `extract` producing a `Structure` of rigid bodies and beams: release holes
   identified before healing and again after it, layer healing, oxide estimate, anchor selection, pruning, body assembly
   through the stack, beam qualification with slivers narrower than
-  `heal_distance` dropped, a networkx graph, and a JSON tree.
-- Mass, center of mass, and inertia tensor of every body by triangulated
+  `heal_distance` dropped, stubs attached to their body, a networkx graph, and
+  a JSON tree.
+- Mass, center of mass, and inertia tensor of every body and its stubs by triangulated
   quadrature over the stack, with the 6 by 6 body mass matrix. Release openings
   are removed from device-layer mass by subtracting their own moments, so a
   perforated body is never triangulated.

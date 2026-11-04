@@ -70,7 +70,10 @@ P = (D - B) \oplus \epsilon. \tag{4}
 $$
 
 Beam candidates must overlap with exactly two different bodies in order to
-qualify as a real beam. Beam candidates which are discarded carry neither mass
+qualify as a real beam. A discarded candidate that overlaps exactly one body is
+a stub, such as a comb finger: it is rigidly attached to that body and
+contributes mass and moment of inertia, but no stiffness. Discarded
+candidates that overlap no body or three or more bodies carry neither mass
 nor stiffness. Once a beam is accepted, its length $L$ is calculated from the
 Euclidean distance of the overlap region centroids, its width $w$ is calculated
 by dividing its geometric area by its length, and its thickness $t$ is the
@@ -96,7 +99,20 @@ device layer thickness.
     qualification, since the body opening in (3) does not reproduce device edges
     exactly and would otherwise leave hairlines that join separate candidates.
     Candidates whose width falls outside the configured bounds are discarded
-    like any other rejected candidate. Beams carry stiffness but no mass. Release
+    like any other rejected candidate. Beams carry stiffness but no mass.
+
+    Stubs are kept apart from the body polygons. A body's device polygons are
+    the output of the opening in (3): they define connectivity through the
+    stack, the candidate regions, and the net tags, and widening them with
+    stubs would change what qualifies as a beam. A stub is therefore stored on
+    its body as a separate polygon set and still appears among the rejected
+    candidates with its reason, since it is not a beam. For mass, center of
+    mass, and inertia the body is integrated over its device polygons and its
+    stubs alike, with release openings subtracted from both. Candidates that
+    touch three or more bodies have no single owner and candidates between two
+    bodies that fail the width bounds are neither body nor beam, so both stay
+    massless. No parameter changes this: a massless comb is wrong, not a
+    modeling option. Release
     openings, whether found as holes in the device layer or drawn on the release
     layer, are subtracted from the device-layer mass properties of a body; the filled
     polygons are kept only for connectivity and beam extraction. The subtraction

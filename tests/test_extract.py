@@ -75,6 +75,7 @@ def test_candidates_touching_one_or_three_bodies_are_rejected(
     (candidate,) = structure.rejected
     assert "1 bod" in candidate.reason
     assert candidate.bodies == (0,)
+    assert structure.anchor.stubs.area == pytest.approx(50 * 10 * UM * UM)
 
     pad_c = box(150, 300, 250, 400)
     arms = [box(100, 45, 300, 55), box(195, 55, 205, 300)]
@@ -84,6 +85,7 @@ def test_candidates_touching_one_or_three_bodies_are_rejected(
     junctions = [candidate for candidate in structure.rejected if "3 bod" in candidate.reason]
     assert [candidate.bodies for candidate in junctions] == [(0, 1, 2)]
     assert [0, 1, 2] in [entry["bodies"] for entry in structure.to_dict()["rejected"]]
+    assert all(body.stubs.is_empty for body in structure.bodies)
 
 
 def test_beam_width_bounds_reject_slivers(
@@ -166,3 +168,21 @@ def test_cavity_that_healing_closes_is_a_release_hole(
     device_mass = anchor.inertial.mass - 2330 * 400 * UM * anchor.handle.area
     device_mass -= 2200 * 2 * UM * anchor.box.area
     assert device_mass == pytest.approx(2330 * 25 * UM * (100 * 100 - 5 * 5) * UM * UM, rel=1e-4)
+
+
+def test_stub_adds_mass_and_inertia_to_its_body_but_no_stiffness(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    finger = box(400, 20, 450, 30)
+    structure = extract(layout_um([PAD_A, BEAM, PAD_B, finger], [HANDLE_A]), stack, params())
+    free = structure.bodies[1]
+    pad, stub = 100 * 100, 50 * 10
+    assert free.device.area == pytest.approx(pad * UM * UM)
+    assert free.stubs.area == pytest.approx(stub * UM * UM)
+    assert free.inertial.mass == pytest.approx(2330 * 25 * UM * (pad + stub) * UM * UM)
+    expected_x = (350 * pad + 425 * stub) / (pad + stub) * UM
+    assert free.inertial.center[0] == pytest.approx(expected_x)
+    assert len(structure.beams) == 1
+    (candidate,) = structure.rejected
+    assert candidate.bodies == (1,)
+    assert structure.anchor.stubs.is_empty

@@ -31,10 +31,11 @@ def extract(
     through the opened device layer, oxide, and handle; each gets mass properties from the
     stack, with the moments of the release openings inside it subtracted from its device
     layer. Device regions removed by
-    the opening are qualified as beams. Remaining device and handle polygons are conductors
-    of the nets, joined through vias.
+    the opening are qualified as beams; a candidate touching exactly one body is a stub that
+    adds mass to that body. Remaining device and handle polygons are conductors of the
+    nets, joined through vias.
 
-    Stages heal, release, prune, nets, opening, bodies, mass, candidates, and beams each log
+    Stages heal, release, prune, nets, opening, bodies, candidates, beams, and mass each log
     through the ``connflex_core`` logger and report to ``progress``.
     """
     tolerance = params.simplify_tolerance
@@ -103,30 +104,13 @@ def extract(
     with stage("bodies", progress, total=sum(map(len, layers))) as current:
         components = layered_components(layers, seed=(2, anchor), advance=current.advance)
         current.count(bodies=len(components))
-
-    bodies = []
+    grouped: list[list[list[Polygon]]] = [[[], [], []] for _ in components]
     body_of = [0] * len(body_parts)
-    with stage("mass", progress, total=len(components)) as current:
-        for index, component in enumerate(components):
-            grouped: list[list[Polygon]] = [[], [], []]
-            for layer, i in component:
-                grouped[layer].append(layers[layer][i])
-                if layer == 0:
-                    body_of[i] = index
-            polygons = [MultiPolygon(group) for group in grouped]
-            inside = openings_within(opening_tree, opening_parts, polygons[0])
-            bodies.append(
-                Body(
-                    index=index,
-                    anchor=index == 0,
-                    device=polygons[0],
-                    box=polygons[1],
-                    handle=polygons[2],
-                    inertial=mass_properties(polygons, stack, openings=inside),
-                    nets=tuple(net_of(part) for part in grouped[0]),
-                )
-            )
-            current.advance()
+    for index, component in enumerate(components):
+        for layer, i in component:
+            grouped[index][layer].append(layers[layer][i])
+            if layer == 0:
+                body_of[i] = index
 
     with stage("candidates", progress) as current:
         candidates = beam_candidates(device, body_parts, params.heal_distance)
@@ -144,6 +128,32 @@ def extract(
             advance=current.advance,
         )
         current.count(beams=len(beams), rejected=len(rejected))
+    stubs: list[list[Polygon]] = [[] for _ in components]
+    for candidate in rejected:
+        if len(candidate.bodies) == 1:
+            stubs[candidate.bodies[0]].append(candidate.polygon)
+
+    bodies = []
+    with stage("mass", progress, total=len(components)) as current:
+        for index, group in enumerate(grouped):
+            polygons = [MultiPolygon(layer) for layer in group]
+            massive = MultiPolygon([*group[0], *stubs[index]])
+            inside = openings_within(opening_tree, opening_parts, massive)
+            bodies.append(
+                Body(
+                    index=index,
+                    anchor=index == 0,
+                    device=polygons[0],
+                    box=polygons[1],
+                    handle=polygons[2],
+                    stubs=MultiPolygon(stubs[index]),
+                    inertial=mass_properties(
+                        [massive, polygons[1], polygons[2]], stack, openings=inside
+                    ),
+                    nets=tuple(net_of(part) for part in group[0]),
+                )
+            )
+            current.advance()
     return Structure(
         bodies=tuple(bodies),
         beams=tuple(beams),

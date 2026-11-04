@@ -20,5 +20,6 @@ def test_graph_and_tree_describe_the_structure(
     assert [body["anchor"] for body in tree["bodies"]] == [True, False]
     assert tree["beams"][0]["bodies"] == [0, 1]
     assert tree["bodies"][0]["device"]["type"] == "MultiPolygon"
+    assert tree["bodies"][1]["stubs"]["type"] == "MultiPolygon"
     assert tree["beams"][0]["net"] == tree["bodies"][1]["nets"][0]
     assert tree["nets"]["count"] == 2

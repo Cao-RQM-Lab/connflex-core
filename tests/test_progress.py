@@ -16,9 +16,9 @@ EXTRACT_STAGES = [
     "nets",
     "opening",
     "bodies",
-    "mass",
     "candidates",
     "beams",
+    "mass",
 ]
 PAD_A, BEAM, PAD_B = box(0, 0, 100, 100), box(100, 45, 300, 55), box(300, 0, 400, 100)
 HANDLE_A = box(-50, -50, 150, 150)

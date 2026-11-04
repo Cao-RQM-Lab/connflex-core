@@ -33,7 +33,12 @@ class Body:
         device: Device-layer polygons. Empty when the body has none in this layer.
         box: Surviving buried oxide polygons.
         handle: Handle-layer polygons.
-        inertial: Mass, center of mass, and inertia tensor.
+        stubs: Device-layer regions attached to this body alone: beam candidates that touch
+            no other body. They move with the body and count in ``inertial``, but they are
+            not part of ``device``, which is the body opening that defines connectivity and
+            beam qualification.
+        inertial: Mass, center of mass, and inertia tensor over device, stubs, box, and
+            handle, with release openings removed.
         nets: Net of each polygon in ``device``, in order.
     """
 
@@ -42,6 +47,7 @@ class Body:
     device: MultiPolygon
     box: MultiPolygon
     handle: MultiPolygon
+    stubs: MultiPolygon
     inertial: MassProperties
     nets: tuple[int, ...]
 
@@ -147,6 +153,7 @@ class Structure:
                     "device": mapping(body.device),
                     "box": mapping(body.box),
                     "handle": mapping(body.handle),
+                    "stubs": mapping(body.stubs),
                     "mass": body.inertial.mass,
                     "center": body.inertial.center.tolist(),
                     "inertia": body.inertial.inertia.tolist(),
