@@ -29,6 +29,13 @@ polygons within one role are unioned.
 - **`vias` absent:** no vias. Each connected device island and each connected
   handle island is its own net.
 
+Release openings, whether drawn on the `release` layer or found as holes,
+are modeled as perforations. They enter the oxide estimate and are removed
+from device-layer mass, but they never split a body, narrow a beam, or break
+a net: a release polygon that severs device silicon leaves one body and one
+conductor. The `release` layer has no area threshold and is simplified but
+not healed.
+
 ## Electrical interpretation
 
 - Connected `device` polygons form one net; connected `handle` polygons form
