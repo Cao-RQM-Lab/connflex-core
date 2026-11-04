@@ -73,3 +73,19 @@ def test_opening_treats_each_polygon_on_its_own() -> None:
     assert len(opened.geoms) == 4
     assert sorted(part.area for part in opened.geoms) == pytest.approx([100.0] * 4)
     assert opened.bounds == pytest.approx((0, 0, 30, 110))
+
+
+def test_surviving_box_equals_direct_erosion_of_the_perforated_region() -> None:
+    plate = MultiPolygon([box(0, 0, 100 * UM, 100 * UM)])
+    openings = MultiPolygon(
+        [
+            box(40 * UM, 40 * UM, 60 * UM, 60 * UM),
+            box(90 * UM, 10 * UM, 98 * UM, 18 * UM),
+            box(0, 0, 1 * UM, 1 * UM),
+            box(120 * UM, 120 * UM, 130 * UM, 130 * UM),
+        ]
+    )
+    direct = plate.difference(openings).buffer(-5 * UM, quad_segs=8)
+    survivor = surviving_box(plate, plate, openings, distance=5 * UM, resolution=8)
+    assert survivor.area == pytest.approx(direct.area, rel=1e-9)
+    assert survivor.symmetric_difference(direct).area <= 1e-9 * direct.area

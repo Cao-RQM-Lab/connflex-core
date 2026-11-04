@@ -92,6 +92,12 @@ device layer thickness.
     drawn release layer is unioned by its reader; a union runs only when both
     are present. The resulting openings are built
     once and serve both the oxide estimate in (2) and the mass properties.
+    Equation (2) is evaluated as $((D \cap H) \ominus d) - (R \oplus d)$, which is
+    the same set: a point survives the erosion of a difference exactly when its
+    disk lies in the minuend and misses the subtrahend. The protected region is
+    eroded on its own, and only the openings within $d$ of the eroded region are
+    dilated and subtracted, rather than eroding one polygon that carries every
+    opening as a hole.
 
     The width uses the area of the unexpanded candidate $D - B$, so the
     expansion by $\epsilon$ cannot inflate it. Beam endpoints are placed at the

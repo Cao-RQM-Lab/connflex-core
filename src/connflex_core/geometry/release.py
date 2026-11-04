@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import shapely
 from shapely import MultiPolygon, Polygon, STRtree
 
 from connflex_core.geometry.heal import as_multipolygon
@@ -40,11 +41,21 @@ def surviving_box(
 
     ``openings`` holds the release holes and the release layer as disjoint polygons. It is
     built once by ``extract`` and shared with the mass properties.
+
+    Eroding a difference equals the eroded minuend minus the dilated subtrahend, so the
+    protected region is eroded on its own and only the openings within ``distance`` of the
+    result are dilated and subtracted, instead of eroding one polygon that carries every
+    opening as a hole.
     """
-    protected = device.intersection(handle)
-    if not openings.is_empty:
-        protected = protected.difference(openings)
-    return as_multipolygon(protected.buffer(-distance, quad_segs=resolution))
+    eroded = device.intersection(handle).buffer(-distance, quad_segs=resolution)
+    if openings.is_empty or eroded.is_empty:
+        return as_multipolygon(eroded)
+    parts = shapely.get_parts(openings)
+    near = STRtree(parts).query(eroded, predicate="dwithin", distance=distance)
+    if near.size == 0:
+        return as_multipolygon(eroded)
+    dilated = shapely.buffer(parts[near], distance, quad_segs=resolution)
+    return as_multipolygon(eroded.difference(shapely.union_all(dilated)))
 
 
 def openings_within(
