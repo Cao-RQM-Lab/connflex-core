@@ -1625,6 +1625,13 @@ travel. A toothed motor is the opposite case: its force is the change of
 the fringe field as teeth pass each other, and plates see only the overlap
 of tooth tops. Such a device needs the field method.
 
+Teeth that stand tip to tip at rest are the worst case. By plates their
+capacitance is a cusp in travel: it falls to either side of rest, the two
+one-sided forces are large and opposite, and the force at rest is whichever
+of them the rounding of coordinates selects, and it can exceed the force
+of the field many times over. The electrostatic spring there is the mean of
+the two sides and is far less affected.
+
 !!! note "Implementation choices"
     Edges in view of a wall are found in a spatial index of all edges,
     queried with the rectangle that the wall sweeps along its normal over
