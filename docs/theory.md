@@ -1426,6 +1426,62 @@ $$
 which adds the entries of $\mathbf{C}$ over the electrodes of each pair of
 nets. Capacitance between two electrodes of one net drops out.
 
+### Forces and stiffness
+
+$\mathbf{C}$ depends on the positions of the bodies. Let $\mathbf{q}$ stack
+the degrees of freedom (12) of every movable body, in the order of the
+assembled matrices (34) and (35). A plate between two bodies contributes
+its gradient and Hessian (58) in the pattern of (91). A cluster contributes
+through the in-plane motion of its bodies at the mid-plane of the device
+layer, $z_m = -t_\text{device} / 2$, where sidewall forces act. Body $B$
+with center of mass $\mathbf{c}_B$ turns about the vertical through
+$\mathbf{c}_B$ and, by (44), moves there by
+
+$$
+\begin{bmatrix} a_x \\ a_y \\ a_\psi \end{bmatrix} = \mathbf{J}_B\, \mathbf{q}_B, \qquad
+\mathbf{J}_B = \begin{bmatrix}
+1 & 0 & 0 & 0 & d_z & 0 \\
+0 & 1 & 0 & -d_z & 0 & 0 \\
+0 & 0 & 0 & 0 & 0 & 1
+\end{bmatrix}, \qquad d_z = z_m - c_{B,z}, \tag{96}
+$$
+
+so that with the gradient (81) and second derivative (84) of the cluster,
+taken about the centers of mass,
+
+$$
+\frac{\partial \mathbf{C}^\text{sw}}{\partial \mathbf{q}_B} = t_\text{device}\, \frac{\partial \mathbf{c}}{\partial \mathbf{a}_B}\, \mathbf{J}_B, \qquad
+\frac{\partial^2 \mathbf{C}^\text{sw}}{\partial \mathbf{q}_B\, \partial \mathbf{q}_{B'}^\top}
+= t_\text{device}\, \mathbf{J}_B^\top \frac{\partial^2 \mathbf{c}}{\partial \mathbf{a}_B\, \partial \mathbf{a}_{B'}^\top}\, \mathbf{J}_{B'}. \tag{97}
+$$
+
+The lever $d_z$ is zero for a body of device silicon alone and large for
+one that carries handle silicon: an in-plane pull on its sidewalls then
+also tilts it. The anchor has no degrees of freedom and its rows and
+columns are dropped, as in (37).
+
+With potentials $\mathbf{v}$ on the electrodes the co-energy is
+$\tfrac{1}{2} \mathbf{v}^\top \mathbf{C}(\mathbf{q})\, \mathbf{v}$, and the
+generalized forces and the electrostatic stiffness are
+
+$$
+f_k = \frac{1}{2}\, \mathbf{v}^\top \frac{\partial \mathbf{C}}{\partial q_k}\, \mathbf{v}, \qquad
+\bigl[ \mathbf{K}_e \bigr]_{kl} = -\frac{1}{2}\, \mathbf{v}^\top \frac{\partial^2 \mathbf{C}}{\partial q_k\, \partial q_l}\, \mathbf{v}. \tag{98}
+$$
+
+$\mathbf{K}_e$ adds to $\mathbf{K}^\text{full}$ of (35). It is symmetric,
+and a negative diagonal entry means that the field softens that motion. For
+a comb of $N$ gaps of width $g$ and overlap $\ell$ between a stator at $V$
+and a shuttle at zero, the ideal values that (98) approaches are
+
+$$
+f_\parallel = \frac{N \varepsilon\, t_\text{device} V^2}{2 g}, \qquad
+\bigl[ \mathbf{K}_e \bigr]_{\perp\perp} = -\frac{N \varepsilon\, t_\text{device}\, \ell\, V^2}{g^3}, \tag{99}
+$$
+
+along the fingers and across them. The computed values exceed these by a
+few percent, the share of the fields at finger tips and outer walls.
+
 !!! note "Implementation choices"
     The outline of a device electrode is that of the union of its body
     polygon and its stubs after a closing by the margin $\epsilon$ of (4):
@@ -1437,6 +1493,16 @@ nets. Capacitance between two electrodes of one net drops out.
     a beam or a bridge lies between them, and its silicon belongs to no
     electrode. Where a beam met an electrode, the outline is closed by a
     short straight wall that carries charge like any other.
+
+    The map (96) is linear. Terms of second order in tilt are left out of
+    (97), as they are for plates, and so is any dependence of sidewall
+    capacitance on travel out of the plane: facing sidewalls overlap fully
+    at rest, so that dependence is even and exerts no force there.
+
+    The second derivative is kept as one block per plate and per cluster,
+    over the electrodes and degrees of freedom each involves, and (98) sums
+    the blocks. A dense array over all pairs of electrodes and all pairs of
+    degrees of freedom would not fit for a large structure.
 
     Left out of $\mathbf{C}$: sidewalls of the handle layer, sidewalls and
     faces of beams and bridges, coupling between clusters, and the field

@@ -234,6 +234,11 @@ model.oxide, model.released, model.sidewall  # the three parts it sums
 model.net_matrix  # between nets, electrodes of each net tied together
 model.clusters  # groups of device electrodes whose sidewalls were solved together
 model.plates  # plates behind the oxide and released parts
+
+model.dofs  # (body, "ux" | "uy" | "uz" | "tx" | "ty" | "tz") per degree of freedom
+model.gradient  # n by n by len(dofs): change of the matrix with each
+force = model.force(potentials)  # one potential per electrode
+softening = model.stiffness(potentials)  # adds to the mechanical stiffness
 ```
 
 `structure.capacitance` collects every capacitance between electrodes at
@@ -249,6 +254,15 @@ electrodes in different clusters share no sidewall capacitance. A cluster
 that needs more boundary elements than `max_elements` raises an error. With
 `skip_large_clusters=True` it is left out instead and appears in
 `model.clusters` with `solved` false, so a model can be built for the rest.
+
+The model also holds how the matrix changes when bodies move, in the six
+degrees of freedom of every movable body and in the order of `result.dofs`
+from `modal`. `force` returns the generalized forces for given electrode
+potentials and `stiffness` the electrostatic stiffness, whose negative
+diagonal entries soften the suspension. Potentials are per electrode;
+`np.asarray(per_net)[model.net]` spreads one value per net. Sidewall forces
+act at mid-height of the device layer, so they also tilt a body whose center
+of mass lies lower.
 
 Either part can be left out, and then needs none of its parameters:
 `cf.ElectrostaticParams(include_sidewalls=False)` gives plates alone with no

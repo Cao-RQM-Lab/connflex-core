@@ -41,6 +41,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   parts and its reduction to nets. `ElectrostaticParams` gains
   `interaction_distance`, `include_plates`, `include_sidewalls`, and
   `skip_large_clusters`.
+- `CapacitanceModel.gradient`, `force`, and `stiffness`: change of the
+  capacitance matrix in the degrees of freedom of every movable body, and
+  the generalized forces and electrostatic stiffness for given electrode
+  potentials.
 
 ### Removed
 

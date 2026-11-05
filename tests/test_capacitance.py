@@ -1,6 +1,8 @@
+from dataclasses import replace
+
 import numpy as np
 import pytest
-from shapely import box
+from shapely import Polygon, affinity, box
 
 from connflex_core import (
     CapacitanceModel,
@@ -150,3 +152,97 @@ def test_cluster_above_the_element_limit_is_an_error_unless_skipped(
     assert cluster.elements > 100
     assert not partial.sidewall.any()
     assert partial.released.any()
+
+
+def test_comb_drives_with_the_pull_of_each_gap_and_the_plate_pulls_down(
+    comb: Structure, model: CapacitanceModel, at: dict[str, int]
+) -> None:
+    assert model.dofs == tuple((1, name) for name in ("ux", "uy", "uz", "tx", "ty", "tz"))
+    potentials = np.zeros(len(comb.electrodes))
+    potentials[at["stator"]], potentials[at["handle"]] = 10.0, 5.0
+    force = model.force(potentials)
+    drive = GAPS * 0.5 * EPS0 * THICKNESS * 10.0**2 / (GAP * UM)
+    assert force[0] == pytest.approx(-drive, rel=0.03)
+    assert abs(force[1]) < 1e-3 * drive
+    silicon = (40 * 140 + FINGERS * 60 * WIDTH) * UM**2
+    assert force[2] == pytest.approx(-0.5 * EPS0 * silicon * 5.0**2 / BOX**2)
+
+    stiffness = model.stiffness(potentials)
+    assert stiffness == pytest.approx(stiffness.T)
+    side = GAPS * EPS0 * THICKNESS * OVERLAP * UM * 10.0**2 / (GAP * UM) ** 3
+    assert stiffness[1, 1] == pytest.approx(-side, rel=0.06)
+    assert stiffness[2, 2] == pytest.approx(-EPS0 * silicon * 5.0**2 / BOX**3)
+    with pytest.raises(ValueError, match="potentials"):
+        model.force(potentials[:-1])
+
+
+def test_gradient_and_stiffness_follow_a_moved_structure(
+    comb: Structure, settings: ElectrostaticParams, model: CapacitanceModel, at: dict[str, int]
+) -> None:
+    center = comb.bodies[1].inertial.center
+    potentials = np.zeros(len(comb.electrodes))
+    potentials[at["stator"]], potentials[at["handle"]] = 10.0, 5.0
+
+    def moved(dof: int, step: float) -> CapacitanceModel:
+        shift = np.zeros(3)
+        electrodes = []
+        for electrode in comb.electrodes:
+            region = electrode.region
+            if electrode.body == 1 and electrode.layer == "device" and dof < 2:
+                shift[dof] = step
+                region = affinity.translate(region, *shift[:2])
+            elif electrode.body == 1 and electrode.layer == "device":
+                region = affinity.rotate(region, step, origin=tuple(center[:2]), use_radians=True)
+            electrodes.append(replace(electrode, region=region))
+        shuttle = replace(
+            comb.bodies[1], inertial=replace(comb.bodies[1].inertial, center=center + shift)
+        )
+        there = replace(comb, electrodes=tuple(electrodes), bodies=(comb.bodies[0], shuttle))
+        return there.capacitance(settings)
+
+    stiffness = model.stiffness(potentials)
+    for dof, step in ((0, 2e-9), (1, 2e-9), (5, 2e-6)):
+        ahead, behind = moved(min(dof, 2), step), moved(min(dof, 2), -step)
+        slope = (ahead.matrix - behind.matrix) / (2 * step)
+        expected = model.gradient[:, :, dof]
+        assert expected == pytest.approx(slope, rel=1e-5, abs=1e-6 * np.max(abs(expected)))
+        softening = -(ahead.force(potentials) - behind.force(potentials)) / (2 * step)
+        for other in (0, 1, 5):
+            scale = np.sqrt(abs(stiffness[other, other] * stiffness[dof, dof]))
+            assert stiffness[other, dof] == pytest.approx(
+                softening[other], rel=1e-4, abs=1e-5 * scale
+            )
+
+
+def test_parallel_plate_pulls_and_tilts_a_body_that_carries_handle_silicon() -> None:
+    """A fixed pad 4 um from a 200 um plate that is bonded to its own handle island."""
+    pad, plate, far = box(0, 0, 300, 300), box(304, 50, 504, 250), box(704, 0, 1004, 300)
+    beams = [box(504, 60, 704, 70), box(504, 230, 704, 240)]
+    frame = Polygon(box(-50, -50, 1054, 350).exterior, [box(310, 30, 498, 270).exterior])
+    layout = Layout.from_shapely(
+        device=[pad, plate, *beams, far], handle=[frame, box(330, 70, 478, 230)], unit=UM
+    )
+    stack = Stack(
+        device=Layer(thickness=THICKNESS, material=Material.silicon()),
+        box=Layer(thickness=BOX, material=Material.oxide()),
+        handle=Layer(thickness=400 * UM, material=Material.silicon()),
+    )
+    params = ExtractionParams(
+        release_hole_max_area=100 * UM * UM, release_distance=60 * UM, body_min_width=20 * UM
+    )
+    structure = extract(layout, stack, params)
+    fixed = structure.electrode_at((150 * UM, 150 * UM), "device").index
+    lever = -THICKNESS / 2 - structure.bodies[1].inertial.center[2]
+    assert lever > 100 * UM
+
+    model = structure.capacitance(
+        ElectrostaticParams(element_size=4 * UM, interaction_distance=30 * UM)
+    )
+    potentials = np.zeros(len(structure.electrodes))
+    potentials[fixed] = 10.0
+    force, stiffness = model.force(potentials), model.stiffness(potentials)
+    facing, gap = 200 * UM, 4 * UM
+    assert force[0] == pytest.approx(-0.5 * EPS0 * THICKNESS * facing * 10.0**2 / gap**2, rel=0.04)
+    assert stiffness[0, 0] == pytest.approx(-EPS0 * THICKNESS * facing * 10.0**2 / gap**3, rel=0.03)
+    assert force[4] == pytest.approx(lever * force[0])
+    assert stiffness[4, 4] == pytest.approx(lever**2 * stiffness[0, 0])
