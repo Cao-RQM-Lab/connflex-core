@@ -19,6 +19,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bridges are ideal.
 - `Material.relative_permittivity`, 3.9 on the oxide preset and unset on
   silicon.
+- `Structure.stack` and `Structure.openings`: the layer stack of the
+  extraction and the release openings that were filled in device polygons or
+  drawn on the release layer.
 
 ## [0.1.0] - 2026-11-04
 

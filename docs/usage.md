@@ -131,6 +131,8 @@ structure.graph  # networkx MultiGraph, bodies as nodes and beams as edges
 structure.nets  # electrical nets of remaining device and handle polygons
 structure.electrodes  # silicon with one potential and one rigid motion: nodes of the electrical model
 structure.links  # beams, bridges, and vias that conduct between electrodes
+structure.openings  # release openings: filled release holes and release-layer polygons
+structure.stack  # layer stack of the extraction
 structure.to_dict()  # JSON-serializable tree with GeoJSON-style polygons
 ```
 
@@ -152,6 +154,11 @@ bodies touched, which is the first place to look when an expected beam is
 missing. A stub, such as a comb finger, is also attached to its body: it moves
 with it and adds mass and inertia but no stiffness, and it is listed in
 `body.stubs` rather than in `body.device`. A junction adds nothing.
+
+Polygons in `body.device`, `body.stubs`, and `electrode.region` are filled:
+release openings are modeled as perforations and are kept apart in
+`structure.openings`, one disjoint polygon per opening. Mass properties
+already exclude them. The JSON tree does not list them.
 
 ## Electrical nets
 

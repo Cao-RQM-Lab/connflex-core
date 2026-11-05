@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import networkx as nx
@@ -17,6 +17,7 @@ from connflex_core.materials import Material
 from connflex_core.mechanics.inertia import MassProperties
 from connflex_core.params import SolveOptions
 from connflex_core.progress import Progress
+from connflex_core.stack import Stack
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -108,6 +109,10 @@ class Structure:
         electrodes: Nodes of the electrical model, device electrodes first, then handle
             electrodes, each ordered by body and then by descending area.
         links: Beams, bridges, and vias that conduct between electrodes.
+        stack: Layer stack of the extraction. None on a structure built by hand.
+        openings: Release openings as disjoint polygons: release holes that were filled in
+            device polygons, and polygons of the release layer. Device silicon is absent
+            there, although ``Body.device`` and ``Electrode.region`` cover them.
     """
 
     bodies: tuple[Body, ...]
@@ -117,6 +122,8 @@ class Structure:
     nets: Nets
     electrodes: tuple[Electrode, ...] = ()
     links: tuple[Link, ...] = ()
+    stack: Stack | None = None
+    openings: MultiPolygon = field(default_factory=MultiPolygon)
 
     @property
     def anchor(self) -> Body:

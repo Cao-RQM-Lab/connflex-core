@@ -180,6 +180,8 @@ def extract(
         nets=nets,
         electrodes=tuple(electrodes),
         links=tuple(links),
+        stack=stack,
+        openings=openings,
     )
 
 
