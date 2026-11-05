@@ -177,6 +177,7 @@ def extract(
         beams=tuple(beams),
         rejected=tuple(rejected),
         stack=stack,
+        params=params,
         nets=nets,
         electrodes=tuple(electrodes),
         links=tuple(links),

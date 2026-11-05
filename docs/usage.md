@@ -128,7 +128,7 @@ structure.nets  # electrical nets of remaining device and handle polygons
 structure.electrodes  # silicon with one potential and one rigid motion: nodes of the electrical model
 structure.links  # beams, bridges, and vias that conduct between electrodes
 structure.openings  # release openings: filled release holes and release-layer polygons
-structure.stack  # layer stack of the extraction
+structure.stack, structure.params  # layer stack and parameters of the extraction
 structure.to_dict()  # JSON-serializable tree with GeoJSON-style polygons
 ```
 

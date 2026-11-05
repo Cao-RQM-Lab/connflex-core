@@ -14,7 +14,7 @@ from shapely.geometry import mapping
 from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Nets
 from connflex_core.mechanics.inertia import MassProperties
-from connflex_core.params import ElectrostaticParams, SolveOptions
+from connflex_core.params import ElectrostaticParams, ExtractionParams, SolveOptions
 from connflex_core.progress import Progress
 from connflex_core.stack import Stack
 
@@ -105,6 +105,7 @@ class Structure:
         beams: Accepted beams.
         rejected: Beam candidates that did not qualify, each with a reason.
         stack: Layer stack of the extraction. Its device material sets beam stiffness.
+        params: Extraction parameters it was extracted with.
         nets: Electrical nets of conductors that remain after pruning.
         electrodes: Nodes of the electrical model, device electrodes first, then handle
             electrodes, each ordered by body and then by descending area.
@@ -118,6 +119,7 @@ class Structure:
     beams: tuple[Beam, ...]
     rejected: tuple[RejectedCandidate, ...]
     stack: Stack
+    params: ExtractionParams
     nets: Nets
     electrodes: tuple[Electrode, ...]
     links: tuple[Link, ...]

@@ -144,14 +144,16 @@ def test_release_openings_are_removed_from_the_device_mass(
     assert structure.bodies[1].inertial.center[:2] == pytest.approx([expected_x, expected_y])
 
 
-def test_structure_keeps_the_stack_and_the_release_openings(
+def test_structure_keeps_its_inputs_and_the_release_openings(
     stack: Stack, params: Params, layout_um: LayoutUm
 ) -> None:
     hole, drawn = box(340, 40, 345, 45), box(360, 60, 368, 68)
     perforated = Polygon(PAD_B.exterior, [hole.exterior])
     layout = layout_um([PAD_A, BEAM, perforated], [HANDLE_A], release=[drawn])
-    structure = extract(layout, stack, params())
+    used = params()
+    structure = extract(layout, stack, used)
     assert structure.stack is stack
+    assert structure.params is used
     assert len(structure.openings.geoms) == 2
     assert structure.openings.area == pytest.approx((5 * 5 + 8 * 8) * UM * UM)
     assert structure.bodies[1].device.area == pytest.approx(PAD_B.area * UM * UM)
