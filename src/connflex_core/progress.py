@@ -67,3 +67,9 @@ def stage(name: str, progress: Progress | None, total: int | None = None) -> Ite
     elapsed = time.perf_counter() - started
     details = "".join(f", {key} {value}" for key, value in current.counts.items())
     logger.info("%s: done in %.2f s%s", name, elapsed, details)
+
+
+@contextmanager
+def quiet(name: str, total: int | None = None) -> Iterator[Stage]:
+    """Run a stage inside another one: nothing is logged and nothing is reported."""
+    yield Stage(name, _Silent())

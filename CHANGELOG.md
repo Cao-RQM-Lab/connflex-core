@@ -35,6 +35,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   element integrals, with its exact gradient and Hessian for travel and
   rotation of rigid groups of conductors. `ElectrostaticParams` gains `element_size`,
   `corner_grading`, and `max_elements`.
+- `Structure.capacitance` and `CapacitanceModel`: capacitance matrix between
+  all electrodes at rest, summed from plates and from sidewalls of device
+  electrodes solved in clusters, with its oxide, released, and sidewall
+  parts and its reduction to nets. `ElectrostaticParams` gains
+  `interaction_distance`, `include_plates`, `include_sidewalls`, and
+  `skip_large_clusters`.
 
 ### Removed
 

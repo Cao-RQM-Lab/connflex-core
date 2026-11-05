@@ -67,6 +67,10 @@ keyword overrides.
 | `element_size` | $h$ | none | Longest boundary element on conductor outlines, equation (73). Sidewall capacitance requires it; plates do not use it. Half of the narrowest trench is a starting value: computed capacitance rises toward the exact one as it shrinks. |
 | `corner_grading` | $g$ | 16 | Ratio of `element_size` to the element length asked for at a convex corner of a right angle or sharper, equation (72). 1 disables refinement. |
 | `max_elements` | | 8000 | Most boundary elements solved as one dense system. Memory grows with its square and time with its cube; a larger mesh is an error. |
+| `interaction_distance` | $d_i$ | none | Device electrodes whose silicon lies within this distance, directly or through a chain of neighbors, are solved together for sidewall capacitance, equation (92). The capacitance model of a structure requires it when sidewalls are included. A few times the widest trench that should count is a starting value. |
+| `include_plates` | | true | Whether the capacitance model of a structure holds plates between device and handle electrodes. |
+| `include_sidewalls` | | true | Whether it holds sidewall capacitance between device electrodes. Without it neither `element_size` nor `interaction_distance` is needed. |
+| `skip_large_clusters` | | false | Leave a cluster that needs more than `max_elements` out of the capacitance model, marked as not solved, instead of raising an error. |
 
 ## Validation
 
@@ -74,5 +78,6 @@ Each object validates itself on construction and raises `ValueError` naming
 the field: lengths, areas, thicknesses, densities, moduli, and resistivity are positive;
 `beam_width_min < beam_width_max`; `beam_overlap_margin < body_min_width / 2`;
 `torsion_beta >= 0`; `via_resistance >= 0`; `relative_permittivity >= 1`;
-`ambient_permittivity >= 1`; `element_size > 0` when given; `corner_grading >= 1`;
-`max_elements >= 1`; every stack layer has a thickness.
+`ambient_permittivity >= 1`; `element_size > 0` and `interaction_distance > 0`
+when given; `corner_grading >= 1`; `max_elements >= 1`; every stack layer has a
+thickness.

@@ -132,12 +132,27 @@ class ElectrostaticParams:
             distance from the corner. One disables refinement.
         max_elements: Most boundary elements solved as one dense system. A larger mesh is
             an error.
+        interaction_distance: Device electrodes whose silicon lies within this distance
+            of each other are solved together for sidewall capacitance, as are chains of
+            such neighbors; electrodes farther apart share none. The capacitance model
+            of a structure requires it when sidewalls are included.
+        include_plates: Whether the capacitance model of a structure holds plates between
+            device and handle electrodes.
+        include_sidewalls: Whether it holds sidewall capacitance between device
+            electrodes.
+        skip_large_clusters: Leave a cluster of electrodes that needs more than
+            ``max_elements`` out of the capacitance model, marked as not solved, instead
+            of raising an error.
     """
 
     ambient_permittivity: float = 1.0
     element_size: float | None = None
     corner_grading: float = 16.0
     max_elements: int = 8000
+    interaction_distance: float | None = None
+    include_plates: bool = True
+    include_sidewalls: bool = True
+    skip_large_clusters: bool = False
 
     def __post_init__(self) -> None:
         require_at_least("ambient_permittivity", self.ambient_permittivity, 1)
@@ -145,3 +160,5 @@ class ElectrostaticParams:
             require_positive("element_size", self.element_size)
         require_at_least("corner_grading", self.corner_grading, 1)
         require_at_least("max_elements", self.max_elements, 1)
+        if self.interaction_distance is not None:
+            require_positive("interaction_distance", self.interaction_distance)

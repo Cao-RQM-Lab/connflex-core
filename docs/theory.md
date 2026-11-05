@@ -1362,6 +1362,95 @@ either parameter.
     because the plane field decays only as the logarithm of distance. Which
     conductors enter one solution is the caller's choice.
 
+## Capacitance of a structure
+
+The electrodes of a structure, $n$ in all, are the nodes of one capacitance
+matrix $\mathbf{C}$, defined by the charges $\mathbf{Q} = \mathbf{C}
+\mathbf{v}$ that potentials $\mathbf{v}$ put on them. It is the sum of the
+plates between device and handle electrodes and of the sidewalls between
+device electrodes.
+
+A plate of capacitance $c$ between electrodes $a$ and $b$ stores energy
+$\tfrac{1}{2} c\, (v_a - v_b)^2$, so with $\mathbf{e}_a$ the unit vector of
+electrode $a$ it adds
+
+$$
+c\, (\mathbf{e}_a - \mathbf{e}_b)(\mathbf{e}_a - \mathbf{e}_b)^\top \tag{91}
+$$
+
+to $\mathbf{C}$: $c$ to the two diagonal entries and $-c$ to the two
+others. Each plate enters twice, with $C_\text{ox}$ of (43) into
+$\mathbf{C}^\text{ox}$ and with $\varepsilon A / g_0$ into
+$\mathbf{C}^\text{rel}$.
+
+Sidewalls are solved in the plane of the device layer. In that plane every
+conductor couples to every other, however far, which the handle beneath and
+the space above prevent in the real stack. Electrodes are therefore solved
+together only when their silicon is close. Let $d_i$ be the interaction
+distance and join device electrodes $a$ and $b$ when
+
+$$
+\operatorname{dist}(E_a, E_b) \le d_i. \tag{92}
+$$
+
+A cluster is a connected set of this relation with two or more electrodes:
+electrodes joined directly or through a chain of neighbors. Each cluster is
+one problem (62) with its electrodes as conductors, all coupled to one
+another whatever their distance, and its matrix $\mathbf{c}$ of (70) times
+the thickness of the device layer fills the rows and columns of its
+electrodes,
+
+$$
+\bigl[ \mathbf{C}^\text{sw} \bigr]_{ab} = t_\text{device}\, c_{ab} \quad \text{for } a, b \text{ in one cluster}, \tag{93}
+$$
+
+and electrodes of different clusters share no sidewall capacitance. Then
+
+$$
+\mathbf{C} = \mathbf{C}^\text{ox} + \mathbf{C}^\text{rel} + \mathbf{C}^\text{sw}, \qquad
+\mathbf{C}^\top = \mathbf{C}, \qquad \mathbf{C}\, \mathbf{1} = \mathbf{0}. \tag{94}
+$$
+
+Rows sum to zero because (91) and (71) do: a potential common to all
+electrodes moves no charge, nothing outside the structure holds charge, and
+$-C_{ab}$ is the capacitance between electrodes $a$ and $b$.
+
+Electrodes of one net are joined by links and share a potential at rest.
+With $S_{a\nu} = 1$ when electrode $a$ belongs to net $\nu$ and zero
+otherwise, the capacitance matrix between nets is
+
+$$
+\mathbf{C}^\text{net} = \mathbf{S}^\top \mathbf{C}\, \mathbf{S}, \tag{95}
+$$
+
+which adds the entries of $\mathbf{C}$ over the electrodes of each pair of
+nets. Capacitance between two electrodes of one net drops out.
+
+!!! note "Implementation choices"
+    The outline of a device electrode is that of the union of its body
+    polygon and its stubs after a closing by the margin $\epsilon$ of (4):
+    expansion by $\epsilon$ and erosion by the same, with mitered corners. A
+    stub can meet its polygon in a single point, or along a line that
+    rounding leaves a hair open, and the union alone would then keep a
+    crack whose two walls nearly coincide. Plates take the union as it is,
+    since a crack has no area. Regions of different electrodes never touch:
+    a beam or a bridge lies between them, and its silicon belongs to no
+    electrode. Where a beam met an electrode, the outline is closed by a
+    short straight wall that carries charge like any other.
+
+    Left out of $\mathbf{C}$: sidewalls of the handle layer, sidewalls and
+    faces of beams and bridges, coupling between clusters, and the field
+    that leaves the plane of a layer at the top and bottom of a sidewall.
+
+    A cluster is solved whole and dense. One that needs more elements than
+    `max_elements` is an error, since leaving it out would give a matrix
+    that looks complete and is not. With `skip_large_clusters` it is left
+    out on purpose and listed as not solved.
+
+    Plates and sidewalls are independent of each other and of any
+    mechanical solution: each can be left out, and each needs only its own
+    parameters.
+
 ## Symbols and parameters
 
 Every symbol below is a documented input. Full definitions, units, defaults,
@@ -1383,6 +1472,7 @@ and validation rules are on the [parameters page](parameters.md).
 | $\varepsilon_a$ | relative permittivity of the medium in released gaps and trenches | `ElectrostaticParams.ambient_permittivity` |
 | $h$ | longest boundary element | `ElectrostaticParams.element_size` |
 | $g$ | refinement of elements at convex corners | `ElectrostaticParams.corner_grading` |
+| $d_i$ | distance within which device electrodes are solved together | `ElectrostaticParams.interaction_distance` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
 | $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |

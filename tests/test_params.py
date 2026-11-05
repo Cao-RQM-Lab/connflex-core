@@ -60,6 +60,7 @@ def test_solve_options_reject_unknown_method() -> None:
         ({"element_size": 0.0}, "element_size"),
         ({"corner_grading": 0.5}, "corner_grading"),
         ({"max_elements": 0}, "max_elements"),
+        ({"interaction_distance": 0.0}, "interaction_distance"),
     ],
 )
 def test_invalid_electrostatic_parameters_name_the_field(

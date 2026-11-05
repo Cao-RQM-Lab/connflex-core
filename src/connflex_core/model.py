@@ -21,6 +21,7 @@ from connflex_core.stack import Stack
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
+    from connflex_core.electrostatics.capacitance import CapacitanceModel
     from connflex_core.electrostatics.plates import Plate
     from connflex_core.mechanics.modal import ModalResult
 
@@ -171,6 +172,14 @@ class Structure:
         from connflex_core.electrostatics.plates import find_plates
 
         return find_plates(self, params, progress=progress)
+
+    def capacitance(
+        self, params: ElectrostaticParams | None = None, *, progress: Progress | None = None
+    ) -> CapacitanceModel:
+        """Capacitance between all electrodes at rest, from plates and sidewalls."""
+        from connflex_core.electrostatics.capacitance import find_capacitance
+
+        return find_capacitance(self, params, progress=progress)
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-serializable tree with polygons as GeoJSON-style mappings."""

@@ -1,0 +1,152 @@
+import numpy as np
+import pytest
+from shapely import box
+
+from connflex_core import (
+    CapacitanceModel,
+    ElectrostaticParams,
+    ExtractionParams,
+    Layer,
+    Layout,
+    Material,
+    Stack,
+    Structure,
+    extract,
+)
+
+UM = 1e-6
+EPS0 = 8.8541878188e-12
+THICKNESS, BOX = 25 * UM, 2 * UM
+GAP, WIDTH, FINGERS, OVERLAP = 3.0, 4.0, 4, 40.0
+PITCH = 2 * (GAP + WIDTH)
+GAPS = 2 * FINGERS
+
+
+@pytest.fixture(scope="module")
+def comb() -> Structure:
+    """Bonded pad with five fingers, and a released shuttle with four between them on two beams."""
+    stator = [box(300, 100 + PITCH * k, 360, 100 + PITCH * k + WIDTH) for k in range(FINGERS + 1)]
+    rotor = [
+        box(320, 100 + PITCH * k + WIDTH + GAP, 380, 100 + PITCH * k + 2 * WIDTH + GAP)
+        for k in range(FINGERS)
+    ]
+    spine, beams = box(380, 60, 420, 200), [box(420, 70, 620, 80), box(420, 180, 620, 190)]
+    device = [box(0, 0, 300, 300), *stator, *rotor, spine, *beams, box(620, 0, 920, 300)]
+    layout = Layout.from_shapely(device=device, handle=[box(-50, -50, 970, 350)], unit=UM)
+    stack = Stack(
+        device=Layer(thickness=THICKNESS, material=Material.silicon()),
+        box=Layer(thickness=BOX, material=Material.oxide()),
+        handle=Layer(thickness=400 * UM, material=Material.silicon()),
+    )
+    params = ExtractionParams(
+        release_hole_max_area=100 * UM * UM, release_distance=60 * UM, body_min_width=20 * UM
+    )
+    return extract(layout, stack, params)
+
+
+@pytest.fixture(scope="module")
+def settings() -> ElectrostaticParams:
+    return ElectrostaticParams(element_size=4 * UM, interaction_distance=30 * UM)
+
+
+@pytest.fixture(scope="module")
+def model(comb: Structure, settings: ElectrostaticParams) -> CapacitanceModel:
+    return comb.capacitance(settings)
+
+
+@pytest.fixture(scope="module")
+def at(comb: Structure) -> dict[str, int]:
+    """Electrode indices by name."""
+    return {
+        "stator": comb.electrode_at((150 * UM, 150 * UM), "device").index,
+        "shuttle": comb.electrode_at((400 * UM, 130 * UM), "device").index,
+        "pad": comb.electrode_at((770 * UM, 150 * UM), "device").index,
+        "handle": comb.electrode_at((0.0, 0.0), "handle").index,
+    }
+
+
+def test_matrix_sums_sidewalls_and_plates_between_electrodes(
+    comb: Structure, model: CapacitanceModel, at: dict[str, int]
+) -> None:
+    stator, shuttle, pad, handle = (at[name] for name in ("stator", "shuttle", "pad", "handle"))
+    assert model.matrix == pytest.approx(model.oxide + model.released + model.sidewall)
+    assert model.matrix == pytest.approx(model.matrix.T)
+    assert np.max(abs(model.matrix.sum(axis=1))) < 1e-9 * np.max(abs(model.matrix))
+
+    ideal = GAPS * EPS0 * THICKNESS * OVERLAP / GAP
+    assert ideal < -model.sidewall[stator, shuttle] < 1.3 * ideal
+    assert model.sidewall[stator, stator] == pytest.approx(-model.sidewall[stator, shuttle])
+    assert not model.sidewall[[pad, handle]].any()
+    assert [(cluster.electrodes, cluster.solved) for cluster in model.clusters] == [
+        ((stator, shuttle), True)
+    ]
+
+    silicon = (40 * 140 + FINGERS * 60 * WIDTH) * UM**2
+    assert model.released[shuttle, handle] == pytest.approx(-EPS0 * silicon / BOX)
+    assert model.oxide[shuttle, handle] == 0.0
+    assert model.oxide[pad, handle] == pytest.approx(-3.9 * EPS0 * (180 * UM) ** 2 / BOX, rel=1e-2)
+    assert model.oxide[handle, handle] == pytest.approx(
+        -model.oxide[pad, handle] - model.oxide[stator, handle]
+    )
+
+
+def test_net_matrix_ties_electrodes_of_one_net(
+    comb: Structure, model: CapacitanceModel, at: dict[str, int]
+) -> None:
+    net = {name: comb.electrodes[index].net for name, index in at.items()}
+    assert net["pad"] == net["shuttle"] != net["stator"]
+    assert model.net.tolist() == [electrode.net for electrode in comb.electrodes]
+    nets = model.net_matrix
+    assert nets.shape == (comb.nets.count, comb.nets.count)
+    assert nets[net["stator"], net["shuttle"]] == pytest.approx(
+        model.matrix[at["stator"], at["shuttle"]]
+    )
+    assert nets[net["shuttle"], net["handle"]] == pytest.approx(
+        model.matrix[at["shuttle"], at["handle"]] + model.matrix[at["pad"], at["handle"]]
+    )
+    assert np.max(abs(nets.sum(axis=1))) < 1e-9 * np.max(abs(nets))
+
+
+def test_each_part_can_be_left_out_and_needs_only_its_own_parameters(
+    comb: Structure, model: CapacitanceModel, at: dict[str, int]
+) -> None:
+    plates_only = comb.capacitance(ElectrostaticParams(include_sidewalls=False))
+    assert not plates_only.sidewall.any()
+    assert plates_only.clusters == ()
+    assert plates_only.oxide == pytest.approx(model.oxide)
+
+    walls = ElectrostaticParams(
+        element_size=4 * UM, interaction_distance=30 * UM, include_plates=False
+    )
+    walls_only = comb.capacitance(walls)
+    assert not walls_only.oxide.any()
+    assert not walls_only.released.any()
+    assert walls_only.sidewall == pytest.approx(model.sidewall)
+
+    with pytest.raises(ValueError, match="interaction_distance"):
+        comb.capacitance(ElectrostaticParams(element_size=4 * UM))
+    with pytest.raises(ValueError, match="element_size"):
+        comb.capacitance(ElectrostaticParams(interaction_distance=30 * UM))
+
+    apart = ElectrostaticParams(element_size=4 * UM, interaction_distance=1 * UM)
+    assert comb.capacitance(apart).clusters == ()
+
+
+def test_cluster_above_the_element_limit_is_an_error_unless_skipped(
+    comb: Structure, at: dict[str, int]
+) -> None:
+    small = ElectrostaticParams(element_size=4 * UM, interaction_distance=30 * UM, max_elements=100)
+    with pytest.raises(ValueError, match="max_elements"):
+        comb.capacitance(small)
+    skipping = ElectrostaticParams(
+        element_size=4 * UM,
+        interaction_distance=30 * UM,
+        max_elements=100,
+        skip_large_clusters=True,
+    )
+    partial = comb.capacitance(skipping)
+    (cluster,) = partial.clusters
+    assert (cluster.electrodes, cluster.solved) == ((at["stator"], at["shuttle"]), False)
+    assert cluster.elements > 100
+    assert not partial.sidewall.any()
+    assert partial.released.any()

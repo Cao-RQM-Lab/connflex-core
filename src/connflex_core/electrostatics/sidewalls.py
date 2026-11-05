@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 
 import numpy as np
@@ -15,7 +16,7 @@ from connflex_core.electrostatics.kernel import pair_derivatives, pair_integrals
 from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.params import ElectrostaticParams
-from connflex_core.progress import Progress, stage
+from connflex_core.progress import Progress, Stage, stage
 
 Array = NDArray[np.float64]
 
@@ -104,7 +105,25 @@ def sidewall_capacitance(
             f"outlines need {count} boundary elements, more than max_elements = "
             f"{params.max_elements}: raise element_size or max_elements, or pass fewer conductors"
         )
+    permittivity = VACUUM_PERMITTIVITY * params.ambient_permittivity
+    return solve_mesh(
+        mesh, body, pivots, permittivity, lambda name, total=None: stage(name, progress, total)
+    )
 
+
+def solve_mesh(
+    mesh: Mesh,
+    body: NDArray[np.intp],
+    pivots: Array,
+    permittivity: float,
+    enter: Callable[..., AbstractContextManager[Stage]],
+) -> SidewallCapacitance:
+    """Solve the field of a mesh whose conductors move with ``body`` about ``pivots``.
+
+    ``enter`` opens each stage: ``stage`` bound to a progress receiver, or ``quiet`` when
+    the solution is one step of a larger stage.
+    """
+    count, conductors, rigid = len(mesh.conductor), len(body), len(pivots)
     corners = np.concatenate([mesh.start, mesh.end])
     low, high = corners.min(axis=0), corners.max(axis=0)
     scale = 2 * float(np.hypot(*(high - low)))
@@ -115,19 +134,19 @@ def sidewall_capacitance(
 
     potential = np.empty((count, count))
     rows = max(1, PAIRS_PER_PASS // count)
-    with stage("assemble", progress, total=count) as current:
+    with enter("assemble", total=count) as current:
         for first in range(0, count, rows):
             block = slice(first, first + rows)
             integral = pair_integrals(start[block, None], end[block, None], start, end)
             potential[block] = -integral / (2 * np.pi * length[block, None] * length)
             current.advance(len(length[block]))
 
-    with stage("solve", progress):
+    with enter("solve"):
         try:
             factor = scipy.linalg.cho_factor(potential, lower=True, overwrite_a=True)
         except scipy.linalg.LinAlgError as exc:
             raise ValueError("outlines cross or elements coincide") from exc
-        on = (mesh.conductor[:, None] == np.arange(len(regions))).astype(float)
+        on = (mesh.conductor[:, None] == np.arange(conductors)).astype(float)
         solved = scipy.linalg.cho_solve(factor, np.column_stack([on, np.ones(count)]))
         driven, uniform = solved[:, :-1], solved[:, -1]
         charge = driven - np.outer(uniform, uniform @ on) / uniform.sum()
@@ -136,12 +155,12 @@ def sidewall_capacitance(
     density = charge / length[:, None]
     carried = [np.flatnonzero(body[mesh.conductor] == k) for k in range(rigid)]
     pivot = (pivots - (low + high) / 2) / scale @ (1, 1j)
-    shape = (len(regions), len(regions), 3 * rigid)
+    shape = (conductors, conductors, 3 * rigid)
     gradient = np.zeros(shape)
     hessian = np.zeros((*shape, 3 * rigid))
-    swing = np.zeros((count, len(regions), 3 * rigid))
+    swing = np.zeros((count, conductors, 3 * rigid))
     pairs = [(k, other) for k in range(rigid) for other in range(k + 1, rigid)]
-    with stage("derivatives", progress, total=len(pairs)) as current:
+    with enter("derivatives", total=len(pairs)) as current:
         for k, other in pairs:
             mine, theirs = carried[k], carried[other]
             freedom = np.r_[3 * k : 3 * k + 3, 3 * other : 3 * other + 3]
@@ -169,7 +188,7 @@ def sidewall_capacitance(
     gradient = (gradient + gradient.transpose(1, 0, 2)) / (2 * np.pi)
     hessian = (hessian + hessian.transpose(1, 0, 2, 3)) / (2 * np.pi)
 
-    with stage("curvature", progress):
+    with enter("curvature"):
         swing /= -2 * np.pi
         flat = swing.reshape(count, -1)
         settled = scipy.linalg.cho_solve(factor, flat)
@@ -180,11 +199,10 @@ def sidewall_capacitance(
     unit = np.tile([1 / scale, 1 / scale, 1.0], rigid)
     gradient *= unit
     hessian *= unit[:, None] * unit
-    permittivity = VACUUM_PERMITTIVITY * params.ambient_permittivity
     return SidewallCapacitance(
         capacitance=permittivity * (capacitance + capacitance.T) / 2,
-        gradient=permittivity * gradient.reshape(len(regions), len(regions), rigid, 3),
-        hessian=permittivity * hessian.reshape(len(regions), len(regions), rigid, 3, rigid, 3),
+        gradient=permittivity * gradient.reshape(conductors, conductors, rigid, 3),
+        hessian=permittivity * hessian.reshape(conductors, conductors, rigid, 3, rigid, 3),
         centers=pivots,
         charge=permittivity * charge,
         mesh=mesh,

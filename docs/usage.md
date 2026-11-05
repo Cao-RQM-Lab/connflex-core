@@ -157,10 +157,10 @@ release openings are modeled as perforations and are kept apart in
 already exclude them. The JSON tree does not list them.
 
 Mechanical analysis ([solve](#solve)) and electrostatic analysis
-([capacitance to the handle](#capacitance-to-the-handle)) both work from this
-structure, and each runs without the other: neither needs the other's
-parameters or results. [Sidewall capacitance](#sidewall-capacitance) takes
-polygons directly and needs no structure.
+([capacitance model](#capacitance-model)) both work from this structure, and
+each runs without the other: neither needs the other's parameters or
+results. [Sidewall capacitance](#sidewall-capacitance) takes polygons
+directly and needs no structure.
 
 ## Electrical nets
 
@@ -221,6 +221,39 @@ extraction parameters: one value for every via, whatever its area, and
 Bridges are ideal, and resistance inside an electrode is neglected. Exact
 definitions are in
 [electrodes and links](theory.md#electrodes-and-links).
+
+## Capacitance model
+
+```python
+params = cf.ElectrostaticParams(element_size=2e-6, interaction_distance=30e-6)
+model = structure.capacitance(params)
+
+model.matrix  # n by n over structure.electrodes, farads
+model.oxide, model.released, model.sidewall  # the three parts it sums
+-model.matrix[a, b]  # capacitance between electrodes a and b
+model.net_matrix  # between nets, electrodes of each net tied together
+model.clusters  # groups of device electrodes whose sidewalls were solved together
+model.plates  # plates behind the oxide and released parts
+```
+
+`structure.capacitance` collects every capacitance between electrodes at
+rest into one matrix: plates between device and handle electrodes, through
+oxide and across released gaps, and sidewalls between device electrodes. It
+needs no mechanical solution. Rows sum to zero, so only differences of
+potential matter and nothing outside the structure holds charge.
+
+Sidewalls are solved in clusters. Device electrodes whose silicon lies
+within `interaction_distance` of each other, directly or through a chain of
+neighbors, form a cluster and are solved together with `element_size`;
+electrodes in different clusters share no sidewall capacitance. A cluster
+that needs more boundary elements than `max_elements` raises an error. With
+`skip_large_clusters=True` it is left out instead and appears in
+`model.clusters` with `solved` false, so a model can be built for the rest.
+
+Either part can be left out, and then needs none of its parameters:
+`cf.ElectrostaticParams(include_sidewalls=False)` gives plates alone with no
+element size, and `include_plates=False` gives sidewalls alone. Definitions
+are in [capacitance of a structure](theory.md#capacitance-of-a-structure).
 
 ## Capacitance to the handle
 
@@ -333,7 +366,7 @@ components of the same kind when reading them.
 
 ## Progress and logging
 
-Each stage of `extract`, `modal`, `static`, `plates`, and
+Each stage of `extract`, `modal`, `static`, `plates`, `capacitance`, and
 `sidewall_capacitance` logs when it starts and when it finishes, with elapsed time and counts, through the standard `connflex_core`
 logger. The logger is silent until a handler is attached:
 
@@ -379,4 +412,5 @@ candidate, and via; the other stages are single operations. `plates` reports
 one stage, plates, that advances once per device electrode.
 `sidewall_capacitance` reports mesh, assemble, solve, derivatives, and
 curvature; assemble advances once per boundary element and derivatives once
-per pair of bodies.
+per pair of bodies. `capacitance` reports plates, clusters, and sidewalls;
+sidewalls advances once per cluster.
