@@ -33,7 +33,7 @@ site/
 .DS_Store
 
 # Local planning notes
-PLAN.md
+PLAN*.md
 
 # AI assistant files
 CLAUDE.md
