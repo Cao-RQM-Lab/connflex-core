@@ -14,6 +14,11 @@ def test_preset_accepts_overrides() -> None:
     assert Material.oxide(torsion_beta=0.0).torsion_beta == 0.0
 
 
+def test_oxide_preset_is_a_dielectric_and_silicon_is_not() -> None:
+    assert Material.oxide().relative_permittivity == 3.9
+    assert Material.silicon().relative_permittivity is None
+
+
 def test_explicit_shear_modulus_is_kept() -> None:
     assert Material.silicon(shear_modulus=50e9).shear_modulus == 50e9
 
@@ -27,6 +32,7 @@ def test_explicit_shear_modulus_is_kept() -> None:
         ({"torsion_model": "circle"}, "torsion_model"),
         ({"torsion_beta": -0.1}, "torsion_beta"),
         ({"resistivity": 0.0}, "resistivity"),
+        ({"relative_permittivity": 0.5}, "relative_permittivity"),
     ],
 )
 def test_invalid_material_values_name_the_field(overrides: dict[str, object], field: str) -> None:

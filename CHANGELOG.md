@@ -17,6 +17,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and the beam's length, width, and thickness; each via link between a device
   and a handle electrode has the supplied via resistance, 0 ohms by default;
   bridges are ideal.
+- `Material.relative_permittivity`, 3.9 on the oxide preset and unset on
+  silicon.
 
 ## [0.1.0] - 2026-11-04
 

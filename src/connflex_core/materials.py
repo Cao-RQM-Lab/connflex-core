@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from connflex_core._validation import require_nonnegative, require_positive
+from connflex_core._validation import require_at_least, require_nonnegative, require_positive
 
 TORSION_MODELS = ("rectangle",)
 
@@ -24,6 +24,8 @@ class Material:
         torsion_beta: Short-beam torsional stiffening coefficient. Zero disables the correction.
         resistivity: Electrical resistivity in ohm meters. None leaves resistance of beam
             links unknown. Only the device layer's value is used.
+        relative_permittivity: Static dielectric constant. None means the material is not
+            a dielectric in this model. Only the box layer's value is used.
     """
 
     density: float
@@ -33,6 +35,7 @@ class Material:
     torsion_model: str = "rectangle"
     torsion_beta: float = 0.63
     resistivity: float | None = None
+    relative_permittivity: float | None = None
 
     def __post_init__(self) -> None:
         require_positive("density", self.density)
@@ -51,6 +54,8 @@ class Material:
         require_nonnegative("torsion_beta", self.torsion_beta)
         if self.resistivity is not None:
             require_positive("resistivity", self.resistivity)
+        if self.relative_permittivity is not None:
+            require_at_least("relative_permittivity", self.relative_permittivity, 1)
 
     @classmethod
     def silicon(cls, **overrides: Any) -> Material:
@@ -61,7 +66,13 @@ class Material:
 
     @classmethod
     def oxide(cls, **overrides: Any) -> Material:
-        """Thermal silicon dioxide: 2200 kg/m^3, E = 70 GPa, nu = 0.17."""
+        """Thermal silicon dioxide: 2200 kg/m^3, E = 70 GPa, nu = 0.17, dielectric constant 3.9."""
         return cls(
-            **{"density": 2200.0, "youngs_modulus": 70e9, "poisson_ratio": 0.17, **overrides}
+            **{
+                "density": 2200.0,
+                "youngs_modulus": 70e9,
+                "poisson_ratio": 0.17,
+                "relative_permittivity": 3.9,
+                **overrides,
+            }
         )
