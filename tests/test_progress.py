@@ -125,3 +125,12 @@ def test_modal_and_static_report_assemble_and_solve(
         recorder = Recorder()
         solve(recorder)
         assert recorder.runs == [Run("assemble", None, 0, True), Run("solve", None, 0, True)]
+
+
+def test_plates_report_one_stage_that_advances_once_per_device_electrode(
+    stack: Stack, params: Callable[..., ExtractionParams], layout_um: Callable[..., Layout]
+) -> None:
+    structure = extract(layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A]), stack, params())
+    recorder = Recorder()
+    assert len(structure.plates(progress=recorder)) == 1
+    assert recorder.runs == [Run("plates", 2, 2, True)]

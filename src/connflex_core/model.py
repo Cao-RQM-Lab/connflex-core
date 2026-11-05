@@ -15,13 +15,14 @@ from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Nets
 from connflex_core.materials import Material
 from connflex_core.mechanics.inertia import MassProperties
-from connflex_core.params import SolveOptions
+from connflex_core.params import ElectrostaticParams, SolveOptions
 from connflex_core.progress import Progress
 from connflex_core.stack import Stack
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
+    from connflex_core.electrostatics.plates import Plate
     from connflex_core.mechanics.modal import ModalResult
 
 
@@ -163,6 +164,14 @@ class Structure:
         from connflex_core.mechanics.modal import static
 
         return static(self, loads, progress=progress)
+
+    def plates(
+        self, params: ElectrostaticParams | None = None, *, progress: Progress | None = None
+    ) -> tuple[Plate, ...]:
+        """Capacitors between device electrodes and handle electrodes beneath them."""
+        from connflex_core.electrostatics.plates import find_plates
+
+        return find_plates(self, params, progress=progress)
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-serializable tree with polygons as GeoJSON-style mappings."""

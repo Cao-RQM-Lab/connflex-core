@@ -1,6 +1,6 @@
 import pytest
 
-from connflex_core import ExtractionParams, SolveOptions
+from connflex_core import ElectrostaticParams, ExtractionParams, SolveOptions
 
 
 def params(**overrides: object) -> ExtractionParams:
@@ -51,3 +51,8 @@ def test_anchor_accepts_index_or_point() -> None:
 def test_solve_options_reject_unknown_method() -> None:
     with pytest.raises(ValueError, match="method"):
         SolveOptions(method="magic")  # type: ignore[arg-type]
+
+
+def test_ambient_permittivity_below_vacuum_is_rejected() -> None:
+    with pytest.raises(ValueError, match="ambient_permittivity"):
+        ElectrostaticParams(ambient_permittivity=0.5)

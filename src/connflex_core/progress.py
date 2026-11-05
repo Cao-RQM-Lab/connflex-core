@@ -14,7 +14,7 @@ logger.addHandler(logging.NullHandler())
 
 
 class Progress(Protocol):
-    """Receiver of stage events from ``extract``, ``modal``, and ``static``.
+    """Receiver of stage events from ``extract``, ``modal``, ``static``, and ``plates``.
 
     ``start`` opens a stage with the number of ``advance`` steps to expect, or None when
     the stage is one indivisible operation. ``finish`` closes it, also when the stage fails.

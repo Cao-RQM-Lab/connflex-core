@@ -625,6 +625,190 @@ end touches several polygons of one body joins only the largest.
     so it has no default. Without it the resistance of a beam link is left
     unknown rather than guessed, and extraction is otherwise unchanged.
 
+## Plates between device and handle
+
+Device silicon that lies over handle silicon forms a capacitor with it:
+through buried oxide where oxide survives, and across the gap that release
+leaves elsewhere. Silicon is treated as a perfect conductor, so an electrode
+has one potential, and a plate is a pair of a device electrode $E_a$ and a
+handle electrode $E_b$ whose regions overlap. With $O$ the surviving oxide of
+(2) and $R$ the release openings, the overlap and its bonded and released
+parts are
+
+$$
+U_{ab} = E_a \cap E_b, \qquad O_{ab} = U_{ab} \cap O, \qquad G_{ab} = U_{ab} - O - R. \tag{42}
+$$
+
+Oxide and gap both have the thickness of the box layer, $g_0 = t_\text{box}$.
+The field between the two faces is taken as uniform and vertical, so at rest
+
+$$
+C_{ab} = C_\text{ox} + \frac{\varepsilon A}{g_0}, \qquad
+C_\text{ox} = \frac{\varepsilon_0\, \varepsilon_\text{ox} \operatorname{area}(O_{ab})}{g_0}, \qquad
+\varepsilon = \varepsilon_0\, \varepsilon_a, \tag{43}
+$$
+
+where $A = \operatorname{area}(G_{ab})$, $\varepsilon_\text{ox}$ is the
+relative permittivity of the box material, $\varepsilon_a$ is that of the
+medium in the gap, and $\varepsilon_0 = 8.8541878188 \times 10^{-12}$ F/m.
+Release openings carry no charge: device silicon is absent there.
+
+Oxide bonds the silicon on both of its faces, so $C_\text{ox}$ does not
+change with motion. The released part does. Let the device electrode move
+with body $A$ and the handle electrode with body $B$, with centers of mass
+$\mathbf{c}_A$ and $\mathbf{c}_B$ and degrees of freedom $\mathbf{q}_A$ and
+$\mathbf{q}_B$ of (12). A small rigid motion of a body with center
+$\mathbf{c}$ raises its material at $(x, y)$ by
+
+$$
+\delta z(x, y) = u_z + \theta_x (y - c_y) - \theta_y (x - c_x), \tag{44}
+$$
+
+so the gap between the faces, $g = g_0 + \delta z_A - \delta z_B$, stays a
+plane. About a reference point $\mathbf{r}_0 = (x_0, y_0)$, the center of the
+bounding box of $U_{ab}$, it is
+
+$$
+g(x, y) = g_0 + h_0 + h_x (x - x_0) + h_y (y - y_0), \tag{45}
+$$
+
+with rise $h_0$ and slopes $h_x$ and $h_y$ linear in the motion of both
+bodies,
+
+$$
+\mathbf{p} = \begin{bmatrix} h_0 \\ h_x \\ h_y \end{bmatrix}
+= \mathbf{J}(\mathbf{c}_A)\, \mathbf{q}_A - \mathbf{J}(\mathbf{c}_B)\, \mathbf{q}_B, \qquad
+\mathbf{J}(\mathbf{c}) = \begin{bmatrix}
+0 & 0 & 1 & y_0 - c_y & -(x_0 - c_x) & 0 \\
+0 & 0 & 0 & 0 & -1 & 0 \\
+0 & 0 & 0 & 1 & 0 & 0
+\end{bmatrix}. \tag{46}
+$$
+
+While the faces stay nearly parallel the field remains locally that of a
+parallel plate with the local gap. With $\bar{g} = g_0 + h_0$ the gap at the
+reference point, $\mathbf{h} = (h_x, h_y)^\top$, and
+$\boldsymbol{\rho} = (x - x_0,\; y - y_0)^\top$, capacitance of the released
+part is
+
+$$
+\varepsilon \int_{G_{ab}} \frac{dA}{g(x, y)}
+= \varepsilon \int_{G_{ab}} \left[ \frac{1}{\bar{g}}
+- \frac{\mathbf{h}^\top \boldsymbol{\rho}}{\bar{g}^2}
++ \frac{(\mathbf{h}^\top \boldsymbol{\rho})^2}{\bar{g}^3} - \cdots \right] dA, \tag{47}
+$$
+
+a series that converges while the faces do not touch,
+$|\mathbf{h}^\top \boldsymbol{\rho}| < \bar{g}$ over $G_{ab}$. Its terms
+need only the area moments of the released region about $\mathbf{r}_0$,
+
+$$
+A = \int_{G_{ab}} dA, \qquad
+\mathbf{S} = \int_{G_{ab}} \boldsymbol{\rho}\, dA, \qquad
+\mathbf{I} = \int_{G_{ab}} \boldsymbol{\rho} \boldsymbol{\rho}^\top dA, \tag{48}
+$$
+
+which are the integrals of (11b) shifted to $\mathbf{r}_0$ by (11c). The
+model keeps (47) through second order in the slopes,
+
+$$
+C_{ab}(\mathbf{p}) = C_\text{ox} + \varepsilon \left[ \frac{A}{\bar{g}}
+- \frac{\mathbf{h}^\top \mathbf{S}}{\bar{g}^2}
++ \frac{\mathbf{h}^\top \mathbf{I}\, \mathbf{h}}{\bar{g}^3} \right],
+\qquad \bar{g} = g_0 + h_0. \tag{49}
+$$
+
+Every coefficient of (49) carries its exact dependence on the rise, so
+vertical travel without tilt is exact at any amplitude,
+$C_{ab} = C_\text{ox} + \varepsilon A / (g_0 + h_0)$. The first term left
+out is $-\varepsilon \int (\mathbf{h}^\top \boldsymbol{\rho})^3 dA /
+\bar{g}^4$, of relative size $(|\mathbf{h}|\, \ell / \bar{g})^3$ for a plate
+of extent $\ell$; it vanishes for a region symmetric about $\mathbf{r}_0$,
+which leaves an error of fourth order. Equation (49) does not depend on
+in-plane motion of either body: $G_{ab}$ is the overlap as drawn.
+
+Gradient and Hessian are the derivatives of (49) in closed form,
+
+$$
+\frac{\partial C_{ab}}{\partial h_0} = \varepsilon \left[ -\frac{A}{\bar{g}^2}
++ \frac{2\, \mathbf{h}^\top \mathbf{S}}{\bar{g}^3}
+- \frac{3\, \mathbf{h}^\top \mathbf{I}\, \mathbf{h}}{\bar{g}^4} \right], \qquad
+\frac{\partial C_{ab}}{\partial \mathbf{h}} = \varepsilon \left[ -\frac{\mathbf{S}}{\bar{g}^2}
++ \frac{2\, \mathbf{I}\, \mathbf{h}}{\bar{g}^3} \right], \tag{50}
+$$
+
+$$
+\begin{aligned}
+\frac{\partial^2 C_{ab}}{\partial h_0^2} &= \varepsilon \left[ \frac{2 A}{\bar{g}^3}
+- \frac{6\, \mathbf{h}^\top \mathbf{S}}{\bar{g}^4}
++ \frac{12\, \mathbf{h}^\top \mathbf{I}\, \mathbf{h}}{\bar{g}^5} \right], \\
+\frac{\partial^2 C_{ab}}{\partial h_0\, \partial \mathbf{h}} &= \varepsilon \left[ \frac{2\, \mathbf{S}}{\bar{g}^3}
+- \frac{6\, \mathbf{I}\, \mathbf{h}}{\bar{g}^4} \right], \\
+\frac{\partial^2 C_{ab}}{\partial \mathbf{h}\, \partial \mathbf{h}^\top} &= \frac{2 \varepsilon\, \mathbf{I}}{\bar{g}^3},
+\end{aligned} \tag{51}
+$$
+
+and they follow in the degrees of freedom of the two bodies from (46), with
+$\mathbf{J}_A = \mathbf{J}(\mathbf{c}_A)$ and
+$\mathbf{J}_B = \mathbf{J}(\mathbf{c}_B)$:
+
+$$
+\frac{\partial C_{ab}}{\partial \mathbf{q}_A} = \mathbf{J}_A^\top \frac{\partial C_{ab}}{\partial \mathbf{p}}, \qquad
+\frac{\partial C_{ab}}{\partial \mathbf{q}_B} = -\mathbf{J}_B^\top \frac{\partial C_{ab}}{\partial \mathbf{p}}, \qquad
+\frac{\partial^2 C_{ab}}{\partial \mathbf{q}_A\, \partial \mathbf{q}_B^\top}
+= -\mathbf{J}_A^\top \frac{\partial^2 C_{ab}}{\partial \mathbf{p}\, \partial \mathbf{p}^\top} \mathbf{J}_B, \tag{52}
+$$
+
+with the two diagonal blocks of the Hessian formed the same way and carrying
+a positive sign. At rest, for body $A$ over a fixed handle and with the
+moments of (48) taken about $\mathbf{c}_A$, these are
+
+$$
+\frac{\partial C_{ab}}{\partial u_z} = -\frac{\varepsilon A}{g_0^2}, \qquad
+\frac{\partial C_{ab}}{\partial \theta_x} = -\frac{\varepsilon S_y}{g_0^2}, \qquad
+\frac{\partial C_{ab}}{\partial \theta_y} = \frac{\varepsilon S_x}{g_0^2}, \qquad
+\frac{\partial^2 C_{ab}}{\partial (u_z, \theta_x, \theta_y)^2} = \frac{2 \varepsilon}{g_0^3}
+\begin{bmatrix} A & S_y & -S_x \\ S_y & I_{yy} & -I_{xy} \\ -S_x & -I_{xy} & I_{xx} \end{bmatrix}. \tag{53}
+$$
+
+With potential difference $V$ between the two electrodes the co-energy of
+the plate is $\tfrac{1}{2} C_{ab} V^2$. It applies generalized forces
+$\tfrac{1}{2} V^2\, \partial C_{ab} / \partial \mathbf{q}$ to the two bodies
+and adds $-\tfrac{1}{2} V^2\, \partial^2 C_{ab} / \partial \mathbf{q}\,
+\partial \mathbf{q}^\top$ to their stiffness. Both come from the one function
+(49), so force and stiffness agree with each other at every displacement.
+
+!!! note "Implementation choices"
+    The moments of $G_{ab}$ are found without building it. The sums of (11b)
+    are evaluated for $U_{ab}$, for the oxide polygons inside it, and for the
+    release openings inside it, and the last two are subtracted. Oxide and
+    openings are disjoint, since (2) keeps oxide at least $d$ away from every
+    opening, and each set is disjoint in itself. A polygon that $U_{ab}$
+    covers is used as drawn and one that crosses its boundary is clipped to
+    it first. A plate with a hundred thousand openings therefore costs one
+    pass over their vertices, as for mass.
+
+    The region of a device electrode is the union of its body polygon and
+    its stubs. Silicon of beams and bridges belongs to no electrode, so its
+    capacitance to the handle is not counted.
+
+    When both electrodes move with one body, (46) gives $\mathbf{p} = 0$ for
+    every motion and the plate is a fixed capacitor. A bonded pad is the
+    common case: oxide under its middle and the undercut rim of width $d$
+    around it, both between silicon of the anchor.
+
+    Fringing fields at the outline of the overlap and into release openings
+    are not modeled. They add capacitance, of relative order $g_0 / w$ times
+    a logarithmic factor for a plate of width $w$, and openings not much
+    wider than the gap recover part of the area they remove, so (43) is a
+    lower bound.
+
+    The reference point is the center of the bounding box of the overlap
+    rather than the origin or a center of mass, so that $\mathbf{S}$ and
+    $\mathbf{I}$ stay of the size of the plate and the products in (52) do
+    not cancel. A rise that closes the gap at the reference point,
+    $\bar{g} \le 0$, is an error.
+
 ## Symbols and parameters
 
 Every symbol below is a documented input. Full definitions, units, defaults,
@@ -641,6 +825,9 @@ and validation rules are on the [parameters page](parameters.md).
 | $\rho_l$ | layer density | `Material.density` |
 | $\rho_e$ | electrical resistivity of the device layer | `Material.resistivity` |
 | $R_v$ | resistance of one via link | `ExtractionParams.via_resistance` |
+| $g_0$ | gap between device and handle silicon | `Layer.thickness` of the box layer |
+| $\varepsilon_\text{ox}$ | relative permittivity of buried oxide | `Material.relative_permittivity` of the box layer |
+| $\varepsilon_a$ | relative permittivity of the medium in released gaps | `ElectrostaticParams.ambient_permittivity` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
 | $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |

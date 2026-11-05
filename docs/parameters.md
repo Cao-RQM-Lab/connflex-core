@@ -1,6 +1,6 @@
 # Parameters
 
-Every tunable is a named field on one of three configuration objects. There
+Every tunable is a named field on one of four configuration objects. There
 are no hidden constants. A test checks that this page and the fields agree.
 
 Lengths are in meters, areas in square meters, densities in kilograms per
@@ -44,7 +44,7 @@ stiffness uses the device-layer material.
 | `Material.torsion_model` | $J$ | `"rectangle"` | Saint-Venant torsion constant of a solid rectangle, equation (20). |
 | `Material.torsion_beta` | $\beta$ | 0.63 | Short-beam torsional stiffening coefficient, equation (21). Zero disables the correction. |
 | `Material.resistivity` | $\rho_e$ | none | Electrical resistivity. Sets resistance of beam links, equation (41); without it that resistance is unknown. Only the device layer's value is used. |
-| `Material.relative_permittivity` | | oxide 3.9, silicon none | Static dielectric constant. Only the box layer's value is used: silicon is a conductor in the electrical model. |
+| `Material.relative_permittivity` | $\varepsilon_\text{ox}$ | oxide 3.9, silicon none | Static dielectric constant. Only the box layer's value is used, for capacitance through buried oxide, equation (43): silicon is a conductor in the electrical model. |
 
 `Material.silicon()` and `Material.oxide()` return these defaults and accept
 keyword overrides.
@@ -57,17 +57,24 @@ keyword overrides.
 | `method` | `"dense"` | `"dense"` solves the full generalized eigenproblem; `"sparse"` uses shift-invert iteration. |
 | `sigma` | 0 | Shift for the sparse solver, in squared angular frequency. |
 
+## `ElectrostaticParams`
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `ambient_permittivity` | $\varepsilon_a$ | 1 | Relative permittivity of the medium that fills released gaps, equation (43). |
+
 ## Validation
 
 Each object validates itself on construction and raises `ValueError` naming
 the field: lengths, areas, thicknesses, densities, moduli, and resistivity are positive;
 `beam_width_min < beam_width_max`; `beam_overlap_margin < body_min_width / 2`;
-`torsion_beta >= 0`; `via_resistance >= 0`; `relative_permittivity >= 1`; every stack
-layer has a thickness.
+`torsion_beta >= 0`; `via_resistance >= 0`; `relative_permittivity >= 1`;
+`ambient_permittivity >= 1`; every stack layer has a thickness.
 
 ## TOML files
 
-All three objects load from one file with the same field names:
+Stack, extraction parameters, and solve options load from one file with the same
+field names:
 
 ```toml
 [stack.device]
@@ -98,3 +105,5 @@ n_modes = 20
 ```python
 stack, params, options = cf.load_config("soi_25um.toml")
 ```
+
+`ElectrostaticParams` is built in Python and passed to `Structure.plates`.

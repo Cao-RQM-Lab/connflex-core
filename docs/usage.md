@@ -220,6 +220,41 @@ Bridges are ideal, and resistance inside an electrode is neglected. Exact
 definitions are in
 [electrodes and links](theory.md#electrodes-and-links).
 
+## Capacitance to the handle
+
+```python
+plates = structure.plates()  # one per device electrode over a handle electrode
+plates = structure.plates(cf.ElectrostaticParams(ambient_permittivity=1.0006))
+
+plate = plates[0]
+plate.electrodes  # (device electrode index, handle electrode index)
+plate.bodies  # bodies those electrodes move with
+plate.oxide  # farads through surviving buried oxide; fixed
+plate.released  # farads across the released gap at rest
+
+value, gradient, hessian = plate.evaluate()  # at rest
+value, gradient, hessian = plate.evaluate(device=[0, 0, -0.5e-6, 0, 0, 0])
+```
+
+A plate is the overlap of one device electrode with one handle electrode. The
+part over surviving oxide is a fixed capacitor with the dielectric constant
+of the box material, `cf.Material.oxide()` carrying 3.9. The rest is a gap as
+high as the box layer is thick, filled with a medium of
+`ambient_permittivity`, and release openings are left out of its area. A
+bonded pad has both parts: oxide under its middle and the undercut rim around
+it.
+
+`evaluate` takes the six degrees of freedom of the body of each electrode,
+ordered ux, uy, uz, tx, ty, tz, and returns capacitance with its gradient and
+Hessian over those twelve, device body first. Vertical travel is exact and
+tilt is carried to second order; in-plane motion does not enter. With a
+potential difference `V` across the plate, `0.5 * V**2 * gradient` is the
+generalized force on the two bodies and `-0.5 * V**2 * hessian` the stiffness
+it adds. A plate whose electrodes move with one body cannot change:
+evaluated with the same motion for both, it returns its rest value. Beams and
+bridges belong to no electrode and are not counted. Definitions and limits
+are in [plates between device and handle](theory.md#plates-between-device-and-handle).
+
 ## Solve
 
 ```python
@@ -246,8 +281,8 @@ components of the same kind when reading them.
 
 ## Progress and logging
 
-Each stage of `extract`, `modal`, and `static` logs when it starts and when it
-finishes, with elapsed time and counts, through the standard `connflex_core`
+Each stage of `extract`, `modal`, `static`, and `plates` logs when it starts and
+when it finishes, with elapsed time and counts, through the standard `connflex_core`
 logger. The logger is silent until a handler is attached:
 
 ```python
@@ -288,4 +323,5 @@ result = structure.modal(progress=Bar())
 beams, mass, and electrodes, in that order. `modal` and `static` report
 assemble and solve. Prune and bodies advance once per polygon, beams once per
 candidate, mass once per body, and electrodes once per beam, rejected
-candidate, and via; the other stages are single operations.
+candidate, and via; the other stages are single operations. `plates` reports
+one stage, plates, that advances once per device electrode.

@@ -22,6 +22,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Structure.stack` and `Structure.openings`: the layer stack of the
   extraction and the release openings that were filled in device polygons or
   drawn on the release layer.
+- `Structure.plates` and `Plate`: capacitance between each device electrode
+  and the handle electrode beneath it, through surviving oxide and across the
+  released gap with release openings removed. `Plate.evaluate` returns
+  capacitance, gradient, and Hessian in the degrees of freedom of the two
+  bodies, exact in vertical travel and of second order in tilt.
+  `ElectrostaticParams.ambient_permittivity` sets the medium in the gap.
 
 ## [0.1.0] - 2026-11-04
 

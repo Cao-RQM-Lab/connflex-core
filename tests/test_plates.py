@@ -1,0 +1,114 @@
+from collections.abc import Callable
+
+import numpy as np
+import pytest
+from shapely import Polygon, box
+
+from connflex_core import (
+    ElectrostaticParams,
+    ExtractionParams,
+    Layer,
+    Layout,
+    Material,
+    Stack,
+    Structure,
+    extract,
+)
+
+UM = 1e-6
+EPS0 = 8.8541878188e-12
+GAP = 2 * UM
+ANCHOR = box(0, 0, 400, 400)
+BEAM = box(400, 195, 600, 205)
+PLATE = box(600, 150, 700, 250)
+HANDLE = box(-50, -50, 750, 450)
+Params = Callable[..., ExtractionParams]
+LayoutUm = Callable[..., Layout]
+
+
+@pytest.fixture
+def shuttle(stack: Stack, params: Params, layout_um: LayoutUm) -> Structure:
+    """Bonded pad, beam, and a released 100 um square plate, all over one handle."""
+    layout = layout_um([ANCHOR, BEAM, PLATE], [HANDLE])
+    return extract(layout, stack, params(release_distance=60 * UM))
+
+
+def test_released_plate_over_the_handle_is_a_parallel_plate(shuttle: Structure) -> None:
+    plate = shuttle.plates()[1]
+    assert (plate.index, plate.electrodes, plate.bodies) == (1, (1, 2), (1, 0))
+    area = (100 * UM) ** 2
+    assert plate.oxide == 0.0
+    assert plate.released == pytest.approx(EPS0 * area / GAP)
+    value, gradient, hessian = plate.evaluate()
+    assert value == pytest.approx(EPS0 * area / GAP)
+    assert gradient[2] == pytest.approx(-EPS0 * area / GAP**2)
+    assert gradient[8] == pytest.approx(EPS0 * area / GAP**2)
+    assert hessian[2, 2] == pytest.approx(2 * EPS0 * area / GAP**3)
+
+    closer = 2 * GAP / 3
+    value, gradient, hessian = plate.evaluate(device=[0, 0, -GAP / 3, 0, 0, 0])
+    assert value == pytest.approx(EPS0 * area / closer)
+    assert gradient[2] == pytest.approx(-EPS0 * area / closer**2)
+    assert hessian[2, 2] == pytest.approx(2 * EPS0 * area / closer**3)
+    assert plate.evaluate(handle=[0, 0, GAP / 3, 0, 0, 0])[0] == pytest.approx(value)
+    with pytest.raises(ValueError, match="gap"):
+        plate.evaluate(device=[0, 0, -GAP, 0, 0, 0])
+
+
+def test_tilt_follows_the_exact_integral_to_second_order(shuttle: Structure) -> None:
+    plate = shuttle.plates()[1]
+    side = 100 * UM
+    _, gradient, hessian = plate.evaluate()
+    assert hessian[3, 3] == pytest.approx(EPS0 * side**4 / (6 * GAP**3))
+    assert hessian[4, 4] == pytest.approx(EPS0 * side**4 / (6 * GAP**3))
+    assert gradient[3:5] == pytest.approx([0, 0], abs=1e-9 * EPS0 * side**3 / GAP**2)
+
+    # Handle turned about y through its own center: gap is GAP + theta (x - cx) under the plate.
+    theta = 1e-3
+    near, far = (np.array([600, 700]) * UM) - shuttle.anchor.inertial.center[0]
+    low, high = GAP + theta * near, GAP + theta * far
+    exact = EPS0 * side / theta * np.log(high / low)
+    slope = EPS0 * side * (-np.log(high / low) / theta**2 + (far / high - near / low) / theta)
+    value, gradient, _ = plate.evaluate(handle=[0, 0, 0, 0, theta, 0])
+    assert value == pytest.approx(exact, rel=1e-6)  # second order in tilt is 1.6e-4 of it
+    assert gradient[10] == pytest.approx(slope, rel=1e-5)
+
+
+def test_oxide_under_a_pad_is_a_fixed_capacitor(shuttle: Structure) -> None:
+    pad = shuttle.plates()[0]
+    assert (pad.electrodes, pad.bodies) == ((0, 2), (0, 0))
+    bonded = shuttle.anchor.box.area
+    assert bonded == pytest.approx((280 * UM) ** 2, rel=1e-3)
+    assert pad.oxide == pytest.approx(3.9 * EPS0 * bonded / GAP)
+    assert pad.released == pytest.approx(EPS0 * ((400 * UM) ** 2 - bonded) / GAP)
+
+    moved = np.array([3e-7, -2e-7, 1e-7, 1e-4, -2e-4, 3e-4])
+    value, gradient, _ = pad.evaluate(device=moved, handle=moved)
+    assert value == pad.oxide + pad.released
+    assert np.all(gradient[:6] + gradient[6:] == 0)
+
+    humid = shuttle.plates(ElectrostaticParams(ambient_permittivity=2.0))[0]
+    assert humid.oxide == pad.oxide
+    assert humid.released == pytest.approx(2 * pad.released)
+
+
+def test_release_openings_are_removed_from_the_released_plate(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    holes = [box(610, 160, 618, 168), box(640, 200, 648, 208)]
+    drawn = box(690, 240, 710, 245)
+    perforated = Polygon(PLATE.exterior, [hole.exterior for hole in holes])
+    layout = layout_um([ANCHOR, BEAM, perforated], [HANDLE], release=[drawn])
+    plate = extract(layout, stack, params(release_distance=60 * UM)).plates()[1]
+    area = (100 * 100 - 2 * 8 * 8 - 10 * 5) * UM * UM
+    assert plate.released == pytest.approx(EPS0 * area / GAP)
+
+
+def test_plates_need_the_dielectric_constant_of_the_box(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    glass = Layer(thickness=GAP, material=Material.oxide(relative_permittivity=None))
+    bare = Stack(device=stack.device, box=glass, handle=stack.handle)
+    structure = extract(layout_um([ANCHOR], [HANDLE]), bare, params())
+    with pytest.raises(ValueError, match="relative_permittivity"):
+        structure.plates()

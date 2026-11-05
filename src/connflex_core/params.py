@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from connflex_core._validation import require_nonnegative, require_positive
+from connflex_core._validation import require_at_least, require_nonnegative, require_positive
 
 SOLVE_METHODS = ("dense", "sparse")
 
@@ -116,3 +116,17 @@ class SolveOptions:
             raise ValueError(f"n_modes must be at least 1, got {self.n_modes}")
         if self.method not in SOLVE_METHODS:
             raise ValueError(f"method must be one of {SOLVE_METHODS}, got {self.method!r}")
+
+
+@dataclass(frozen=True)
+class ElectrostaticParams:
+    """Electrostatic model parameters.
+
+    Attributes:
+        ambient_permittivity: Relative permittivity of the medium that fills released gaps.
+    """
+
+    ambient_permittivity: float = 1.0
+
+    def __post_init__(self) -> None:
+        require_at_least("ambient_permittivity", self.ambient_permittivity, 1)
