@@ -231,6 +231,12 @@ def test_model_at_displaced_bodies_follows_the_plate_formulas(
     silicon = (40 * 140 + FINGERS * 60 * WIDTH) * UM**2
     assert -moved.released[shuttle, handle] == pytest.approx(EPS0 * silicon / (BOX + rise * UM))
     assert moved.oxide == pytest.approx(rest.oxide)
+    assert rest.clearance == 1.0
+    assert moved.clearance == pytest.approx((GAP - side) / GAP)
+    assert moved.closest == (stator, shuttle)
+    lower = rest.at([0.0, 0.0, -1.0 * UM, 0.0, 0.0, 0.0])
+    assert lower.clearance == pytest.approx((BOX - 1.0 * UM) / BOX)
+    assert lower.closest == (shuttle, handle)
     with pytest.raises(ValueError, match="displacement"):
         rest.at([0.0, 0.0])
 

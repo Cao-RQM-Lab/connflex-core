@@ -150,6 +150,28 @@ def test_plate_is_followed_up_to_pull_in_at_the_closed_form_voltage(plate: Struc
     assert beyond.displacement[2] == pytest.approx(-BOX / 3, rel=1e-2)
 
 
+def test_ramp_stops_where_a_gap_has_closed_to_the_contact_fraction(plate: Structure) -> None:
+    """A stop at four fifths of the gap comes before pull-in at two thirds."""
+    spring, area = plate.modal().stiffness[2, 2], (SIDE * UM) ** 2
+    touching = np.sqrt(2 * spring * 0.2 * BOX * (0.8 * BOX) ** 2 / (EPS0 * area))
+    model = plate.capacitance(HANDLE_ALONE)
+    handle = net_at(plate, 0, 0, "handle")
+    options = StaticOptions(contact_fraction=0.8, pull_in_resolution=1e-5)
+    result = plate.equilibrium(model, {handle: 1.1 * touching}, options=options)
+    assert result.limit == "contact"
+    assert result.pull_in is not None
+    assert result.pull_in * 1.1 == pytest.approx(1.0, rel=1e-4)
+    assert result.model.clearance == pytest.approx(0.8, rel=1e-3)
+    assert result.model.clearance > 0.8
+    over = plate.electrode_at((50 * UM, 50 * UM), "device").index
+    under = plate.electrode_at((50 * UM, 50 * UM), "handle").index
+    assert result.model.closest == (over, under)
+    assert result.ramp_clearance[0] == 1.0
+    assert result.ramp_clearance[-1] == result.model.clearance
+    with pytest.raises(ValueError, match="contact_fraction"):
+        StaticOptions(contact_fraction=1.0)
+
+
 def test_comb_loses_sideways_stability_at_the_closed_form_voltage(shuttle: Structure) -> None:
     """Both stators at one potential pull the shuttle equally: it stays centered until
     the spring across the fingers is used up."""

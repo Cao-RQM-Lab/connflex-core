@@ -133,12 +133,16 @@ class StaticOptions:
             result. A step that finds no stable equilibrium is halved.
         pull_in_resolution: Halving stops, and pull-in is located, when a step is
             smaller than this fraction of the potentials asked for.
+        contact_fraction: An equilibrium at which a gap between two bodies has closed to
+            this fraction of its width at rest, or further, counts as contact and is not
+            accepted. Zero accepts every equilibrium short of touching.
     """
 
     tolerance: float = 1e-9
     max_iterations: int = 30
     steps: int = 1
     pull_in_resolution: float = 1e-3
+    contact_fraction: float = 0.1
 
     def __post_init__(self) -> None:
         require_positive("tolerance", self.tolerance)
@@ -147,6 +151,10 @@ class StaticOptions:
         if not 0 < self.pull_in_resolution < 1:
             raise ValueError(
                 f"pull_in_resolution must be between 0 and 1, got {self.pull_in_resolution}"
+            )
+        if not 0 <= self.contact_fraction < 1:
+            raise ValueError(
+                f"contact_fraction must be at least 0 and below 1, got {self.contact_fraction}"
             )
 
 

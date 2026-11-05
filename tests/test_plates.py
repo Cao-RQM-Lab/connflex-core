@@ -63,6 +63,11 @@ def test_released_plate_over_the_handle_is_a_parallel_plate(shuttle: Structure) 
     with pytest.raises(ValueError, match="gap"):
         plate.evaluate(device=[0, 0, -GAP, 0, 0, 0])
 
+    assert plate.extent == pytest.approx([50 * UM, 50 * UM])
+    assert plate.lowest() == GAP
+    tilted = plate.lowest(device=[0, 0, -0.5 * UM, 1e-3, 0, 0])
+    assert tilted == pytest.approx(GAP - 0.5 * UM - 1e-3 * 50 * UM)
+
 
 def test_tilt_follows_the_exact_integral_to_second_order(shuttle: Structure) -> None:
     plate = shuttle.plates()[1]

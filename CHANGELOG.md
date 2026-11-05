@@ -71,7 +71,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   tangent stiffness and whether the equilibrium is stable. Potentials rise
   from zero in steps; beyond pull-in the result is the last stable
   equilibrium with the fraction of the potentials at which stability was
-  lost.
+  lost. An equilibrium that closes a gap between two bodies to
+  `contact_fraction` of its width ends the rise as contact.
+- `CapacitanceModel.clearance` and `closest`: the narrowest gap between two
+  bodies at a displacement as a fraction of its width at rest, and the two
+  electrodes across it. `Plate.extent` and `Plate.lowest` give the gap of a
+  plate at its closest corner.
 
 ### Removed
 

@@ -96,12 +96,16 @@ class RestCluster:
         mesh: Boundary elements on the outlines with method ``"field"``, else None.
         cores: Cores of its windows; empty when it is one dense solution.
         windows: Elements of each window as chosen at rest; None before that.
+        near: Pairs of its electrodes on different bodies within ``interaction_distance``
+            of each other, as positions in ``electrodes``, each with the distance between
+            their silicon.
     """
 
     electrodes: tuple[int, ...]
     regions: tuple[MultiPolygon, ...]
     bodies: tuple[int, ...]
     body: NDArray[np.intp]
+    near: tuple[tuple[int, int, float], ...]
     mesh: Mesh | None
     cores: list[NDArray[np.intp]]
     windows: list[NDArray[np.intp]] | None
@@ -132,6 +136,12 @@ class CapacitanceModel:
             which belongs to no electrode and is not in the model.
         displacement: Displacement of every degree of freedom in ``dofs`` at which the
             model is evaluated, in meters and radians. Zero at rest.
+        clearance: Smallest ratio of a gap between two bodies at ``displacement`` to the
+            same gap at rest, equation (121): over plates between two bodies, at the
+            corner of the plate that comes closest, and over device electrodes of one
+            cluster on different bodies, by the distance between their silicon. 1 at
+            rest.
+        closest: Electrodes on either side of the gap with that ratio. None at rest.
         rest: Plates, clusters, meshes, and windows found at rest, which ``at`` moves.
     """
 
@@ -147,6 +157,8 @@ class CapacitanceModel:
     clusters: tuple[Cluster, ...]
     unassigned_area: float
     displacement: Array
+    clearance: float
+    closest: tuple[int, int] | None
     rest: RestGeometry
 
     def at(self, displacement: ArrayLike, *, progress: Progress | None = None) -> CapacitanceModel:
@@ -199,8 +211,8 @@ class CapacitanceModel:
         ``pairs`` lists every two electrodes with capacitance between them: its oxide,
         released, and sidewall parts and their total in farads, their nets, and the
         change of the total with the six degrees of freedom of each body that changes
-        it. ``net_matrix``, ``clusters``, ``dofs``, ``displacement``, and
-        ``unassigned_area`` are as on the model.
+        it. ``net_matrix``, ``clusters``, ``dofs``, ``displacement``, ``clearance``,
+        ``closest``, and ``unassigned_area`` are as on the model.
         """
         pairs = []
         for a, b in np.argwhere(np.triu(self.matrix, 1)).tolist():
@@ -234,6 +246,8 @@ class CapacitanceModel:
             ],
             "dofs": [list(dof) for dof in self.dofs],
             "displacement": self.displacement.tolist(),
+            "clearance": self.clearance,
+            "closest": None if self.closest is None else list(self.closest),
             "unassigned_area": self.unassigned_area,
         }
 
@@ -293,6 +307,12 @@ def find_capacitance(
             ):
                 regions = tuple(silicon[k] for k in members)
                 bodies = tuple(sorted({device[k].body for k in members}))
+                place = {k: position for position, k in enumerate(members)}
+                apart = tuple(
+                    (place[i], place[j], float(silicon[i].distance(silicon[j])))
+                    for i, j in near.T.tolist()
+                    if i < j and i in place and j in place and device[i].body != device[j].body
+                )
                 mesh, cores = None, []
                 if size is not None and method == "field":
                     mesh = mesh_outlines(regions, size, params.corner_grading)
@@ -304,6 +324,7 @@ def find_capacitance(
                         regions=regions,
                         bodies=bodies,
                         body=np.array([bodies.index(device[k].body) for k in members], np.intp),
+                        near=apart,
                         mesh=mesh,
                         cores=cores,
                         windows=None,
@@ -331,8 +352,13 @@ def _evaluate(
     def moved(body: int) -> Array:
         return displacement[first[body] : first[body] + 6] if body in first else np.zeros(6)
 
+    clearance, closest = 1.0, None
     for plate in rest.plates:
         value, slope, bend = plate.evaluate(moved(plate.bodies[0]), moved(plate.bodies[1]))
+        if displacement.any() and plate.bodies[0] != plate.bodies[1]:
+            ratio = plate.lowest(moved(plate.bodies[0]), moved(plate.bodies[1])) / plate.gap
+            if ratio < clearance:
+                clearance, closest = ratio, plate.electrodes
         pair = np.ix_(plate.electrodes, plate.electrodes)
         oxide[pair] += plate.oxide * _BETWEEN
         released[pair] += (value - plate.oxide) * _BETWEEN
@@ -362,6 +388,10 @@ def _evaluate(
                 )
                 pivots = np.array([center[:2] for center in centers]) + motion[:, :2]
                 regions = _displaced(group, np.array([c[:2] for c in centers]), motion)
+                for i, j, width in group.near if motion.any() else ():
+                    ratio = float(regions[i].distance(regions[j])) / width
+                    if ratio < clearance:
+                        clearance, closest = ratio, (group.electrodes[i], group.electrodes[j])
                 if group.mesh is not None:
                     mesh = _carried(group, np.array([c[:2] for c in centers]), motion)
                     field, kept = solve_field(
@@ -418,6 +448,8 @@ def _evaluate(
         unassigned_area=sum(beam.polygon.area for beam in structure.beams)
         + sum(structure.rejected[index].polygon.area for index in bridges),
         displacement=displacement,
+        clearance=clearance,
+        closest=closest,
         rest=replace(rest, groups=tuple(groups)),
     )
 

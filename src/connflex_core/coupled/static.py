@@ -35,8 +35,9 @@ class Equilibrium:
         pull_in: Fraction of the potentials asked for at which no stable equilibrium was
             found any more, within ``pull_in_resolution`` above ``scale``. None when the
             potentials were reached.
-        limit: Why potentials stopped rising: ``"unstable"`` when an equilibrium at
-            ``pull_in`` exists and does not hold against a push, ``"no equilibrium"``
+        limit: Why potentials stopped rising: ``"contact"`` when the equilibrium at
+            ``pull_in`` closes a gap to ``contact_fraction`` of its width,
+            ``"unstable"`` when it does not hold against a push, ``"no equilibrium"``
             when none was found. None when the potentials were reached.
         displacement: Displacement of every degree of freedom in ``dofs`` from rest, in
             meters and radians.
@@ -57,6 +58,7 @@ class Equilibrium:
             on the way, ascending from zero to ``scale``.
         ramp_displacements: Displacement at each of them, one row each.
         ramp_softest: ``softest`` at each of them.
+        ramp_clearance: ``CapacitanceModel.clearance`` at each of them.
     """
 
     scale: float
@@ -76,6 +78,7 @@ class Equilibrium:
     ramp_scales: Array
     ramp_displacements: Array
     ramp_softest: Array
+    ramp_clearance: Array
 
 
 def equilibrium(
@@ -135,7 +138,7 @@ def equilibrium(
         raise ValueError("no equilibrium under mechanical loads alone")
     here = start
     scale, pull_in, limit = 0.0, None, None
-    ramp = [(scale, here.displacement, softness(here, scale))]
+    ramp = [(scale, here.displacement, softness(here, scale), here.clearance)]
     from_here = False
     with stage("equilibrium", progress, total=options.steps) as current:
         while scale < 1:
@@ -150,16 +153,18 @@ def equilibrium(
             found, taken = _settle(here, system.stiffness, kept, target * held, applied, options)
             softest = softness(found, target) if found else 0.0
             iterations += taken
-            if found is not None and softest > 0:
+            if found is not None and softest > 0 and found.clearance > options.contact_fraction:
                 if pull_in is None:
                     current.advance()
                 elif target == pull_in:
                     pull_in = limit = None
                 here, scale, from_here = found, target, False
-                ramp.append((scale, here.displacement, softest))
+                ramp.append((scale, here.displacement, softest, here.clearance))
             else:
-                pull_in, limit = target, "no equilibrium" if found is None else "unstable"
-                from_here = True
+                pull_in, from_here = target, True
+                limit = (
+                    "no equilibrium" if found is None else "unstable" if softest <= 0 else "contact"
+                )
         current.count(iterations=iterations, steps=len(ramp) - 1)
     reached = held * scale
     return Equilibrium(
@@ -180,6 +185,7 @@ def equilibrium(
         ramp_scales=np.array([entry[0] for entry in ramp]),
         ramp_displacements=np.array([entry[1] for entry in ramp]),
         ramp_softest=np.array([entry[2] for entry in ramp]),
+        ramp_clearance=np.array([entry[3] for entry in ramp]),
     )
 
 

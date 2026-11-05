@@ -247,6 +247,7 @@ softening = model.stiffness(potentials)  # adds to the mechanical stiffness
 
 moved = model.at(displacement)  # the same model with bodies displaced from rest
 moved.matrix, moved.gradient, moved.force(potentials)  # all at that displacement
+moved.clearance, moved.closest  # narrowest gap against its width at rest, and where
 
 model.to_dict()  # JSON-serializable report: pairs, nets, clusters, what was left out
 ```
@@ -446,7 +447,7 @@ result = structure.equilibrium(model, {drive: 40.0})
 
 result.scale  # 1.0 when the potentials were reached, else the fraction that was
 result.pull_in  # fraction at which stability was lost, or None
-result.limit  # None, "unstable", or "no equilibrium"
+result.limit  # None, "contact", "unstable", or "no equilibrium"
 result.displacement  # one value per degree of freedom in result.dofs, from rest
 result.stable  # whether a small push is met by a restoring force
 result.softest  # squared angular frequency of the softest motion under bias
@@ -456,6 +457,8 @@ result.potentials, result.charge  # per electrode
 result.model  # capacitance model at the equilibrium
 result.loose  # bodies that no beam holds, kept at rest
 result.ramp_scales, result.ramp_displacements, result.ramp_softest  # the way there
+result.ramp_clearance  # narrowest gap on the way, as a fraction of its width at rest
+result.model.clearance, result.model.closest  # that fraction here, and its two electrodes
 
 result = structure.equilibrium(model, {drive: 40.0}, loads={1: [0, 0, -1e-6, 0, 0, 0]})
 result = structure.equilibrium(model, {drive: 40.0}, options=cf.StaticOptions(steps=20))
@@ -484,7 +487,12 @@ at which stability was lost, within `pull_in_resolution`, so
 `pull_in * 40.0` is the pull-in voltage here. `limit` tells how it was
 lost: `"no equilibrium"` at a fold, as for a plate closing its gap, and
 `"unstable"` where an equilibrium remains but tips over, as for a comb
-snapping sideways. With more `steps` the `ramp_` arrays trace displacement
+snapping sideways, and `"contact"` where an equilibrium closes a gap
+between two bodies to `contact_fraction` of its width at rest, 0.1 unless
+set otherwise, since nothing in the model describes bodies that touch. The
+gap is that of a plate at its closest corner or the distance between
+silicon of two electrodes, and `result.model.closest` names the two
+electrodes on either side. With more `steps` the `ramp_` arrays trace displacement
 and softest frequency against voltage. With sidewall method `"plates"` on
 teeth that stand tip to tip, the iteration fails at any voltage and `scale`
 ends near zero; that is the cusp of the plates method and not pull-in. Formulas are in

@@ -39,6 +39,7 @@ class Plate:
         permittivity: Permittivity of the medium in the released gap, in farads per meter.
         origin: Reference point (x, y, z) in meters: center of the bounding box of the
             overlap, at mid-height of the gap.
+        extent: Half the width of that bounding box along x and along y.
         moments: 3 by 3 integrals over the released overlap of products of 1, x, and y
             measured from ``origin``, equation (48).
         edges: 3 by 3 integrals along the handle outline under device silicon,
@@ -54,6 +55,7 @@ class Plate:
     gap: float
     permittivity: float
     origin: Array
+    extent: Array
     moments: Array
     edges: Array
     centers: Array
@@ -62,6 +64,26 @@ class Plate:
     def released(self) -> float:
         """Capacitance across the released gap at rest, in farads."""
         return float(self.permittivity * self.moments[0, 0] / self.gap)
+
+    def lowest(self, device: ArrayLike | None = None, handle: ArrayLike | None = None) -> float:
+        """Smallest gap over the bounding box of the overlap, in meters, equation (121).
+
+        ``device`` and ``handle`` are as for ``evaluate``. Zero or less means that a
+        corner of the box has reached the other plate.
+        """
+        local = self._local(device, handle)
+        return float(self.gap + local[3] - np.abs(local[4:]) @ self.extent)
+
+    def _local(self, device: ArrayLike | None, handle: ArrayLike | None) -> Array:
+        """Travel, rise, and slopes at ``origin`` for displacements of the two bodies."""
+        displaced = [np.zeros(6) if q is None else np.asarray(q, float) for q in (device, handle)]
+        local: Array = self._jacobian() @ np.concatenate(displaced)
+        return local
+
+    def _jacobian(self) -> Array:
+        return np.hstack(
+            [_local(self.origin, self.centers[0]), -_local(self.origin, self.centers[1])]
+        )
 
     def evaluate(
         self, device: ArrayLike | None = None, handle: ArrayLike | None = None
@@ -72,11 +94,8 @@ class Plate:
         body of each electrode, zero when omitted. The gradient has twelve entries and the
         Hessian is 12 by 12: degrees of freedom of the device electrode's body come first.
         """
-        jacobian = np.hstack(
-            [_local(self.origin, self.centers[0]), -_local(self.origin, self.centers[1])]
-        )
-        displaced = [np.zeros(6) if q is None else np.asarray(q, float) for q in (device, handle)]
-        local = jacobian @ np.concatenate(displaced)
+        jacobian = self._jacobian()
+        local = self._local(device, handle)
         travel, rise, slope = local[:3], local[3], local[4:]
         gap = self.gap + rise
         if gap <= 0:
@@ -157,6 +176,7 @@ def find_plates(
                         gap=gap,
                         permittivity=VACUUM_PERMITTIVITY * params.ambient_permittivity,
                         origin=origin,
+                        extent=np.array([(east - west) / 2, (north - south) / 2]),
                         moments=_about(area_moments(overlap) - bonded - opened, origin),
                         edges=_edge_integrals(*outline, origin),
                         centers=np.array(

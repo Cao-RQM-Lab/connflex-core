@@ -1970,6 +1970,30 @@ former, until the two are closer than the resolution asked for. The result
 is the last stable equilibrium, its scale, and the scale just above it at
 which stability was lost.
 
+### Contact
+
+Nothing in the model describes two bodies that touch, so an equilibrium is
+accepted only while every gap between two bodies stays open. The clearance
+of a displacement is the smallest ratio of such a gap to its width at rest,
+
+$$
+\chi(\mathbf{q}) = \min \Bigl\{
+\min_{\text{plates}} \frac{g_0 + h_0 - |h_x|\, e_x - |h_y|\, e_y}{g_0},\;
+\min_{(a, b)} \frac{\operatorname{dist}\bigl( E_a(\mathbf{q}), E_b(\mathbf{q}) \bigr)}{\operatorname{dist}(E_a, E_b)}
+\Bigr\}. \tag{121}
+$$
+
+The first runs over plates between two bodies, with the rise $h_0$ and
+slopes $h_x$, $h_y$ of (45) and the half widths $e_x$, $e_y$ of the bounding
+box of the overlap about its reference point: its numerator is the gap (45)
+at the corner of that box that comes closest. The second runs over pairs of
+device electrodes of one cluster that move with different bodies and lie
+within $d_i$ of each other at rest, with the outlines carried by (113), and
+is the exact distance between their silicon. An equilibrium with
+$\chi \le \chi_c$, the contact fraction, ends the rise of the potentials as
+pull-in does, and the scale at which it happens is found by the same
+bisection.
+
 !!! note "Implementation choices"
     A Newton step that would close a gap between a plate and the handle,
     or bring electrodes of two bodies into contact, is halved until it does
@@ -1983,6 +2007,13 @@ which stability was lost.
     force jumps at the cusp of (97) and the iteration steps back and forth
     across it at any potential, so the result stops at a scale near zero
     without that being pull-in. Such a device needs the field method.
+
+    The bounding box of a plate reaches at least as far as the plate, so
+    (121) reports contact of a tilted plate no later than it happens, and
+    earlier for a plate that does not fill its box. A tilted plate is also
+    where the capacitance of (55), of second order in tilt, is least
+    accurate: at a clearance of one half its integrand is 12 percent low
+    at the closest corner.
 
     When bisection has closed in from below, the scale that failed is tried
     once more from the nearest stable equilibrium. An iteration can fail
@@ -2033,6 +2064,7 @@ and validation rules are on the [parameters page](parameters.md).
 | $n_w$ | most elements in the core of a window | `ElectrostaticParams.window_elements` |
 | $\tau$ | change of the charge on a core below which the overlap of its window stops growing | `ElectrostaticParams.window_tolerance` |
 | $\tau_s$ | relative size of the last Newton step at which static equilibrium is accepted | `StaticOptions.tolerance` |
+| $\chi_c$ | fraction of its width at rest to which a gap may close before an equilibrium counts as contact | `StaticOptions.contact_fraction` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
 | $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |
