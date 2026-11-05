@@ -8,6 +8,7 @@ from typing import Literal
 from connflex_core._validation import require_at_least, require_nonnegative, require_positive
 
 SOLVE_METHODS = ("dense", "sparse")
+SIDEWALL_METHODS = ("field", "plates")
 
 
 @dataclass(frozen=True)
@@ -132,10 +133,15 @@ class ElectrostaticParams:
             distance from the corner. One disables refinement.
         max_elements: Most boundary elements solved as one dense system. A larger mesh is
             an error.
+        sidewall_method: How sidewall capacitance is found: ``"plates"`` takes facing
+            walls as parallel plates, ``"field"`` solves the field between conductors.
+            No default: which one suits a device is the caller's judgment of its
+            geometry, and sidewall capacitance requires the choice.
         interaction_distance: Device electrodes whose silicon lies within this distance
             of each other are solved together for sidewall capacitance, as are chains of
             such neighbors; electrodes farther apart share none. The capacitance model
-            of a structure requires it when sidewalls are included.
+            of a structure requires it when sidewalls are included. With method
+            ``"plates"`` it is also the widest gap across which two walls count.
         include_plates: Whether the capacitance model of a structure holds plates between
             device and handle electrodes.
         include_sidewalls: Whether it holds sidewall capacitance between device
@@ -149,6 +155,7 @@ class ElectrostaticParams:
     element_size: float | None = None
     corner_grading: float = 16.0
     max_elements: int = 8000
+    sidewall_method: Literal["field", "plates"] | None = None
     interaction_distance: float | None = None
     include_plates: bool = True
     include_sidewalls: bool = True
@@ -160,5 +167,9 @@ class ElectrostaticParams:
             require_positive("element_size", self.element_size)
         require_at_least("corner_grading", self.corner_grading, 1)
         require_at_least("max_elements", self.max_elements, 1)
+        if self.sidewall_method not in (None, *SIDEWALL_METHODS):
+            raise ValueError(
+                f"sidewall_method must be one of {SIDEWALL_METHODS}, got {self.sidewall_method!r}"
+            )
         if self.interaction_distance is not None:
             require_positive("interaction_distance", self.interaction_distance)

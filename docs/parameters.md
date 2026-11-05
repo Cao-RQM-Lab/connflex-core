@@ -64,12 +64,13 @@ keyword overrides.
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
 | `ambient_permittivity` | $\varepsilon_a$ | 1 | Relative permittivity of the medium that fills released gaps and trenches, equations (43) and (61). |
-| `element_size` | $h$ | none | Longest boundary element on conductor outlines, equation (73). Sidewall capacitance requires it; plates do not use it. Half of the narrowest trench is a starting value: computed capacitance rises toward the exact one as it shrinks. |
+| `element_size` | $h$ | none | Longest boundary element on conductor outlines, equation (73). Sidewall method `"field"` requires it; nothing else uses it. Half of the narrowest trench is a starting value: computed capacitance rises toward the exact one as it shrinks. |
 | `corner_grading` | $g$ | 16 | Ratio of `element_size` to the element length asked for at a convex corner of a right angle or sharper, equation (72). 1 disables refinement. |
-| `max_elements` | | 8000 | Most boundary elements solved as one dense system. Memory grows with its square and time with its cube; a larger mesh is an error. |
-| `interaction_distance` | $d_i$ | none | Device electrodes whose silicon lies within this distance, directly or through a chain of neighbors, are solved together for sidewall capacitance, equation (92). The capacitance model of a structure requires it when sidewalls are included. A few times the widest trench that should count is a starting value. |
+| `max_elements` | | 8000 | Most boundary elements solved as one dense system with method `"field"`. Memory grows with its square and time with its cube; a larger mesh is an error. |
+| `sidewall_method` | | none | How sidewall capacitance is found. `"field"` solves the two-dimensional field between conductors, equations (61) to (90): fringe fields included, cost growing steeply with the length of outline. `"plates"` takes every wall that faces another conductor as a parallel plate with it, equations (91) to (97): fast for any size, no fringe field. Sidewall capacitance requires one of the two, and there is no default: plates describe combs and plate actuators well and toothed motors badly, see [what plates leave out](theory.md#what-plates-leave-out), and which a device is only its designer knows. |
+| `interaction_distance` | $d_i$ | none | Device electrodes whose silicon lies within this distance, directly or through a chain of neighbors, are taken together for sidewall capacitance, equation (99). With method `"plates"` it is also the widest gap across which two walls count as a plate, equation (91). The capacitance model of a structure requires it when sidewalls are included, and method `"plates"` always. A few times the widest trench that should count is a starting value. |
 | `include_plates` | | true | Whether the capacitance model of a structure holds plates between device and handle electrodes. |
-| `include_sidewalls` | | true | Whether it holds sidewall capacitance between device electrodes. Without it neither `element_size` nor `interaction_distance` is needed. |
+| `include_sidewalls` | | true | Whether it holds sidewall capacitance between device electrodes. Without it none of `sidewall_method`, `element_size`, and `interaction_distance` is needed. |
 | `skip_large_clusters` | | false | Leave a cluster that needs more than `max_elements` out of the capacitance model, marked as not solved, instead of raising an error. |
 
 ## Validation
@@ -79,5 +80,5 @@ the field: lengths, areas, thicknesses, densities, moduli, and resistivity are p
 `beam_width_min < beam_width_max`; `beam_overlap_margin < body_min_width / 2`;
 `torsion_beta >= 0`; `via_resistance >= 0`; `relative_permittivity >= 1`;
 `ambient_permittivity >= 1`; `element_size > 0` and `interaction_distance > 0`
-when given; `corner_grading >= 1`; `max_elements >= 1`; every stack layer has a
-thickness.
+when given; `corner_grading >= 1`; `max_elements >= 1`; `sidewall_method` is
+`"field"` or `"plates"` when given; every stack layer has a thickness.

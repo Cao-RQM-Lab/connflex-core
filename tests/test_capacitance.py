@@ -49,7 +49,9 @@ def comb() -> Structure:
 
 @pytest.fixture(scope="module")
 def settings() -> ElectrostaticParams:
-    return ElectrostaticParams(element_size=4 * UM, interaction_distance=30 * UM)
+    return ElectrostaticParams(
+        sidewall_method="field", element_size=4 * UM, interaction_distance=30 * UM
+    )
 
 
 @pytest.fixture(scope="module")
@@ -111,43 +113,35 @@ def test_net_matrix_ties_electrodes_of_one_net(
 
 
 def test_each_part_can_be_left_out_and_needs_only_its_own_parameters(
-    comb: Structure, model: CapacitanceModel, at: dict[str, int]
+    comb: Structure, settings: ElectrostaticParams, model: CapacitanceModel
 ) -> None:
     plates_only = comb.capacitance(ElectrostaticParams(include_sidewalls=False))
     assert not plates_only.sidewall.any()
     assert plates_only.clusters == ()
     assert plates_only.oxide == pytest.approx(model.oxide)
 
-    walls = ElectrostaticParams(
-        element_size=4 * UM, interaction_distance=30 * UM, include_plates=False
-    )
-    walls_only = comb.capacitance(walls)
+    walls_only = comb.capacitance(replace(settings, include_plates=False))
     assert not walls_only.oxide.any()
     assert not walls_only.released.any()
     assert walls_only.sidewall == pytest.approx(model.sidewall)
 
+    with pytest.raises(ValueError, match="sidewall_method"):
+        comb.capacitance(ElectrostaticParams(element_size=4 * UM, interaction_distance=30 * UM))
     with pytest.raises(ValueError, match="interaction_distance"):
-        comb.capacitance(ElectrostaticParams(element_size=4 * UM))
+        comb.capacitance(replace(settings, interaction_distance=None))
     with pytest.raises(ValueError, match="element_size"):
-        comb.capacitance(ElectrostaticParams(interaction_distance=30 * UM))
+        comb.capacitance(replace(settings, element_size=None))
 
-    apart = ElectrostaticParams(element_size=4 * UM, interaction_distance=1 * UM)
-    assert comb.capacitance(apart).clusters == ()
+    assert comb.capacitance(replace(settings, interaction_distance=1 * UM)).clusters == ()
 
 
 def test_cluster_above_the_element_limit_is_an_error_unless_skipped(
-    comb: Structure, at: dict[str, int]
+    comb: Structure, settings: ElectrostaticParams, at: dict[str, int]
 ) -> None:
-    small = ElectrostaticParams(element_size=4 * UM, interaction_distance=30 * UM, max_elements=100)
+    small = replace(settings, max_elements=100)
     with pytest.raises(ValueError, match="max_elements"):
         comb.capacitance(small)
-    skipping = ElectrostaticParams(
-        element_size=4 * UM,
-        interaction_distance=30 * UM,
-        max_elements=100,
-        skip_large_clusters=True,
-    )
-    partial = comb.capacitance(skipping)
+    partial = comb.capacitance(replace(small, skip_large_clusters=True))
     (cluster,) = partial.clusters
     assert (cluster.electrodes, cluster.solved) == ((at["stator"], at["shuttle"]), False)
     assert cluster.elements > 100
@@ -175,6 +169,31 @@ def test_comb_drives_with_the_pull_of_each_gap_and_the_plate_pulls_down(
     assert stiffness[2, 2] == pytest.approx(-EPS0 * silicon * 5.0**2 / BOX**3)
     with pytest.raises(ValueError, match="potentials"):
         model.force(potentials[:-1])
+
+
+def test_plates_method_takes_every_comb_gap_as_a_parallel_plate(
+    comb: Structure, at: dict[str, int]
+) -> None:
+    """Finger tips are 20 um from the wall they point at, beyond the 10 um that counts."""
+    params = ElectrostaticParams(
+        sidewall_method="plates", interaction_distance=10 * UM, include_plates=False
+    )
+    model = comb.capacitance(params)
+    stator, shuttle = at["stator"], at["shuttle"]
+    assert -model.sidewall[stator, shuttle] == pytest.approx(
+        GAPS * EPS0 * THICKNESS * OVERLAP / GAP, rel=1e-9
+    )
+    (cluster,) = model.clusters
+    assert (cluster.electrodes, cluster.elements, cluster.solved) == ((stator, shuttle), 16, True)
+    assert cluster.walls.gap == pytest.approx(GAP * UM)
+
+    potentials = np.zeros(len(comb.electrodes))
+    potentials[stator] = 10.0
+    force, stiffness = model.force(potentials), model.stiffness(potentials)
+    drive = GAPS * 0.5 * EPS0 * THICKNESS * 10.0**2 / (GAP * UM)
+    assert force[:2] == pytest.approx([-drive, 0.0], rel=1e-9, abs=1e-9 * drive)
+    side = GAPS * EPS0 * THICKNESS * OVERLAP * UM * 10.0**2 / (GAP * UM) ** 3
+    assert stiffness[1, 1] == pytest.approx(-side, rel=1e-9)
 
 
 def test_gradient_and_stiffness_follow_a_moved_structure(
@@ -237,7 +256,9 @@ def test_parallel_plate_pulls_and_tilts_a_body_that_carries_handle_silicon() -> 
     assert lever > 100 * UM
 
     model = structure.capacitance(
-        ElectrostaticParams(element_size=4 * UM, interaction_distance=30 * UM)
+        ElectrostaticParams(
+            sidewall_method="field", element_size=4 * UM, interaction_distance=30 * UM
+        )
     )
     potentials = np.zeros(len(structure.electrodes))
     potentials[fixed] = 10.0

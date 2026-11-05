@@ -12,6 +12,7 @@ from numpy.typing import ArrayLike, NDArray
 from shapely import MultiPolygon, Polygon, STRtree
 
 from connflex_core.electrostatics import VACUUM_PERMITTIVITY
+from connflex_core.electrostatics.facing import FacingWalls, facing_plates
 from connflex_core.electrostatics.kernel import pair_derivatives, pair_integrals
 from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
 from connflex_core.geometry.heal import as_multipolygon
@@ -40,7 +41,9 @@ class SidewallCapacitance:
         centers: m by 2 points about which the bodies rotate, in meters.
         charge: N by n charges on the elements of ``mesh``, in coulombs per meter of
             thickness, per volt on each conductor with the others at zero.
-        mesh: Boundary elements on the outlines.
+        mesh: Boundary elements on the outlines. Method ``"plates"`` has none and
+            finds no charge.
+        walls: Pieces of wall taken as plates. Method ``"field"`` has none.
     """
 
     capacitance: Array
@@ -49,6 +52,7 @@ class SidewallCapacitance:
     centers: Array
     charge: Array
     mesh: Mesh
+    walls: FacingWalls
 
 
 def sidewall_capacitance(
@@ -62,40 +66,46 @@ def sidewall_capacitance(
     """Capacitance between sidewalls of conductors drawn in the layout plane.
 
     Each entry of ``conductors`` is one equipotential region, in meters; regions must
-    not overlap or touch. The field is two-dimensional, the set of conductors carries no
-    net charge, and potential far away floats, equations (61) to (71). ``params`` must
-    carry ``element_size``.
+    not overlap or touch. ``params.sidewall_method`` chooses how. With ``"field"`` the
+    two-dimensional field is solved: the set of conductors carries no net charge and
+    potential far away floats, equations (61) to (71), and ``element_size`` is required.
+    With ``"plates"`` every wall that faces another conductor within
+    ``interaction_distance`` is a parallel plate with it, equations (91) to (97).
 
     ``bodies`` gives the rigid body of each conductor as an index from zero; conductors
     of one body move together. By default every conductor is its own body. ``centers``
     gives the point each body rotates about, by default the centroid of its conductors.
     Gradient and Hessian are the exact derivatives of the computed capacitance for rigid
-    motion of the bodies, equations (75) to (90). Stages mesh, assemble, solve,
-    derivatives, and curvature log through the ``connflex_core`` logger and report to
-    ``progress``.
+    motion of the bodies, equations (75) to (90) or (97). Stages mesh, assemble, solve,
+    derivatives, and curvature, or the one stage facing for plates, log through the
+    ``connflex_core`` logger and report to ``progress``.
     """
+    if params.sidewall_method is None:
+        raise ValueError(
+            'sidewall_method is required: "plates" or "field", by the geometry of the device'
+        )
+    permittivity = VACUUM_PERMITTIVITY * params.ambient_permittivity
+    if params.sidewall_method == "plates":
+        if params.interaction_distance is None:
+            raise ValueError('interaction_distance is required for sidewall_method "plates"')
+        regions, body, pivots = _arranged(conductors, bodies, centers)
+        with stage("facing", progress) as current:
+            matrix, gradient, hessian, walls = facing_plates(
+                regions, body, pivots, params.interaction_distance
+            )
+            current.count(pieces=len(walls.conductor))
+        return SidewallCapacitance(
+            capacitance=permittivity * matrix,
+            gradient=permittivity * gradient,
+            hessian=permittivity * hessian,
+            centers=pivots,
+            charge=np.zeros((0, len(regions))),
+            mesh=Mesh.empty(),
+            walls=walls,
+        )
     if params.element_size is None:
-        raise ValueError("element_size is required for sidewall capacitance")
-    regions = _disjoint(conductors)
-    body = np.arange(len(regions)) if bodies is None else np.asarray(bodies, dtype=np.intp)
-    rigid = int(np.max(body, initial=-1)) + 1
-    if body.shape != (len(regions),) or not np.array_equal(np.unique(body), np.arange(rigid)):
-        raise ValueError("bodies must give every conductor an index, using each index from zero up")
-    if centers is None:
-        members = [
-            [
-                polygon
-                for region, b in zip(regions, body, strict=True)
-                if b == k
-                for polygon in region.geoms
-            ]
-            for k in range(rigid)
-        ]
-        pivots = np.array([MultiPolygon(group).centroid.coords[0] for group in members])
-    else:
-        pivots = np.asarray(centers, dtype=float)
-        if pivots.shape != (rigid, 2):
-            raise ValueError(f"centers must hold one (x, y) point for each of {rigid} bodies")
+        raise ValueError('element_size is required for sidewall_method "field"')
+    regions, body, pivots = _arranged(conductors, bodies, centers)
     with stage("mesh", progress) as current:
         mesh = mesh_outlines(regions, params.element_size, params.corner_grading)
         count = len(mesh.conductor)
@@ -105,7 +115,6 @@ def sidewall_capacitance(
             f"outlines need {count} boundary elements, more than max_elements = "
             f"{params.max_elements}: raise element_size or max_elements, or pass fewer conductors"
         )
-    permittivity = VACUUM_PERMITTIVITY * params.ambient_permittivity
     return solve_mesh(
         mesh, body, pivots, permittivity, lambda name, total=None: stage(name, progress, total)
     )
@@ -206,7 +215,37 @@ def solve_mesh(
         centers=pivots,
         charge=permittivity * charge,
         mesh=mesh,
+        walls=FacingWalls.empty(),
     )
+
+
+def _arranged(
+    conductors: Sequence[Polygon | MultiPolygon],
+    bodies: Sequence[int] | None,
+    centers: ArrayLike | None,
+) -> tuple[list[MultiPolygon], NDArray[np.intp], Array]:
+    """Regions of conductors, body of each, and point each body rotates about."""
+    regions = _disjoint(conductors)
+    body = np.arange(len(regions)) if bodies is None else np.asarray(bodies, dtype=np.intp)
+    rigid = int(np.max(body, initial=-1)) + 1
+    if body.shape != (len(regions),) or not np.array_equal(np.unique(body), np.arange(rigid)):
+        raise ValueError("bodies must give every conductor an index, using each index from zero up")
+    if centers is None:
+        members = [
+            [
+                polygon
+                for region, b in zip(regions, body, strict=True)
+                if b == k
+                for polygon in region.geoms
+            ]
+            for k in range(rigid)
+        ]
+        pivots = np.array([MultiPolygon(group).centroid.coords[0] for group in members])
+    else:
+        pivots = np.asarray(centers, dtype=float)
+        if pivots.shape != (rigid, 2):
+            raise ValueError(f"centers must hold one (x, y) point for each of {rigid} bodies")
+    return regions, body, pivots
 
 
 def _disjoint(conductors: Sequence[Polygon | MultiPolygon]) -> list[MultiPolygon]:

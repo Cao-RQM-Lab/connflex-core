@@ -22,7 +22,12 @@ def um(polygon: Polygon) -> Polygon:
 
 
 def params(size: float, grading: float = 16.0, limit: int = 8000) -> ElectrostaticParams:
-    return ElectrostaticParams(element_size=size * UM, corner_grading=grading, max_elements=limit)
+    return ElectrostaticParams(
+        sidewall_method="field",
+        element_size=size * UM,
+        corner_grading=grading,
+        max_elements=limit,
+    )
 
 
 def test_eccentric_circles_have_the_closed_form_capacitance() -> None:
@@ -178,7 +183,7 @@ def test_elements_tile_a_long_outline_within_the_size_limit() -> None:
 def test_inputs_that_cannot_be_solved_are_rejected() -> None:
     squares = [um(box(0, 0, 10, 10)), um(box(12, 0, 22, 10))]
     with pytest.raises(ValueError, match="element_size"):
-        sidewall_capacitance(squares, ElectrostaticParams())
+        sidewall_capacitance(squares, ElectrostaticParams(sidewall_method="field"))
     with pytest.raises(ValueError, match="max_elements"):
         sidewall_capacitance(squares, params(1.0, limit=50))
     with pytest.raises(ValueError, match="conductors 0 and 1"):

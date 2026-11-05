@@ -225,14 +225,18 @@ definitions are in
 ## Capacitance model
 
 ```python
-params = cf.ElectrostaticParams(element_size=2e-6, interaction_distance=30e-6)
+params = cf.ElectrostaticParams(sidewall_method="plates", interaction_distance=30e-6)
 model = structure.capacitance(params)
+
+params = cf.ElectrostaticParams(
+    sidewall_method="field", element_size=2e-6, interaction_distance=30e-6
+)
 
 model.matrix  # n by n over structure.electrodes, farads
 model.oxide, model.released, model.sidewall  # the three parts it sums
 -model.matrix[a, b]  # capacitance between electrodes a and b
 model.net_matrix  # between nets, electrodes of each net tied together
-model.clusters  # groups of device electrodes whose sidewalls were solved together
+model.clusters  # groups of device electrodes whose sidewalls were taken together
 model.plates  # plates behind the oxide and released parts
 
 model.dofs  # (body, "ux" | "uy" | "uz" | "tx" | "ty" | "tz") per degree of freedom
@@ -249,13 +253,26 @@ oxide and across released gaps, and sidewalls between device electrodes. It
 needs no mechanical solution. Rows sum to zero, so only differences of
 potential matter and nothing outside the structure holds charge.
 
-Sidewalls are solved in clusters. Device electrodes whose silicon lies
+Sidewall capacitance needs a choice that only the designer of a device can
+make, so `sidewall_method` has no default. `"plates"` takes every wall that
+faces another conductor within `interaction_distance` as a parallel plate
+with it. It is fast for combs of any size and right for them and for plate
+actuators within a few percent in force and stiffness, low by the fringe
+field in capacitance, and wrong for toothed motors, whose force is all
+fringe field. `"field"` solves the field between the walls with boundary
+elements of `element_size`, fringe fields included, at a cost that grows
+steeply with the length of outline. Measured differences are in
+[what plates leave out](theory.md#what-plates-leave-out).
+
+Sidewalls are found in clusters. Device electrodes whose silicon lies
 within `interaction_distance` of each other, directly or through a chain of
-neighbors, form a cluster and are solved together with `element_size`;
-electrodes in different clusters share no sidewall capacitance. A cluster
-that needs more boundary elements than `max_elements` raises an error. With
-`skip_large_clusters=True` it is left out instead and appears in
-`model.clusters` with `solved` false, so a model can be built for the rest.
+neighbors, form a cluster; electrodes in different clusters share no
+sidewall capacitance. With method `"field"` a cluster is one dense
+solution, and one that needs more boundary elements than `max_elements`
+raises an error. With `skip_large_clusters=True` it is left out instead and
+appears in `model.clusters` with `solved` false, so a model can be built
+for the rest. With method `"plates"` each cluster carries `walls`, the
+pieces of wall that were taken as plates, for a check against the layout.
 
 The model also holds how the matrix changes when bodies move, in the six
 degrees of freedom of every movable body and in the order of `result.dofs`
@@ -274,8 +291,9 @@ solved; and `unassigned_area`, the device silicon of beams and bridges,
 which belongs to no electrode and is not in the model.
 
 Either part can be left out, and then needs none of its parameters:
-`cf.ElectrostaticParams(include_sidewalls=False)` gives plates alone with no
-element size, and `include_plates=False` gives sidewalls alone. Definitions
+`cf.ElectrostaticParams(include_sidewalls=False)` gives plates to the handle
+alone with no sidewall method, and `include_plates=False` gives sidewalls
+alone. Definitions
 are in [capacitance of a structure](theory.md#capacitance-of-a-structure).
 
 ## Capacitance to the handle
@@ -317,7 +335,7 @@ are in [plates between device and handle](theory.md#plates-between-device-and-ha
 ## Sidewall capacitance
 
 ```python
-params = cf.ElectrostaticParams(element_size=1e-6)
+params = cf.ElectrostaticParams(sidewall_method="field", element_size=1e-6)
 result = cf.sidewall_capacitance([finger, slot], params)
 
 result.capacitance  # n by n, farads per meter of thickness
@@ -329,18 +347,28 @@ result.charge  # charge on each element per volt on each conductor
 result.mesh.start, result.mesh.end, result.mesh.conductor  # boundary elements
 
 result = cf.sidewall_capacitance(conductors, params, bodies=[0, 0, 1], centers=centers)
+
+params = cf.ElectrostaticParams(sidewall_method="plates", interaction_distance=30e-6)
+result = cf.sidewall_capacitance([finger, slot], params)
+result.walls.start, result.walls.end  # pieces of wall taken as plates
+result.walls.conductor, result.walls.facing, result.walls.gap
 ```
 
-`sidewall_capacitance` solves the field between conductors drawn in the
-layout plane. Each conductor is a shapely polygon or multipolygon in meters
-and is one equipotential; conductors must not overlap or touch. The field is
-two-dimensional, which holds where the layer is thick against its trenches,
-so the result is per meter of thickness.
+`sidewall_capacitance` finds capacitance between conductors drawn in the
+layout plane, by the method that `sidewall_method` names. Each conductor is
+a shapely polygon or multipolygon in meters and is one equipotential;
+conductors must not overlap or touch. The problem is two-dimensional, which
+holds where the layer is thick against its trenches, so the result is per
+meter of thickness. Only differences of potential matter: every row of
+`capacitance` sums to zero, and `-capacitance[a, b]` is the capacitance
+between conductors `a` and `b`.
 
-The conductors carry no net charge together and potential far away floats.
-Only differences of potential matter: every row of `capacitance` sums to
-zero, and `-capacitance[a, b]` is the capacitance between conductors `a` and
-`b`.
+With method `"field"` the conductors carry no net charge together and
+potential far away floats. With method `"plates"` a wall counts toward two
+conductors where its normal first meets the other within
+`interaction_distance`; `charge` and `mesh` are then empty, and `walls`
+lists the pieces that count, each with the conductor it faces and the gap
+at its two ends.
 
 `gradient[a, b, k]` holds the derivatives of `capacitance[a, b]` for travel
 of body `k` along x and y, per meter, and for its rotation about z through
@@ -355,13 +383,14 @@ stiffness between those two motions. Both are exact derivatives of the
 computed capacitance, so forces on all bodies sum to zero. The point a body
 rotates about travels with it.
 
-`element_size` is required. Outlines are cut into straight elements of at
+Method `"field"` requires `element_size`. Outlines are cut into straight elements of at
 most that length, shorter toward convex corners by up to `corner_grading`.
 The computed capacitance never exceeds the exact one and rises toward it as
 `element_size` shrinks, so halving it shows how far a value has settled. The
 solve is dense, and a mesh above `max_elements` raises an error; pass fewer
 conductors or a larger `element_size`. Formulas are in
-[sidewall capacitance](theory.md#sidewall-capacitance).
+[sidewall capacitance](theory.md#sidewall-capacitance) and
+[sidewalls as facing plates](theory.md#sidewalls-as-facing-plates).
 
 ## Solve
 

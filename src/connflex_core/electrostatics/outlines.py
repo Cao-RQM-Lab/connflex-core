@@ -27,6 +27,10 @@ class Mesh:
     end: Array
     conductor: NDArray[np.intp]
 
+    @classmethod
+    def empty(cls) -> Mesh:
+        return cls(np.zeros((0, 2)), np.zeros((0, 2)), np.zeros(0, dtype=np.intp))
+
 
 def mesh_outlines(conductors: Sequence[MultiPolygon], size: float, grading: float) -> Mesh:
     """Divide outlines of ``conductors`` into elements, equations (72) to (74).

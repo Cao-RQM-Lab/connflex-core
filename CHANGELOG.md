@@ -47,6 +47,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   potentials.
 - `CapacitanceModel.to_dict`: review report of capacitance by pair of
   electrodes and part, between nets, by cluster, and of silicon left out.
+- `ElectrostaticParams.sidewall_method`, required for sidewall capacitance
+  and without default: `"field"` is the boundary element solution, and
+  `"plates"` takes every wall that faces another conductor within
+  `interaction_distance` as a parallel plate with it, with exact gradient
+  and Hessian for rigid motion. Plates have no size limit and no fringe
+  field. `SidewallCapacitance.walls` and `Cluster.walls` hold the pieces of
+  wall taken as plates, as `FacingWalls`.
 
 ### Removed
 
