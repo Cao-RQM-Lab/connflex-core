@@ -21,7 +21,7 @@ body:
     id: params
     attributes:
       label: Stack and extraction parameters
-      render: toml
+      render: python
   - type: input
     id: version
     attributes:

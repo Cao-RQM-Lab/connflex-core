@@ -30,6 +30,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   order in in-plane travel where the handle outline passes under the plate.
   `ElectrostaticParams.ambient_permittivity` sets the medium in the gap.
 
+### Removed
+
+- `load_config` and TOML process files. Every parameter object is built in
+  Python and passed to the function that uses it, so each analysis takes
+  only its own parameters; an application that wants settings files parses
+  them itself, for example `ExtractionParams(**table)`.
+
 ## [0.1.0] - 2026-11-04
 
 ### Added

@@ -152,11 +152,13 @@ def test_gradient_and_hessian_are_derivatives_of_the_capacitance(overhang: Struc
         assert curvature == pytest.approx(expected, rel=1e-6, abs=1e-9 * value)
 
 
-def test_plates_need_the_dielectric_constant_of_the_box(
+def test_only_electrostatic_analysis_needs_the_dielectric_constant_of_the_box(
     stack: Stack, params: Params, layout_um: LayoutUm
 ) -> None:
     glass = Layer(thickness=GAP, material=Material.oxide(relative_permittivity=None))
     bare = Stack(device=stack.device, box=glass, handle=stack.handle)
-    structure = extract(layout_um([ANCHOR], [HANDLE]), bare, params())
+    layout = layout_um([ANCHOR, BEAM, PLATE], [HANDLE])
+    structure = extract(layout, bare, params(release_distance=60 * UM))
+    assert structure.modal().frequencies_hz.size == 6
     with pytest.raises(ValueError, match="relative_permittivity"):
         structure.plates()

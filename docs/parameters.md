@@ -1,7 +1,9 @@
 # Parameters
 
-Every tunable is a named field on one of four configuration objects. There
-are no hidden constants. A test checks that this page and the fields agree.
+Every tunable is a named field on one of four parameter objects. There are no
+hidden constants. A test checks that this page and the fields agree. Each
+object is built in Python from keyword arguments and passed to the function
+that uses it; the library reads no settings files.
 
 Lengths are in meters, areas in square meters, densities in kilograms per
 cubic meter, moduli in pascals, resistivities in ohm meters, resistances in
@@ -70,40 +72,3 @@ the field: lengths, areas, thicknesses, densities, moduli, and resistivity are p
 `beam_width_min < beam_width_max`; `beam_overlap_margin < body_min_width / 2`;
 `torsion_beta >= 0`; `via_resistance >= 0`; `relative_permittivity >= 1`;
 `ambient_permittivity >= 1`; every stack layer has a thickness.
-
-## TOML files
-
-Stack, extraction parameters, and solve options load from one file with the same
-field names:
-
-```toml
-[stack.device]
-thickness = 25e-6
-material = "silicon"
-
-[stack.box]
-thickness = 2e-6
-material = "oxide"
-
-[stack.handle]
-thickness = 400e-6
-material = "silicon"
-
-[materials.silicon]
-youngs_modulus = 130e9
-resistivity = 1e-4
-
-[extraction]
-release_hole_max_area = 100e-12
-release_distance = 5e-6
-body_min_width = 10e-6
-
-[solve]
-n_modes = 20
-```
-
-```python
-stack, params, options = cf.load_config("soi_25um.toml")
-```
-
-`ElectrostaticParams` is built in Python and passed to `Structure.plates`.

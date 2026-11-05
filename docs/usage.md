@@ -107,15 +107,11 @@ params = cf.ExtractionParams(
 options = cf.SolveOptions(n_modes=10)
 ```
 
-## Process files
-
-Stack, parameters, and solve options load from one TOML file with the same
-field names, so a process description can be versioned next to a layout. See
-the [parameters page](parameters.md#toml-files) for the format.
-
-```python
-stack, params, options = cf.load_config("soi_25um.toml")
-```
+Every parameter object is a plain frozen dataclass built from keyword
+arguments, and each function takes the objects it needs as arguments. The
+library reads no settings files: an application that keeps its settings in a
+file parses that file itself and passes each table on, for example
+`cf.ExtractionParams(**table)`.
 
 ## Extract the structure
 
@@ -159,6 +155,11 @@ Polygons in `body.device`, `body.stubs`, and `electrode.region` are filled:
 release openings are modeled as perforations and are kept apart in
 `structure.openings`, one disjoint polygon per opening. Mass properties
 already exclude them. The JSON tree does not list them.
+
+Mechanical analysis ([solve](#solve)) and electrostatic analysis
+([capacitance to the handle](#capacitance-to-the-handle)) both work from this
+structure, and each runs without the other: neither needs the other's
+parameters or results.
 
 ## Electrical nets
 

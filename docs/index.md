@@ -19,6 +19,9 @@ layout's electrical nets.
 | Electrodes and links | bodies, stubs, beams, vias | nodes and branches of the electrical model |
 | Plates to the handle | electrodes, oxide, release openings, stack | capacitance of each device electrode to the handle beneath it, with gradient and Hessian in body degrees of freedom |
 
+Mechanical and electrostatic analyses each run on their own from one extracted
+structure.
+
 - [Installation](installation.md)
 - [Usage](usage.md)
 - [Input conventions](conventions.md)
