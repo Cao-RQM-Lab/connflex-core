@@ -4,7 +4,16 @@ import networkx as nx
 import pytest
 from shapely import box
 
-from connflex_core import ExtractionParams, Layer, Layout, Material, Stack, Structure, extract
+from connflex_core import (
+    ExtractionParams,
+    Layer,
+    Layout,
+    Material,
+    Stack,
+    Structure,
+    Wire,
+    extract,
+)
 
 UM = 1e-6
 PAD_A = box(0, 0, 100, 100)
@@ -125,6 +134,56 @@ def test_via_resistance_applies_between_each_device_and_handle_electrode_it_join
         (pad_b.index, handle.index),
     }
     assert len(nets_joined_by_links(structure)) == structure.nets.count == 1
+
+
+def test_wire_off_the_die_joins_pads_that_silicon_keeps_apart(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    """A bond between two pads, and a bond from one of them to the handle beneath."""
+    bond = Wire((50 * UM, 50 * UM), (350 * UM, 50 * UM), resistance=0.2)
+    ground = Wire((60 * UM, 60 * UM), (200 * UM, 120 * UM, "handle"))
+    layout = layout_um([PAD_A, PAD_B], [HANDLE_AB])
+    alone = extract(layout, stack, params())
+    assert alone.nets.count == 3
+    structure = extract(layout, stack, params(), wires=[bond, ground])
+    pad_a = structure.electrode_at((50 * UM, 50 * UM), "device")
+    pad_b = structure.electrode_at((350 * UM, 50 * UM), "device")
+    handle = structure.electrode_at((200 * UM, 120 * UM), "handle")
+    assert structure.nets.count == 1
+    assert pad_a.net == pad_b.net == handle.net
+    assert [(link.kind, link.source, link.resistance) for link in structure.links] == [
+        ("wire", 0, 0.2),
+        ("wire", 1, 0.0),
+    ]
+    assert [link.electrodes for link in structure.links] == [
+        tuple(sorted((pad_a.index, pad_b.index))),
+        tuple(sorted((pad_a.index, handle.index))),
+    ]
+    first, second = structure.nets.wires
+    assert (first.wire, first.conductors) == (bond, (pad_a.conductor, pad_b.conductor))
+    assert second.conductors == (pad_a.conductor, handle.conductor)
+    assert structure.nets.graph.has_edge(pad_a.conductor, pad_b.conductor)
+    assert nets_joined_by_links(structure) == [{pad_a.net}]
+    assert structure.to_dict()["links"][0]["kind"] == "wire"
+
+
+def test_wire_ends_must_land_on_an_electrode(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    layout = layout_um([PAD_A, BEAM, PAD_B, box(0, 300, 100, 400)], [box(-50, -50, 450, 450)])
+    pad = (50 * UM, 50 * UM)
+    with pytest.raises(ValueError, match=r"wire 1: .* no device conductor"):
+        extract(
+            layout, stack, params(), wires=[Wire(pad, (50 * UM, 350 * UM)), Wire(pad, (0.0, -1e-3))]
+        )
+    with pytest.raises(ValueError, match=r"wire 0: .* beam or bridge"):
+        extract(layout, stack, params(), wires=[Wire((50 * UM, 350 * UM), (200 * UM, 50 * UM))])
+    with pytest.raises(ValueError, match=r"wire 0: both ends lie on one electrode"):
+        extract(layout, stack, params(), wires=[Wire(pad, (60 * UM, 60 * UM))])
+    with pytest.raises(ValueError, match="resistance"):
+        Wire(pad, (350 * UM, 50 * UM), resistance=-1.0)
+    with pytest.raises(ValueError, match="layer"):
+        Wire(pad, (350 * UM, 50 * UM, "box"))  # type: ignore[arg-type]
 
 
 def test_region_touching_no_body_is_an_electrode_of_the_body_whose_oxide_carries_it(

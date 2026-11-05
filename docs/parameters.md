@@ -1,7 +1,7 @@
 # Parameters
 
-Every tunable is a named field on one of four parameter objects. There are no
-hidden constants. A test checks that this page and the fields agree. Each
+Every tunable is a named field on a parameter object or an input object.
+There are no hidden constants. A test checks that this page and the fields agree. Each
 object is built in Python from keyword arguments and passed to the function
 that uses it; the library reads no settings files.
 
@@ -84,6 +84,17 @@ keyword overrides.
 | `pull_in_resolution` | | 0.001 | Halving stops when the largest scale with a stable equilibrium and the smallest without are closer than this fraction of the potentials asked for, equation (120). |
 | `contact_fraction` | $\chi_c$ | 0.1 | An equilibrium at which a gap between two bodies has closed to this fraction of its width at rest, or further, counts as contact, equation (122), and ends the rise of the potentials. 0 accepts every equilibrium short of touching. |
 
+## `Wire`
+
+A connection made off the die between two pads, passed to `extract` in
+`wires`.
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `start` | | **required** | One end: a point `(x, y)` on a pad of the device layer, or `(x, y, layer)` with layer `"device"` or `"handle"`. The conductor and electrode covering it are those the wire joins. |
+| `end` | | **required** | The other end, in the same form. |
+| `resistance` | | 0 | Resistance of the wire between its ends, its contacts included. Zero is ideal. It is the resistance of the wire's link. |
+
 ## Validation
 
 Each object validates itself on construction and raises `ValueError` naming
@@ -95,4 +106,6 @@ when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
 `window_tolerance > 0`; `sidewall_method` is `"field"` or `"plates"` when
 given; `tolerance > 0`, `max_iterations >= 1`, `steps >= 1`, and
 `0 < pull_in_resolution < 1`, and `0 <= contact_fraction < 1` of
-`StaticOptions`; every stack layer has a thickness.
+`StaticOptions`; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
+`"device"` or `"handle"`, and its `resistance >= 0`; every stack layer has a
+thickness.

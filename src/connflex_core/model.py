@@ -111,7 +111,7 @@ class Structure:
         nets: Electrical nets of conductors that remain after pruning.
         electrodes: Nodes of the electrical model, device electrodes first, then handle
             electrodes, each ordered by body and then by descending area.
-        links: Beams, bridges, and vias that conduct between electrodes.
+        links: Beams, bridges, vias, and wires that conduct between electrodes.
         openings: Release openings as disjoint polygons: release holes that were filled in
             device polygons, and polygons of the release layer. Device silicon is absent
             there, although ``Body.device`` and ``Electrode.region`` cover them.

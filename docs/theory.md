@@ -530,7 +530,9 @@ is the mechanical mode.
 The electrical model is a network whose nodes are electrodes and whose
 branches are links. Its conductors are the connected regions of the healed
 device and handle layers that survive pruning, and nets are the groups of
-conductors joined through vias.
+conductors joined through vias and through wires: connections made off the
+die, such as wire bonds between pads, bonds to a package, or traces on a
+board, which the layout does not show and the caller supplies.
 
 Let $B_j$ be the device polygons of the bodies from (3) and $P_k$ the beam
 candidates $D - B$ of (4). Candidate $P_k$ touches body polygon $B_j$ when
@@ -570,6 +572,10 @@ Links conduct between electrodes:
   joins each of these to the electrode of every handle polygon it overlaps,
   with one link per pair. A via that overlaps no conductor on one side joins
   nothing.
+- A wire joins the electrodes that cover its two ends. Each end is a point
+  on a pad of a named layer, and the conductor that covers it is the one the
+  wire joins in the nets. Its link has the resistance given with the wire,
+  which stands for the bond or trace and its two contacts.
 
 A beam conducts along its length through its full cross-section, so its link
 has resistance
@@ -594,7 +600,7 @@ neglect covers stubs: a comb finger of length $\ell$ and width $w_f$ adds up
 to $\ell / w_f$ squares between its tip and its root, which is not modeled.
 
 Links never join electrodes of different nets: a beam or a bridge lies within
-one conductor, and a via joins conductors of one net. Conversely, the
+one conductor, and a via or a wire joins conductors of one net. Conversely, the
 electrodes of one net are joined through links, because the pieces of a
 conductor that the opening in (3) separates are joined by the candidates
 between them. There are two exceptions. A candidate narrower than $r_h$ is
@@ -624,6 +630,17 @@ end touches several polygons of one body joins only the largest.
     Resistivity of an SOI device layer spans orders of magnitude with doping,
     so it has no default. Without it the resistance of a beam link is left
     unknown rather than guessed, and extraction is otherwise unchanged.
+
+    A wire end must lie on silicon of an electrode. An end on a beam or a
+    bridge is an error, since that silicon belongs to no electrode, and so
+    is an end on no conductor of its layer, which also catches silicon that
+    pruning dropped. A point in a release hole of a pad counts as on the
+    pad, as the pad's region is filled. A wire with both ends on one
+    electrode joins nothing and is an error.
+
+    Wires belong to the nets, so every analysis that reads nets sees bonded
+    pads as one: the capacitance between nets, potentials and charges in
+    static equilibrium, and the resistor network of the links.
 
 ## Plates between device and handle
 

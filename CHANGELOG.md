@@ -19,6 +19,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bridges are ideal.
 - `Material.relative_permittivity`, 3.9 on the oxide preset and unset on
   silicon.
+- `Wire` and `extract(..., wires=)`: connections made off the die, such as
+  wire bonds and traces, between pads named by a point on them and,
+  optionally, their layer. Nets include them, so bonded pads are one net
+  in every analysis, and each wire is a link of kind `"wire"` with its
+  resistance. `Nets.wires` records the conductors under each end as
+  `Connection`.
 - `Structure.stack`, `Structure.params`, and `Structure.openings`: the layer
   stack and parameters of the extraction and the release openings that were
   filled in device polygons or drawn on the release layer.

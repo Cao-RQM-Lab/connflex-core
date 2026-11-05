@@ -44,12 +44,13 @@ class Link:
         index: Position in ``Structure.links``.
         electrodes: Indices of the two electrodes joined, ascending.
         kind: ``"beam"`` for a beam, ``"bridge"`` for a rejected candidate that touches
-            several body polygons, ``"via"`` for a via.
+            several body polygons, ``"via"`` for a via, ``"wire"`` for a connection
+            made off the die.
         source: Index of that beam in ``Structure.beams``, candidate in
-            ``Structure.rejected``, or via in ``Nets.vias``.
+            ``Structure.rejected``, via in ``Nets.vias``, or wire in ``Nets.wires``.
         resistance: Resistance in ohms: equation (41) for a beam, ``via_resistance`` for a
-            via, zero for a bridge. None for a beam when the device material has no
-            resistivity.
+            via, zero for a bridge, the resistance of the wire for a wire. None for a beam
+            when the device material has no resistivity.
     """
 
     index: int
@@ -74,7 +75,10 @@ def find_electrodes(
     ``owner`` gives the body of each. Device electrodes come first, then handle
     electrodes, each ordered by body and then by descending area. ``resistivity`` of the
     device layer sets resistance of beam links and ``via_resistance`` that of each via
-    link. ``advance`` is called once per beam, rejected candidate, and via.
+    link. Each wire of ``nets`` links the electrodes that cover its two ends; an end on
+    a beam or a bridge, which belong to no electrode, or a wire with both ends on one
+    electrode is an error. ``advance`` is called once per beam, rejected candidate, via,
+    and wire.
     """
     parts, oxide, handle = layers
     device = [conductor for conductor in nets.conductors if conductor.layer == "device"]
@@ -152,6 +156,26 @@ def find_electrodes(
             if above is not None:
                 for below in via.handle:
                     join(above.index, on_handle[below], "via", via.index, via_resistance)
+    for connection in nets.wires:
+        ends = []
+        for (point, layer), under in zip(connection.wire.ends, connection.conductors, strict=True):
+            if layer == "handle":
+                ends.append(on_handle[under])
+                continue
+            covering = [
+                e.index for e in electrodes if e.conductor == under and e.region.covers(point)
+            ]
+            if not covering:
+                raise ValueError(
+                    f"wire {connection.index}: end at ({point.x:g}, {point.y:g}) m lies on a beam "
+                    f"or bridge, which belongs to no electrode; place it on a pad"
+                )
+            ends.append(covering[0])
+        if ends[0] == ends[1]:
+            raise ValueError(f"wire {connection.index}: both ends lie on one electrode, {ends[0]}")
+        join(ends[0], ends[1], "wire", connection.index, connection.wire.resistance)
+        if advance is not None:
+            advance()
     return electrodes, links
 
 

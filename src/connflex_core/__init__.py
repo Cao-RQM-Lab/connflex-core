@@ -8,7 +8,7 @@ from connflex_core.adapters.gdsfactory_ import from_gdsfactory
 from connflex_core.adapters.klayout_ import from_klayout
 from connflex_core.coupled.static import Equilibrium
 from connflex_core.electrical.electrodes import Electrode, Link
-from connflex_core.electrical.nets import Conductor, Nets, Via, find_nets
+from connflex_core.electrical.nets import Conductor, Connection, Nets, Via, Wire, find_nets
 from connflex_core.electrostatics.capacitance import CapacitanceModel, Cluster, HessianBlock
 from connflex_core.electrostatics.facing import FacingWalls
 from connflex_core.electrostatics.plates import Plate
@@ -36,6 +36,7 @@ __all__ = [
     "CapacitanceModel",
     "Cluster",
     "Conductor",
+    "Connection",
     "Electrode",
     "ElectrostaticParams",
     "Equilibrium",
@@ -59,6 +60,7 @@ __all__ = [
     "StaticOptions",
     "Structure",
     "Via",
+    "Wire",
     "__version__",
     "adapters",
     "extract",

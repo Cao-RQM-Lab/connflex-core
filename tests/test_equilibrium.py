@@ -15,6 +15,7 @@ from connflex_core import (
     Stack,
     StaticOptions,
     Structure,
+    Wire,
     extract,
 )
 
@@ -54,8 +55,7 @@ def plate() -> Structure:
     return plate_on_beams()
 
 
-@pytest.fixture(scope="module")
-def shuttle() -> Structure:
+def shuttle_layout() -> Layout:
     """Spine on four beams with a comb of eight gaps toward a stator on either side."""
     device = [box(-20, -110, 20, 110)]
     for side in (-1, 1):
@@ -74,8 +74,12 @@ def shuttle() -> Structure:
             device.append(
                 box(low, y - 290 if y < 0 else y - 10, high, y + 20 if y < 0 else y + 300)
             )
-    layout = Layout.from_shapely(device=device, handle=[box(-600, -450, 600, 450)], unit=UM)
-    return extract(layout, STACK, EXTRACTION)
+    return Layout.from_shapely(device=device, handle=[box(-600, -450, 600, 450)], unit=UM)
+
+
+@pytest.fixture(scope="module")
+def shuttle() -> Structure:
+    return extract(shuttle_layout(), STACK, EXTRACTION)
 
 
 def net_at(structure: Structure, x: float, y: float, layer: str = "device") -> int:
@@ -223,6 +227,29 @@ def test_floating_net_keeps_its_charge_as_the_plate_moves(plate: Structure) -> N
         plate.equilibrium(model, {floating: 1.0}, charges={floating: charge})
     with pytest.raises(ValueError, match="net 99"):
         plate.equilibrium(model, {}, charges={99: charge})
+
+
+def test_bond_between_stators_drives_both_from_one_potential(shuttle: Structure) -> None:
+    """Both stators of the comb are separate pads in silicon; a wire bond joins them."""
+    bond = Wire((-250 * UM, 0.0), (250 * UM, 0.0), resistance=0.1)
+    bonded = extract(shuttle_layout(), STACK, EXTRACTION, wires=[bond])
+    assert bonded.nets.count == shuttle.nets.count - 1
+    assert net_at(shuttle, -250, 0) != net_at(shuttle, 250, 0)
+    nets = [net_at(structure, -250, 0) for structure in (shuttle, bonded)]
+    assert net_at(bonded, 250, 0) == nets[1]
+    apart = shuttle.capacitance(WALLS_ALONE)
+    joined = bonded.capacitance(WALLS_ALONE)
+    pair = [net_at(shuttle, x, 0) for x in (-250, 250)]
+    spine = net_at(shuttle, 0, 0)
+    assert -joined.net_matrix[nets[1], net_at(bonded, 0, 0)] == pytest.approx(
+        -apart.net_matrix[pair[0], spine] - apart.net_matrix[pair[1], spine]
+    )
+    options = StaticOptions(pull_in_resolution=1e-4)
+    one = bonded.equilibrium(joined, {nets[1]: 20.0}, options=options)
+    both = shuttle.equilibrium(apart, dict.fromkeys(pair, 20.0), options=options)
+    assert one.displacement == pytest.approx(both.displacement, rel=1e-9, abs=1e-18)
+    assert one.margin == pytest.approx(both.margin, rel=1e-9)
+    assert one.potentials == pytest.approx(both.potentials)
 
 
 def test_mechanical_load_adds_to_electrostatic_force(plate: Structure) -> None:

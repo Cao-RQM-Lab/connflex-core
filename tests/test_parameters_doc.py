@@ -13,6 +13,7 @@ from connflex_core import (
     Material,
     SolveOptions,
     StaticOptions,
+    Wire,
 )
 
 PAGE = Path(__file__).parents[1] / "docs" / "parameters.md"
@@ -48,6 +49,10 @@ def test_static_options_match_the_page() -> None:
     assert documented_rows("`StaticOptions`")[""] == field_names(StaticOptions)
 
 
+def test_wire_matches_the_page() -> None:
+    assert documented_rows("`Wire`")[""] == field_names(Wire)
+
+
 def test_stack_and_material_match_the_page() -> None:
     rows = documented_rows("`Material`")
     assert rows["Material"] == field_names(Material)
@@ -55,7 +60,8 @@ def test_stack_and_material_match_the_page() -> None:
 
 
 @pytest.mark.parametrize(
-    "cls", [ExtractionParams, SolveOptions, ElectrostaticParams, StaticOptions, Layer, Material]
+    "cls",
+    [ExtractionParams, SolveOptions, ElectrostaticParams, StaticOptions, Wire, Layer, Material],
 )
 def test_every_field_is_described_in_the_class_docstring(cls: type) -> None:
     doc = cls.__doc__ or ""

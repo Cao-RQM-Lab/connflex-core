@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import shapely
 from shapely import MultiPolygon, Polygon, STRtree
 
 from connflex_core.electrical.electrodes import find_electrodes
-from connflex_core.electrical.nets import find_nets
+from connflex_core.electrical.nets import Wire, find_nets
 from connflex_core.geometry.beams import beam_candidates, find_beams
 from connflex_core.geometry.bodies import layered_components, select_anchor
 from connflex_core.geometry.heal import as_multipolygon, heal, opening, snap
@@ -20,7 +22,12 @@ from connflex_core.stack import Stack
 
 
 def extract(
-    layout: Layout, stack: Stack, params: ExtractionParams, *, progress: Progress | None = None
+    layout: Layout,
+    stack: Stack,
+    params: ExtractionParams,
+    *,
+    wires: Sequence[Wire] = (),
+    progress: Progress | None = None,
 ) -> Structure:
     """Extract rigid bodies, beams, and electrical nets from a layout.
 
@@ -34,9 +41,10 @@ def extract(
     layer. Device regions removed by
     the opening are qualified as beams; a candidate touching exactly one body is a stub that
     adds mass to that body. Remaining device and handle polygons are conductors of the
-    nets, joined through vias. Each body polygon with the stubs that touch it alone is an
-    electrode, and beams, candidates that touch several body polygons, and vias are links
-    between electrodes.
+    nets, joined through vias and through ``wires``, connections made off the die between
+    pads that the layout leaves apart. Each body polygon with the stubs that touch it
+    alone is an electrode, and beams, candidates that touch several body polygons, vias,
+    and wires are links between electrodes.
 
     Stages heal, release, prune, nets, opening, bodies, candidates, beams, mass, and
     electrodes each log through the ``connflex_core`` logger and report to ``progress``.
@@ -94,8 +102,8 @@ def extract(
 
     with stage("nets", progress) as current:
         vias = [] if layout.vias is None else list(layout.vias.geoms)
-        nets = find_nets(device_parts, handle_parts, vias)
-        current.count(nets=nets.count, vias=len(vias))
+        nets = find_nets(device_parts, handle_parts, vias, wires)
+        current.count(nets=nets.count, vias=len(vias), wires=len(wires))
     conductors = STRtree(device_parts)
 
     def net_of(polygon: Polygon) -> int:
@@ -160,7 +168,7 @@ def extract(
             )
             current.advance()
 
-    connectors = len(beams) + len(rejected) + len(nets.vias)
+    connectors = len(beams) + len(rejected) + len(nets.vias) + len(nets.wires)
     with stage("electrodes", progress, total=connectors) as current:
         electrodes, links = find_electrodes(
             layers,

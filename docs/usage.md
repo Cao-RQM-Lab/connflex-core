@@ -117,6 +117,7 @@ file parses that file itself and passes each table on, for example
 
 ```python
 structure = cf.extract(layout, stack, params)
+structure = cf.extract(layout, stack, params, wires=bonds)  # with connections off the die
 
 structure.bodies  # rigid bodies, anchor first; polygons per layer in meters
 structure.bodies[1].inertial  # mass, center of mass, inertia tensor, 6 by 6 mass matrix
@@ -124,9 +125,9 @@ structure.bodies[1].stubs  # device silicon attached to this body alone; mass, n
 structure.beams  # beams joining exactly two bodies: length, width, thickness, end points
 structure.rejected  # beam candidates that did not qualify, each with a reason
 structure.graph  # networkx MultiGraph, bodies as nodes and beams as edges
-structure.nets  # electrical nets of remaining device and handle polygons
+structure.nets  # electrical nets of remaining device and handle polygons, wires included
 structure.electrodes  # silicon with one potential and one rigid motion: nodes of the electrical model
-structure.links  # beams, bridges, and vias that conduct between electrodes
+structure.links  # beams, bridges, vias, and wires that conduct between electrodes
 structure.openings  # release openings: filled release holes and release-layer polygons
 structure.stack, structure.params  # layer stack and parameters of the extraction
 structure.to_dict()  # JSON-serializable tree with GeoJSON-style polygons
@@ -170,7 +171,8 @@ nets = structure.nets
 nets.count  # number of nets
 nets.conductors  # connected device regions, then handle regions, each with its net
 nets.vias  # each via with the conductors it joins on both sides
-nets.graph  # networkx MultiGraph, conductors as nodes and vias as edges
+nets.wires  # each wire with the conductors under its two ends
+nets.graph  # networkx MultiGraph, conductors as nodes, vias and wires as edges
 nets.conductor_at((x, y), "device")  # conductor covering a point
 
 structure.beams[0].net  # net of the beam's device conductor
@@ -183,11 +185,39 @@ are the connected components. A via that overlaps no conductor on one side
 is ignored with a warning. Polygons dropped by anchor pruning are not
 conductors. `cf.find_nets` computes the same from any lists of polygons.
 
+### Connections off the die
+
+```python
+wires = [
+    cf.Wire((1200e-6, 400e-6), (3100e-6, 400e-6)),  # bond between two pads
+    cf.Wire((1200e-6, 400e-6), (0.0, 0.0, "handle"), resistance=0.5),  # pad to handle
+]
+structure = cf.extract(layout, stack, params, wires=wires)
+```
+
+Pads that are apart in silicon are often joined outside the device: by wire
+bonds between pads or to a package lead, by traces on a board, or by the
+package tying the handle to a pad. `wires` states those connections. Each
+end is a point in meters on the pad, on the device layer unless a layer is
+given as a third entry; any point on the pad's silicon will do, also one in
+a release hole. `resistance` is that of the bond or trace and its contacts,
+zero unless given.
+
+Nets include the wires, so bonded pads are one net everywhere: in
+`structure.nets`, in `electrode.net`, in `model.net_matrix`, and in the
+potentials and charges of `structure.equilibrium`, where one potential on
+the net drives every pad on it. Each wire is also a link of kind `"wire"`
+with its resistance. An end that lies on no silicon of its layer, on a beam
+or a bridge, or a wire with both ends on one electrode raises an error that
+names the wire. Changing the wiring means extracting again. Many wires are
+built in a loop from whatever list an application keeps:
+`[cf.Wire(a, b) for a, b in bonds]`.
+
 ## Electrodes and links
 
 ```python
 structure.electrodes  # device electrodes, then handle electrodes
-structure.links  # beams, bridges, and vias that conduct between electrodes
+structure.links  # beams, bridges, vias, and wires that conduct between electrodes
 structure.electrode_at((x, y), "device")  # electrode covering a point
 
 electrode = structure.electrodes[0]
@@ -196,8 +226,8 @@ electrode.region  # body polygon followed by its stubs, in meters
 
 link = structure.links[0]
 link.electrodes  # indices of the two electrodes joined
-link.kind  # "beam", "bridge", or "via"
-link.source  # index in structure.beams, structure.rejected, or structure.nets.vias
+link.kind  # "beam", "bridge", "via", or "wire"
+link.source  # index in structure.beams, structure.rejected, structure.nets.vias, or .wires
 link.resistance  # ohms; None for a beam without resistivity
 ```
 
@@ -210,8 +240,9 @@ of the pad or shuttle that finger is attached to.
 Links follow from the structure. A beam links the electrodes it joins. A
 rejected candidate that touches several body polygons, such as a narrow strip
 between two bonded pads or a junction, is a bridge between their electrodes.
-A via links the device and handle electrodes it overlaps. Electrodes joined
-through links always share a net.
+A via links the device and handle electrodes it overlaps, and a wire the
+electrodes under its two ends. Electrodes joined through links always share
+a net.
 
 A beam link has resistance $\rho_e L / (w t)$ from the beam's own length,
 width, and thickness once the device material carries a resistivity, for

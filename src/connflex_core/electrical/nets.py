@@ -5,7 +5,7 @@ from __future__ import annotations
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import networkx as nx
 from shapely import Point, Polygon, STRtree
@@ -47,23 +47,80 @@ class Via:
     handle: tuple[int, ...]
 
 
+LAYERS = ("device", "handle")
+End = tuple[float, float] | tuple[float, float, Literal["device", "handle"]]
+
+
+@dataclass(frozen=True)
+class Wire:
+    """Connection made off the die between two pads, such as a wire bond or a trace.
+
+    Attributes:
+        start: One end: a point (x, y) in meters on a pad of the device layer, or
+            (x, y, layer) with layer ``"device"`` or ``"handle"``.
+        end: The other end, in the same form.
+        resistance: Resistance between the two ends, in ohms. Zero is ideal.
+    """
+
+    start: End
+    end: End
+    resistance: float = 0.0
+
+    def __post_init__(self) -> None:
+        for end in (self.start, self.end):
+            if len(end) not in (2, 3) or (len(end) == 3 and end[2] not in LAYERS):
+                raise ValueError(
+                    f"wire end must be (x, y) or (x, y, layer) with layer in {LAYERS}, got {end}"
+                )
+        if not self.resistance >= 0:
+            raise ValueError(f"resistance must be at least 0, got {self.resistance}")
+
+    @property
+    def ends(self) -> tuple[tuple[Point, str], tuple[Point, str]]:
+        """Point and layer of each end."""
+        start, end = (
+            (Point(e[0], e[1]), "device" if len(e) == 2 else str(e[2]))
+            for e in (self.start, self.end)
+        )
+        return start, end
+
+
+@dataclass(frozen=True)
+class Connection:
+    """A wire and the conductors under its two ends.
+
+    Attributes:
+        index: Position in ``Nets.wires``, the same as in the wires passed to extraction.
+        wire: The wire.
+        conductors: Indices of the conductors under its start and its end.
+    """
+
+    index: int
+    wire: Wire
+    conductors: tuple[int, int]
+
+
 @dataclass(frozen=True)
 class Nets:
-    """Electrical nets: conductors joined by vias.
+    """Electrical nets: conductors joined by vias and by wires off the die.
 
     Attributes:
         conductors: Device conductors first, then handle conductors.
         vias: All vias, in input order.
         count: Number of nets.
+        wires: Every wire, in input order, with the conductors at its ends.
     """
 
     conductors: tuple[Conductor, ...]
     vias: tuple[Via, ...]
     count: int
+    wires: tuple[Connection, ...] = ()
 
     @property
     def graph(self) -> nx.MultiGraph[int]:
-        """Conductors as nodes and vias as edges between each device and handle conductor they join."""
+        """Conductors as nodes; vias as edges between each device and handle conductor they
+        join, keyed by via index, and wires as edges between the conductors at their
+        ends, keyed by ``("wire", index)``."""
         graph: nx.MultiGraph[int] = nx.MultiGraph()
         for conductor in self.conductors:
             graph.add_node(conductor.index, conductor=conductor)
@@ -71,6 +128,8 @@ class Nets:
             for a in via.device:
                 for b in via.handle:
                     graph.add_edge(a, b, key=via.index, via=via)
+        for connection in self.wires:
+            graph.add_edge(*connection.conductors, key=("wire", connection.index), wire=connection)
         return graph
 
     def conductor_at(self, point: Point | tuple[float, float], layer: str) -> Conductor:
@@ -103,17 +162,31 @@ class Nets:
                 }
                 for via in self.vias
             ],
+            "wires": [
+                {
+                    "index": connection.index,
+                    "start": list(connection.wire.start),
+                    "end": list(connection.wire.end),
+                    "resistance": connection.wire.resistance,
+                    "conductors": list(connection.conductors),
+                }
+                for connection in self.wires
+            ],
         }
 
 
 def find_nets(
-    device: Sequence[Polygon], handle: Sequence[Polygon], vias: Sequence[Polygon] = ()
+    device: Sequence[Polygon],
+    handle: Sequence[Polygon],
+    vias: Sequence[Polygon] = (),
+    wires: Sequence[Wire] = (),
 ) -> Nets:
-    """Group device and handle conductors into nets through the vias that overlap them.
+    """Group device and handle conductors into nets through vias and wires.
 
     Each polygon is one conductor. A via joins every device conductor and every handle
     conductor it overlaps; a via overlapping no conductor on one side is ignored with a warning.
-    Nets are numbered in order of their first conductor.
+    A wire joins the conductors that cover its two ends; an end that no conductor of its
+    layer covers is an error. Nets are numbered in order of their first conductor.
     """
     parent = list(range(len(device) + len(handle)))
 
@@ -138,13 +211,29 @@ def find_nets(
         for member in members[1:]:
             parent[root(member)] = first
 
+    connections: list[Connection] = []
+    for index, wire in enumerate(wires):
+        under = []
+        for point, layer in wire.ends:
+            tree, offset = (trees[0], 0) if layer == "device" else (trees[1], len(device))
+            polygons = device if layer == "device" else handle
+            hits = [int(j) for j in tree.query(point) if polygons[j].covers(point)]
+            if not hits:
+                raise ValueError(
+                    f"wire {index}: end at ({point.x:g}, {point.y:g}) m is on no {layer} "
+                    f"conductor: empty space, or silicon dropped as unconnected to the anchor"
+                )
+            under.append(offset + hits[0])
+        connections.append(Connection(index, wire, (under[0], under[1])))
+        parent[root(under[1])] = root(under[0])
+
     numbers: dict[int, int] = {}
     conductors: list[Conductor] = []
     layered = [*(("device", p) for p in device), *(("handle", p) for p in handle)]
     for index, (layer, polygon) in enumerate(layered):
         net = numbers.setdefault(root(index), len(numbers))
         conductors.append(Conductor(index, layer, polygon, net))
-    return Nets(tuple(conductors), tuple(joined), len(numbers))
+    return Nets(tuple(conductors), tuple(joined), len(numbers), tuple(connections))
 
 
 def _overlapping(

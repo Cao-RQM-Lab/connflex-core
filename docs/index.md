@@ -15,7 +15,7 @@ layout's electrical nets.
 | Mass properties | body and stub polygons and layer stack | mass, center of mass, inertia tensor |
 | Beam stiffness | beam geometry and material | 12 by 12 stiffness on body degrees of freedom |
 | Assembly and solve | all bodies and beams | frequencies and mode shapes |
-| Electrical nets | device, handle, vias | net graph |
+| Electrical nets | device, handle, vias, wires off the die | net graph |
 | Electrodes and links | bodies, stubs, beams, vias | nodes and branches of the electrical model |
 | Plates to the handle | electrodes, oxide, release openings, stack | capacitance of each device electrode to the handle beneath it, with gradient and Hessian in body degrees of freedom |
 | Sidewall capacitance | conductor outlines in the layout plane | capacitance matrix between conductors per unit thickness |
