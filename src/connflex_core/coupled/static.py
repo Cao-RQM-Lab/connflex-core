@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -27,7 +27,7 @@ PATIENCE = 4
 
 @dataclass(frozen=True, eq=False)
 class Equilibrium:
-    """Where a structure rests under electrode potentials, equations (115) to (119).
+    """Where a structure rests under electrode potentials, equations (115) to (123).
 
     Attributes:
         scale: Fraction of the potentials asked for at which this equilibrium holds: 1
@@ -43,10 +43,12 @@ class Equilibrium:
             meters and radians.
         dofs: (body index, degree of freedom) of each entry, as for the assembled
             mechanical matrices.
-        potentials: Potential of every electrode at ``scale``, in volts.
+        potentials: Potential of every electrode at ``scale``, in volts, those of
+            floating nets as their charge sets them.
         charge: Charge on every electrode, in coulombs.
         force: Electrostatic generalized forces at ``displacement``.
-        stiffness: Tangent stiffness there: mechanical plus electrostatic.
+        stiffness: Tangent stiffness there: mechanical plus electrostatic, with the
+            part that charge held on floating nets adds, equation (123).
         softest: Smallest eigenvalue of ``stiffness`` against the mass matrix, the
             squared angular frequency of the softest motion under these potentials.
         stable: Whether ``softest`` is positive.
@@ -86,6 +88,7 @@ def equilibrium(
     model: CapacitanceModel,
     potentials: Mapping[int, float],
     *,
+    charges: Mapping[int, float] | None = None,
     loads: Mapping[int, Sequence[float]] | None = None,
     options: StaticOptions | None = None,
     progress: Progress | None = None,
@@ -93,8 +96,10 @@ def equilibrium(
     """Displacement at which beam forces balance electrostatic forces.
 
     ``model`` is the capacitance model of ``structure`` at rest. ``potentials`` maps a
-    net to its potential in volts; a net it does not name is at zero. ``loads`` maps a
-    body index to six generalized forces at its center of mass, as for ``static``.
+    net to its potential in volts. ``charges`` maps a floating net to the charge it
+    holds, in coulombs; its potential follows from equation (122). A net in neither is
+    at zero volts. ``loads`` maps a body index to six generalized forces at its center
+    of mass, as for ``static``. Potentials and charges rise together from zero.
     Potentials rise from zero in ``steps`` and the equilibrium is followed by Newton
     iteration, equation (116), which evaluates the capacitance model at every iterate.
     Where no stable equilibrium is found the step is halved, and the result is the last
@@ -106,10 +111,17 @@ def equilibrium(
     if model.rest.structure is not structure:
         raise ValueError("capacitance model was built from another structure")
     volts = np.zeros(structure.nets.count)
-    for net, value in potentials.items():
-        if not 0 <= net < len(volts):
-            raise ValueError(f"net {net} does not exist")
-        volts[net] = value
+    stored = np.zeros(structure.nets.count)
+    for values, given in ((volts, potentials), (stored, charges or {})):
+        for net, value in given.items():
+            if not 0 <= net < len(volts):
+                raise ValueError(f"net {net} does not exist")
+            values[net] = value
+    floating = np.array(sorted(charges or {}), dtype=np.intp)
+    if set(floating.tolist()) & set(potentials):
+        raise ValueError("a net cannot have both a potential and a charge")
+    driven = np.setdiff1d(np.arange(len(volts)), floating)
+    tie = (model.net[:, None] == np.arange(len(volts))).astype(float)
     with stage("assemble", progress) as current:
         system = assemble(structure)
         current.count(dofs=len(system.dofs), beams=len(structure.beams))
@@ -126,14 +138,37 @@ def equilibrium(
             raise ValueError(f"load on body {body} must have six components")
         applied[rows[body] : rows[body] + 6] = load
 
-    held = volts[model.net]
     both = np.ix_(kept, kept)
 
+    def drive(scale: float) -> Callable[[CapacitanceModel], tuple[Array, Array]]:
+        """Electrode potentials at a displacement, and stiffness that held charge adds."""
+
+        def at(here: CapacitanceModel) -> tuple[Array, Array]:
+            level = scale * volts
+            added = np.zeros_like(system.stiffness)
+            if floating.size:
+                between = tie.T @ here.matrix @ tie
+                within = between[np.ix_(floating, floating)]
+                try:
+                    factor = scipy.linalg.cho_factor(within)
+                except scipy.linalg.LinAlgError as exc:
+                    raise ValueError(
+                        "a floating net has no capacitance to a net with a potential"
+                    ) from exc
+                across = between[np.ix_(floating, driven)] @ level[driven]
+                level[floating] = scipy.linalg.cho_solve(factor, scale * stored[floating] - across)
+                pull = (tie.T @ np.einsum("abk,b->ak", here.gradient, level[here.net]))[floating]
+                added = pull.T @ scipy.linalg.cho_solve(factor, pull)
+            return level[here.net], added
+
+        return at
+
     def softness(here: CapacitanceModel, scale: float) -> float:
-        tangent = system.stiffness + here.stiffness(scale * held)
+        held, added = drive(scale)(here)
+        tangent = system.stiffness + here.stiffness(held) + added
         return float(scipy.linalg.eigh(tangent[both], system.mass[both], eigvals_only=True)[0])
 
-    start, iterations = _settle(model, system.stiffness, kept, 0 * held, applied, options)
+    start, iterations = _settle(model, system.stiffness, kept, drive(0.0), applied, options)
     if start is None:
         raise ValueError("no equilibrium under mechanical loads alone")
     here = start
@@ -150,7 +185,7 @@ def equilibrium(
                 break
             else:
                 target = pull_in
-            found, taken = _settle(here, system.stiffness, kept, target * held, applied, options)
+            found, taken = _settle(here, system.stiffness, kept, drive(target), applied, options)
             softest = softness(found, target) if found else 0.0
             iterations += taken
             if found is not None and softest > 0 and found.clearance > options.contact_fraction:
@@ -166,7 +201,7 @@ def equilibrium(
                     "no equilibrium" if found is None else "unstable" if softest <= 0 else "contact"
                 )
         current.count(iterations=iterations, steps=len(ramp) - 1)
-    reached = held * scale
+    reached, added = drive(scale)(here)
     return Equilibrium(
         scale=scale,
         pull_in=pull_in,
@@ -176,7 +211,7 @@ def equilibrium(
         potentials=reached,
         charge=here.matrix @ reached,
         force=here.force(reached),
-        stiffness=system.stiffness + here.stiffness(reached),
+        stiffness=system.stiffness + here.stiffness(reached) + added,
         softest=ramp[-1][2],
         stable=ramp[-1][2] > 0,
         iterations=iterations,
@@ -193,13 +228,14 @@ def _settle(
     model: CapacitanceModel,
     spring: Array,
     kept: NDArray[np.bool_],
-    held: Array,
+    drive: Callable[[CapacitanceModel], tuple[Array, Array]],
     applied: Array,
     options: StaticOptions,
 ) -> tuple[CapacitanceModel | None, int]:
     """Newton iteration from the displacement of ``model``, with the iterations it took.
 
-    Only degrees of freedom marked in ``kept`` move. The model is None when iteration
+    ``drive`` gives electrode potentials at a displacement and the stiffness that held
+    charge adds. Only degrees of freedom marked in ``kept`` move. The model is None when iteration
     does not converge; it is given up after ``PATIENCE`` steps in a row that are halved
     or are no smaller than the smallest so far.
     """
@@ -209,8 +245,9 @@ def _settle(
     smallest, idle = np.inf, 0
     for iteration in range(1, options.max_iterations + 1):
         place = here.displacement
+        held, added = drive(here)
         unbalance = spring @ place - here.force(held) - applied
-        tangent = spring + here.stiffness(held)
+        tangent = spring + here.stiffness(held) + added
         step = np.zeros(len(place))
         try:
             step[kept] = scipy.linalg.solve(tangent[both], -unbalance[kept], assume_a="sym")

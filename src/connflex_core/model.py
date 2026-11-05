@@ -187,14 +187,24 @@ class Structure:
         model: CapacitanceModel,
         potentials: Mapping[int, float],
         *,
+        charges: Mapping[int, float] | None = None,
         loads: Mapping[int, Sequence[float]] | None = None,
         options: StaticOptions | None = None,
         progress: Progress | None = None,
     ) -> Equilibrium:
-        """Displacement under potentials on nets, with the capacitance model of this structure."""
+        """Displacement under potentials and charges on nets, with the capacitance model of
+        this structure."""
         from connflex_core.coupled.static import equilibrium
 
-        return equilibrium(self, model, potentials, loads=loads, options=options, progress=progress)
+        return equilibrium(
+            self,
+            model,
+            potentials,
+            charges=charges,
+            loads=loads,
+            options=options,
+            progress=progress,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-serializable tree with polygons as GeoJSON-style mappings."""

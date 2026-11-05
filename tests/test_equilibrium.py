@@ -187,6 +187,39 @@ def test_comb_loses_sideways_stability_at_the_closed_form_voltage(shuttle: Struc
     assert np.max(abs(result.displacement[:3])) < 1e-9 * GAP * UM
 
 
+def test_floating_net_keeps_its_charge_as_the_plate_moves(plate: Structure) -> None:
+    """Plate and pads float with a fixed charge over a grounded handle. Their pads hold
+    most of it in fixed capacitance, and what the plate holds rises as its gap closes."""
+    spring, area = plate.modal().stiffness[2, 2], (SIDE * UM) ** 2
+    model = plate.capacitance(HANDLE_ALONE)
+    floating, handle = net_at(plate, 50, 50), net_at(plate, 0, 0, "handle")
+    fixed = -model.net_matrix[floating, handle] - EPS0 * area / BOX
+    charge = 300.0 * (fixed + EPS0 * area / BOX)
+
+    def volts(rise: float) -> float:
+        return float(charge / (fixed + EPS0 * area / (BOX + rise)))
+
+    def unbalance(rise: float) -> float:
+        return float(spring * rise + 0.5 * EPS0 * area * volts(rise) ** 2 / (BOX + rise) ** 2)
+
+    rise = scipy.optimize.brentq(unbalance, -BOX / 3, 0.0, xtol=1e-18)
+    result = plate.equilibrium(model, {handle: 0.0}, charges={floating: charge})
+    assert result.displacement[2] == pytest.approx(rise, rel=1e-8)
+    on_net = result.model.net == floating
+    assert result.potentials[on_net] == pytest.approx(volts(rise), rel=1e-8)
+    assert volts(rise) < 300.0
+    assert result.charge[on_net].sum() == pytest.approx(charge, rel=1e-12)
+    slope = -EPS0 * area / (BOX + rise) ** 2
+    softened = spring - EPS0 * area * volts(rise) ** 2 / (BOX + rise) ** 3
+    held_back = (slope * volts(rise)) ** 2 / (fixed + EPS0 * area / (BOX + rise))
+    assert result.stiffness[2, 2] == pytest.approx(softened + held_back, rel=1e-8)
+
+    with pytest.raises(ValueError, match="both"):
+        plate.equilibrium(model, {floating: 1.0}, charges={floating: charge})
+    with pytest.raises(ValueError, match="net 99"):
+        plate.equilibrium(model, {}, charges={99: charge})
+
+
 def test_mechanical_load_adds_to_electrostatic_force(plate: Structure) -> None:
     model = plate.capacitance(HANDLE_ALONE)
     load = {1: [0.0, 0.0, 1e-6, 0.0, 0.0, 0.0]}

@@ -462,14 +462,19 @@ result.model.clearance, result.model.closest  # that fraction here, and its two 
 
 result = structure.equilibrium(model, {drive: 40.0}, loads={1: [0, 0, -1e-6, 0, 0, 0]})
 result = structure.equilibrium(model, {drive: 40.0}, options=cf.StaticOptions(steps=20))
+result = structure.equilibrium(model, {drive: 40.0}, charges={sense: 0.0})  # sense floats
 ```
 
 `structure.equilibrium` finds where the structure rests with potentials on
 its nets. It needs both analyses: the structure for beam stiffness and a
 capacitance model of that structure for the forces. Potentials are in volts
-by net index, as `structure.nets` and `electrode.net` number them; a net
-that is not named is at zero volts. `loads` adds mechanical forces, as for
-`static`.
+by net index, as `structure.nets` and `electrode.net` number them.
+`charges` names nets that float and the charge each holds, in coulombs:
+such a net is connected to nothing, its potential follows from its charge
+and moves as bodies move, and `result.potentials` reports where it ends up.
+A net in neither is at zero volts, so a net that floats in the device has
+to be named in `charges`, with 0.0 if it was never charged. `loads` adds
+mechanical forces, as for `static`.
 
 The solve is a Newton iteration that evaluates the capacitance model at
 every displacement it visits, so forces and the tangent stiffness are those

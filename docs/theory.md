@@ -1994,6 +1994,38 @@ $\chi \le \chi_c$, the contact fraction, ends the rise of the potentials as
 pull-in does, and the scale at which it happens is found by the same
 bisection.
 
+### Floating nets
+
+A net that nothing drives keeps the charge it has. Split the nets into
+driven ones, $d$, whose potentials are given, and floating ones, $f$, whose
+charges $\mathbf{Q}_f$ are given. With the matrix between nets
+$\mathbf{C}^\text{net}(\mathbf{q})$ of (108) in blocks, the charge on the
+floating nets fixes their potentials at every displacement:
+
+$$
+\mathbf{C}^\text{net}_{ff}\, \mathbf{v}_f + \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d = \mathbf{Q}_f
+\quad \Longrightarrow \quad
+\mathbf{v}_f(\mathbf{q}) = \mathbf{C}_{ff}^{\text{net}\,-1} \bigl( \mathbf{Q}_f - \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d \bigr). \tag{122}
+$$
+
+The force keeps the form (115), now with these potentials. Its change with
+displacement gains a part, because moving a body changes
+$\mathbf{v}_f$: with $\boldsymbol{\Gamma}_f$ the rows for floating nets of
+$\Gamma_{\nu k} = \sum_\mu \bigl( \partial C^\text{net}_{\nu\mu} / \partial q_k \bigr) v_\mu$,
+
+$$
+\mathbf{K}_t = \mathbf{K}^\text{full} + \mathbf{K}_e
++ \boldsymbol{\Gamma}_f^\top\, \mathbf{C}_{ff}^{\text{net}\,-1}\, \boldsymbol{\Gamma}_f \tag{123}
+$$
+
+replaces the tangent stiffness in (116) and (118). The added part is never
+negative: a body that moves toward a floating electrode lowers its
+potential, which weakens the pull. A plate that holds a fixed charge and
+has no other capacitance loses no stiffness at all, and never pulls in.
+$\mathbf{C}^\text{net}_{ff}$ must be positive definite, which it is when
+every floating net has capacitance to a driven one. Charges rise from zero
+together with the potentials.
+
 !!! note "Implementation choices"
     A Newton step that would close a gap between a plate and the handle,
     or bring electrodes of two bodies into contact, is halved until it does

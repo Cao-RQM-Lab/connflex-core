@@ -72,7 +72,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   from zero in steps; beyond pull-in the result is the last stable
   equilibrium with the fraction of the potentials at which stability was
   lost. An equilibrium that closes a gap between two bodies to
-  `contact_fraction` of its width ends the rise as contact.
+  `contact_fraction` of its width ends the rise as contact. `charges`
+  names floating nets, which keep a fixed charge: their potentials follow
+  the bodies, and tangent stiffness gains the part that adds.
 - `CapacitanceModel.clearance` and `closest`: the narrowest gap between two
   bodies at a displacement as a fraction of its width at rest, and the two
   electrodes across it. `Plate.extent` and `Plate.lowest` give the gap of a
