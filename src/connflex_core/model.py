@@ -215,6 +215,7 @@ class Structure:
                     "electrodes": list(link.electrodes),
                     "kind": link.kind,
                     "source": link.source,
+                    "resistance": link.resistance,
                 }
                 for link in self.links
             ],

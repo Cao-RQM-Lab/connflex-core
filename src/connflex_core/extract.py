@@ -162,7 +162,9 @@ def extract(
 
     connectors = len(beams) + len(rejected) + len(nets.vias)
     with stage("electrodes", progress, total=connectors) as current:
-        electrodes, links = find_electrodes(layers, owner, nets, qualified, current.advance)
+        electrodes, links = find_electrodes(
+            layers, owner, nets, qualified, stack.device.material.resistivity, current.advance
+        )
         current.count(electrodes=len(electrodes), links=len(links))
     return Structure(
         bodies=tuple(bodies),

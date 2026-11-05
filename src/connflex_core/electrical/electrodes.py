@@ -47,12 +47,15 @@ class Link:
             several body polygons, ``"via"`` for a via.
         source: Index of that beam in ``Structure.beams``, candidate in
             ``Structure.rejected``, or via in ``Nets.vias``.
+        resistance: Resistance in ohms, equation (41). Zero for bridges and vias, which
+            are ideal. None for a beam when the device material has no resistivity.
     """
 
     index: int
     electrodes: tuple[int, int]
     kind: str
     source: int
+    resistance: float | None
 
 
 def find_electrodes(
@@ -60,14 +63,16 @@ def find_electrodes(
     owner: Sequence[Sequence[int]],
     nets: Nets,
     qualified: Qualified,
+    resistivity: float | None,
     advance: Callable[[], None] | None = None,
 ) -> tuple[list[Electrode], list[Link]]:
     """Electrodes of every body and links that conduct between them.
 
     ``layers`` are device polygons of bodies, oxide polygons, and handle polygons, and
     ``owner`` gives the body of each. Device electrodes come first, then handle
-    electrodes, each ordered by body and then by descending area. ``advance`` is called
-    once per beam, rejected candidate, and via.
+    electrodes, each ordered by body and then by descending area. ``resistivity`` of the
+    device layer sets resistance of beam links. ``advance`` is called once per beam,
+    rejected candidate, and via.
     """
     parts, oxide, handle = layers
     device = [conductor for conductor in nets.conductors if conductor.layer == "device"]
@@ -116,12 +121,15 @@ def find_electrodes(
 
     links: list[Link] = []
 
-    def join(a: int, b: int, kind: str, source: int) -> None:
-        links.append(Link(len(links), (min(a, b), max(a, b)), kind, source))
+    def join(a: int, b: int, kind: str, source: int, resistance: float | None = 0.0) -> None:
+        links.append(Link(len(links), (min(a, b), max(a, b)), kind, source, resistance))
 
     for beam, touched in zip(qualified.beams, qualified.beam_parts, strict=True):
         ends = [min(j for j in touched if owner[0][j] == body) for body in beam.bodies]
-        join(position[ends[0]], position[ends[1]], "beam", beam.index)
+        resistance = None
+        if resistivity is not None:
+            resistance = resistivity * beam.length / (beam.width * beam.thickness)
+        join(position[ends[0]], position[ends[1]], "beam", beam.index, resistance)
         if advance is not None:
             advance()
     for index, touched in bridges:

@@ -570,6 +570,26 @@ Links conduct between electrodes:
   lies wholly on a beam or a bridge. A via that overlaps no conductor on one
   side joins nothing.
 
+A beam conducts along its length through its full cross-section, so its link
+has resistance
+
+$$
+R = \frac{\rho_e L}{w t}, \tag{41}
+$$
+
+where $\rho_e$ is the electrical resistivity of the device layer and $L$, $w$,
+and $t$ are the length, width, and thickness of the beam as extracted: $L$ is
+the distance between the overlap centroids and $w$ is the area $A$ of the
+unexpanded candidate divided by $L$, so $R = \rho_e L^2 / (A t)$. Bridges and
+vias are ideal, $R = 0$.
+
+Resistance inside an electrode is neglected, so every electrode is an
+equipotential. A beam contributes $L / w$ squares of the sheet resistance
+$\rho_e / t$, typically tens to hundreds, whereas current spreading from a
+beam root across a plate contributes of the order of one square. The same
+neglect covers stubs: a comb finger of length $\ell$ and width $w_f$ adds up
+to $\ell / w_f$ squares between its tip and its root, which is not modeled.
+
 Links never join electrodes of different nets: a beam or a bridge lies within
 one conductor, and a via joins conductors of one net. Conversely, the
 electrodes of one net are joined through links, because the pieces of a
@@ -592,6 +612,10 @@ end touches several polygons of one body joins only the largest.
     Device electrodes are listed first and handle electrodes after them, each
     ordered by body and then by descending area of the body polygon.
 
+    Resistivity of an SOI device layer spans orders of magnitude with doping,
+    so it has no default. Without it the resistance of a beam link is left
+    unknown rather than guessed, and extraction is otherwise unchanged.
+
 ## Symbols and parameters
 
 Every symbol below is a documented input. Full definitions, units, defaults,
@@ -606,6 +630,7 @@ and validation rules are on the [parameters page](parameters.md).
 | $\epsilon$ | beam candidate expansion | `ExtractionParams.beam_overlap_margin` |
 | $t_l$ | layer thickness | `Layer.thickness` on each `Stack` layer |
 | $\rho_l$ | layer density | `Material.density` |
+| $\rho_e$ | electrical resistivity of the device layer | `Material.resistivity` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
 | $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |

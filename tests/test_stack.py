@@ -26,6 +26,7 @@ def test_explicit_shear_modulus_is_kept() -> None:
         ({"poisson_ratio": 0.5}, "poisson_ratio"),
         ({"torsion_model": "circle"}, "torsion_model"),
         ({"torsion_beta": -0.1}, "torsion_beta"),
+        ({"resistivity": 0.0}, "resistivity"),
     ],
 )
 def test_invalid_material_values_name_the_field(overrides: dict[str, object], field: str) -> None:

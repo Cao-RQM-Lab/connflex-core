@@ -12,6 +12,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that conduct between them, and `Structure.electrode_at` finds an electrode
   by point. Extraction reports an `electrodes` stage and the JSON tree carries
   both lists.
+- `Material.resistivity` and `Link.resistance`: a beam link has resistance
+  from device-layer resistivity and the beam's length, width, and thickness;
+  bridges and vias are ideal.
 
 ## [0.1.0] - 2026-11-04
 

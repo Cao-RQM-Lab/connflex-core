@@ -25,4 +25,5 @@ def test_graph_and_tree_describe_the_structure(
     assert tree["nets"]["count"] == 2
     assert [electrode["body"] for electrode in tree["electrodes"]] == [0, 1, 0]
     assert tree["electrodes"][1]["region"]["type"] == "MultiPolygon"
-    assert tree["links"] == [{"index": 0, "electrodes": [0, 1], "kind": "beam", "source": 0}]
+    link = {"index": 0, "electrodes": [0, 1], "kind": "beam", "source": 0, "resistance": None}
+    assert tree["links"] == [link]

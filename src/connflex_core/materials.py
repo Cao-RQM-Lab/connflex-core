@@ -22,6 +22,8 @@ class Material:
         torsion_model: Torsion constant model for beams. "rectangle" is the Saint-Venant
             constant of a solid rectangle.
         torsion_beta: Short-beam torsional stiffening coefficient. Zero disables the correction.
+        resistivity: Electrical resistivity in ohm meters. None leaves resistance of beam
+            links unknown. Only the device layer's value is used.
     """
 
     density: float
@@ -30,6 +32,7 @@ class Material:
     shear_modulus: float | None = None
     torsion_model: str = "rectangle"
     torsion_beta: float = 0.63
+    resistivity: float | None = None
 
     def __post_init__(self) -> None:
         require_positive("density", self.density)
@@ -46,6 +49,8 @@ class Material:
                 f"torsion_model must be one of {TORSION_MODELS}, got {self.torsion_model!r}"
             )
         require_nonnegative("torsion_beta", self.torsion_beta)
+        if self.resistivity is not None:
+            require_positive("resistivity", self.resistivity)
 
     @classmethod
     def silicon(cls, **overrides: Any) -> Material:

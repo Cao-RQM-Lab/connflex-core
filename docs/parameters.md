@@ -4,7 +4,8 @@ Every tunable is a named field on one of three configuration objects. There
 are no hidden constants. A test checks that this page and the fields agree.
 
 Lengths are in meters, areas in square meters, densities in kilograms per
-cubic meter, moduli in pascals. Fields marked **required** have no default:
+cubic meter, moduli in pascals, resistivities in ohm meters. Fields marked
+**required** have no default:
 a wrong release distance or body width yields a plausible but wrong
 structure, so the library does not guess them.
 
@@ -40,6 +41,7 @@ stiffness uses the device-layer material.
 | `Material.shear_modulus` | $G$ | derived | Shear modulus for the torsional term, equation (19). |
 | `Material.torsion_model` | $J$ | `"rectangle"` | Saint-Venant torsion constant of a solid rectangle, equation (20). |
 | `Material.torsion_beta` | $\beta$ | 0.63 | Short-beam torsional stiffening coefficient, equation (21). Zero disables the correction. |
+| `Material.resistivity` | $\rho_e$ | none | Electrical resistivity. Sets resistance of beam links, equation (41); without it that resistance is unknown. Only the device layer's value is used. |
 
 `Material.silicon()` and `Material.oxide()` return these defaults and accept
 keyword overrides.
@@ -55,7 +57,7 @@ keyword overrides.
 ## Validation
 
 Each object validates itself on construction and raises `ValueError` naming
-the field: lengths, areas, thicknesses, densities, and moduli are positive;
+the field: lengths, areas, thicknesses, densities, moduli, and resistivity are positive;
 `beam_width_min < beam_width_max`; `beam_overlap_margin < body_min_width / 2`;
 `torsion_beta >= 0`; every stack layer has a thickness.
 
@@ -78,6 +80,7 @@ material = "silicon"
 
 [materials.silicon]
 youngs_modulus = 130e9
+resistivity = 1e-4
 
 [extraction]
 release_hole_max_area = 100e-12

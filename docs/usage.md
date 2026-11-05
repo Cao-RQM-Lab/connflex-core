@@ -188,6 +188,7 @@ link = structure.links[0]
 link.electrodes  # indices of the two electrodes joined
 link.kind  # "beam", "bridge", or "via"
 link.source  # index in structure.beams, structure.rejected, or structure.nets.vias
+link.resistance  # ohms; 0 for bridges and vias; None for a beam without resistivity
 ```
 
 An electrode is silicon of one conductor that moves with one body: a device
@@ -200,7 +201,13 @@ Links follow from the structure. A beam links the electrodes it joins. A
 rejected candidate that touches several body polygons, such as a narrow strip
 between two bonded pads or a junction, is a bridge between their electrodes.
 A via links the device and handle electrodes it overlaps. Electrodes joined
-through links always share a net. Exact definitions are in
+through links always share a net.
+
+A beam link has resistance $\rho_e L / (w t)$ from the beam's own length,
+width, and thickness once the device material carries a resistivity, for
+example `cf.Material.silicon(resistivity=1e-4)`. Resistivity has no default
+because it depends on doping. Bridges and vias are ideal, and resistance
+inside an electrode is neglected. Exact definitions are in
 [electrodes and links](theory.md#electrodes-and-links).
 
 ## Solve

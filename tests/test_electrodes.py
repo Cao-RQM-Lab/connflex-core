@@ -4,7 +4,7 @@ import networkx as nx
 import pytest
 from shapely import box
 
-from connflex_core import ExtractionParams, Layout, Stack, Structure, extract
+from connflex_core import ExtractionParams, Layer, Layout, Material, Stack, Structure, extract
 
 UM = 1e-6
 PAD_A = box(0, 0, 100, 100)
@@ -41,7 +41,20 @@ def test_bodies_joined_by_a_beam_are_electrodes_joined_by_a_link(
     assert pad_b.region.area == pytest.approx(PAD_B.area * UM * UM)
     (link,) = structure.links
     assert (link.index, link.kind, link.electrodes, link.source) == (0, "beam", (0, 1), 0)
+    assert link.resistance is None
     assert nets_joined_by_links(structure) == sorted([{pad_a.net}, {handle.net}], key=min)
+
+
+def test_beam_link_resistance_is_resistivity_times_length_over_cross_section(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    doped = Layer(thickness=25 * UM, material=Material.silicon(resistivity=1e-4))
+    conducting = Stack(device=doped, box=stack.box, handle=stack.handle)
+    structure = extract(layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A]), conducting, params())
+    (link,) = structure.links
+    length = 200.01 * UM  # overlap centroids sit half the 10 nm margin inside each pad
+    width = BEAM.area * UM * UM / length
+    assert link.resistance == pytest.approx(1e-4 * length / (width * 25 * UM), rel=1e-9)
 
 
 def test_stubs_belong_to_the_electrode_of_the_polygon_they_touch(
@@ -76,6 +89,7 @@ def test_candidate_touching_several_polygons_is_a_bridge_between_their_electrode
     assert [len(e.region.geoms) for e in (pad_a, pad_b)] == [1, 1]
     (link,) = structure.links
     assert (link.kind, link.electrodes, link.source) == ("bridge", (0, 1), 0)
+    assert link.resistance == 0.0
     assert structure.rejected[link.source].polygon.area == pytest.approx(BEAM.area * UM * UM)
     assert nets_joined_by_links(structure) == sorted([{pad_a.net}, {handle.net}], key=min)
 
@@ -89,7 +103,7 @@ def test_via_links_the_electrodes_it_overlaps(
     pad_b = structure.electrode_at((350 * UM, 50 * UM), "device")
     handle = structure.electrode_at((200 * UM, 120 * UM), "handle")
     (link,) = structure.links
-    assert (link.kind, link.source) == ("via", 0)
+    assert (link.kind, link.source, link.resistance) == ("via", 0, 0.0)
     assert link.electrodes == tuple(sorted((pad_a.index, handle.index)))
     assert nets_joined_by_links(structure) == sorted([{pad_a.net}, {pad_b.net}], key=min)
 
