@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 
 import numpy as np
@@ -246,3 +247,29 @@ def test_parallel_plate_pulls_and_tilts_a_body_that_carries_handle_silicon() -> 
     assert stiffness[0, 0] == pytest.approx(-EPS0 * THICKNESS * facing * 10.0**2 / gap**3, rel=0.03)
     assert force[4] == pytest.approx(lever * force[0])
     assert stiffness[4, 4] == pytest.approx(lever**2 * stiffness[0, 0])
+
+
+def test_report_lists_capacitance_by_pair_part_net_and_cluster(
+    comb: Structure, model: CapacitanceModel, at: dict[str, int]
+) -> None:
+    report = json.loads(json.dumps(model.to_dict()))
+    pairs = {tuple(pair["electrodes"]): pair for pair in report["pairs"]}
+    drive = pairs[tuple(sorted((at["stator"], at["shuttle"])))]
+    assert drive["sidewall"] == pytest.approx(-model.sidewall[at["stator"], at["shuttle"]])
+    assert drive["total"] == drive["sidewall"]
+    assert drive["nets"] == [comb.electrodes[i].net for i in drive["electrodes"]]
+    (moving,) = drive["gradient"]
+    assert moving["body"] == 1
+    assert moving["values"] == pytest.approx(
+        (-model.gradient[at["stator"], at["shuttle"]]).tolist()
+    )
+    bonded = pairs[tuple(sorted((at["pad"], at["handle"])))]
+    assert bonded["oxide"] > 0
+    assert bonded["released"] > 0
+    assert bonded["gradient"] == []
+    assert np.array(report["net_matrix"]) == pytest.approx(model.net_matrix)
+    (cluster,) = model.clusters
+    assert report["clusters"] == [
+        {"electrodes": list(cluster.electrodes), "elements": cluster.elements, "solved": True}
+    ]
+    assert report["unassigned_area"] == pytest.approx(2 * 200 * 10 * UM**2)

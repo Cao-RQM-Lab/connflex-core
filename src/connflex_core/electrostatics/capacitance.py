@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import networkx as nx
 import numpy as np
@@ -79,6 +79,8 @@ class CapacitanceModel:
         net: Net of each electrode.
         plates: Plates behind ``oxide`` and ``released``.
         clusters: Groups of two or more device electrodes behind ``sidewall``.
+        unassigned_area: Area in square meters of device silicon in beams and bridges,
+            which belongs to no electrode and is not in the model.
     """
 
     matrix: Array
@@ -91,6 +93,7 @@ class CapacitanceModel:
     net: NDArray[np.intp]
     plates: tuple[Plate, ...]
     clusters: tuple[Cluster, ...]
+    unassigned_area: float
 
     @property
     def net_matrix(self) -> Array:
@@ -119,6 +122,48 @@ class CapacitanceModel:
                 "a,abkl,b->kl", held, block.values, held
             )
         return stiffness
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-serializable report for review.
+
+        ``pairs`` lists every two electrodes with capacitance between them: its oxide,
+        released, and sidewall parts and their total in farads, their nets, and the
+        change of the total with the six degrees of freedom of each body that changes
+        it. ``net_matrix``, ``clusters``, ``dofs``, and ``unassigned_area`` are as on
+        the model.
+        """
+        pairs = []
+        for a, b in np.argwhere(np.triu(self.matrix, 1)).tolist():
+            slopes = -self.gradient[a, b].reshape(-1, 6)
+            pairs.append(
+                {
+                    "electrodes": [a, b],
+                    "nets": [int(self.net[a]), int(self.net[b])],
+                    "oxide": float(-self.oxide[a, b]),
+                    "released": float(-self.released[a, b]),
+                    "sidewall": float(-self.sidewall[a, b]),
+                    "total": float(-self.matrix[a, b]),
+                    "gradient": [
+                        {"body": self.dofs[6 * k][0], "values": slope.tolist()}
+                        for k, slope in enumerate(slopes)
+                        if slope.any()
+                    ],
+                }
+            )
+        return {
+            "pairs": pairs,
+            "net_matrix": self.net_matrix.tolist(),
+            "clusters": [
+                {
+                    "electrodes": list(cluster.electrodes),
+                    "elements": cluster.elements,
+                    "solved": cluster.solved,
+                }
+                for cluster in self.clusters
+            ],
+            "dofs": [list(dof) for dof in self.dofs],
+            "unassigned_area": self.unassigned_area,
+        }
 
     def _volts(self, potentials: ArrayLike) -> Array:
         v = np.asarray(potentials, dtype=float)
@@ -231,6 +276,7 @@ def find_capacitance(
                 solved=sum(c.solved for c in clusters), skipped=sum(not c.solved for c in clusters)
             )
 
+    bridges = {link.source for link in structure.links if link.kind == "bridge"}
     return CapacitanceModel(
         matrix=oxide + released + sidewall,
         oxide=oxide,
@@ -242,6 +288,8 @@ def find_capacitance(
         net=np.array([electrode.net for electrode in structure.electrodes], dtype=np.intp),
         plates=plates,
         clusters=tuple(clusters),
+        unassigned_area=sum(beam.polygon.area for beam in structure.beams)
+        + sum(structure.rejected[index].polygon.area for index in bridges),
     )
 
 

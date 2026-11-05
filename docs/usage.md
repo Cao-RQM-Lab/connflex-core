@@ -239,6 +239,8 @@ model.dofs  # (body, "ux" | "uy" | "uz" | "tx" | "ty" | "tz") per degree of free
 model.gradient  # n by n by len(dofs): change of the matrix with each
 force = model.force(potentials)  # one potential per electrode
 softening = model.stiffness(potentials)  # adds to the mechanical stiffness
+
+model.to_dict()  # JSON-serializable report: pairs, nets, clusters, what was left out
 ```
 
 `structure.capacitance` collects every capacitance between electrodes at
@@ -263,6 +265,13 @@ diagonal entries soften the suspension. Potentials are per electrode;
 `np.asarray(per_net)[model.net]` spreads one value per net. Sidewall forces
 act at mid-height of the device layer, so they also tilt a body whose center
 of mass lies lower.
+
+`to_dict` gives a tree for review. It lists every pair of electrodes with
+capacitance between them, split into oxide, released, and sidewall parts,
+with their nets and the change of the total with each body that moves it;
+the matrix between nets; the clusters with their size and whether each was
+solved; and `unassigned_area`, the device silicon of beams and bridges,
+which belongs to no electrode and is not in the model.
 
 Either part can be left out, and then needs none of its parameters:
 `cf.ElectrostaticParams(include_sidewalls=False)` gives plates alone with no

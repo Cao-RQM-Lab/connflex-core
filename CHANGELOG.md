@@ -45,6 +45,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   capacitance matrix in the degrees of freedom of every movable body, and
   the generalized forces and electrostatic stiffness for given electrode
   potentials.
+- `CapacitanceModel.to_dict`: review report of capacitance by pair of
+  electrodes and part, between nets, by cluster, and of silicon left out.
 
 ### Removed
 
