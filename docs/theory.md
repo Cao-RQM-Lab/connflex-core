@@ -1121,6 +1121,100 @@ On a rising ramp $\nu = \ln(1 + x / h_L)$, so lengths there grow by a factor
 of at most $e$ from one element to the next, and no element is longer than
 $h$. An edge shorter than the lengths asked for at its ends is one element.
 
+### Rigid motion
+
+Conductors are grouped into rigid bodies. Body $B$ travels by $(a_x, a_y)$
+and turns by $a_\psi$ about a point $\mathbf{c}_B$, written $c_B$ as a
+complex number, which to first order moves a point $z$ of its outlines by
+
+$$
+\delta z = a_x + \mathrm{i}\, a_y + \mathrm{i}\, a_\psi\, (z - c_B). \tag{75}
+$$
+
+Elements keep their lengths, so $\mathbf{E}$ and $\mathbf{1}$ in (70) do not
+change and the capacitance matrix depends on the motion through
+$\mathbf{P}$ alone. $\mathbf{M}$ is the leading block of the inverse of the
+bordered matrix of (63), whose border is constant, so for any parameter $p$
+of the motion
+
+$$
+\frac{\partial \mathbf{c}}{\partial p} = -\mathbf{X}^\top \frac{\partial \mathbf{P}}{\partial p}\, \mathbf{X}, \qquad
+\mathbf{X} = \mathbf{M} \mathbf{E}, \tag{76}
+$$
+
+where column $a$ of $\mathbf{X}$ holds the element charges for one volt on
+conductor $a$. No further system is solved. The pair integral (65) depends
+only on how two elements lie against each other, so its derivative is zero
+when both belong to one body. For element $i$ on the moving body and
+element $j$ on another, differentiating (65) under the integral with (75)
+brings in
+
+$$
+T_{ij} = \int_0^{L_i} \int_0^{L_j} \frac{ds'\, ds}{z_i(s) - z_j(s')}, \qquad
+W_{ij} = \int_0^{L_i} \int_0^{L_j} \frac{z_i(s) - c_B}{z_i(s) - z_j(s')}\, ds'\, ds, \tag{77}
+$$
+
+and gives
+
+$$
+\frac{\partial I_{ij}}{\partial a_x} = \operatorname{Re} T_{ij}, \qquad
+\frac{\partial I_{ij}}{\partial a_y} = -\operatorname{Im} T_{ij}, \qquad
+\frac{\partial I_{ij}}{\partial a_\psi} = -\operatorname{Im} W_{ij}. \tag{78}
+$$
+
+Both integrals are second differences like (67). With
+$H(u) = G'(u) = u\, (\ln u - 1)$, the same branch of the logarithm, signs
+$\epsilon_{kl} = +1$ for $k = l$ and $-1$ otherwise, and $I^\mathrm{c}_{ij}$
+the complex number in braces in (67),
+
+$$
+T_{ij} = -\frac{1}{\tau_i \tau_j} \sum_{k, l} \epsilon_{kl}\, H(u_{kl}), \qquad
+W_{ij} = -\frac{1}{\tau_i \tau_j} \sum_{k, l} \epsilon_{kl}\, H(u_{kl})\, (z_i^k - c_B) - I^\mathrm{c}_{ij}. \tag{79}
+$$
+
+For separated pairs the expansion that gave (69) gives, with $z_i^c$ the
+center of element $i$,
+
+$$
+T_{ij} = \frac{L_i L_j}{u_c} \left[ 1 + \sum_{m=1}^{M} S_m \right], \qquad
+W_{ij} = (z_i^c - c_B)\, T_{ij} - L_i L_j \sum_{m=1}^{M} R_m, \qquad
+R_m = \sum_{k=1}^{m} \binom{2m-1}{2k-1} \frac{\alpha^{2k} \beta^{2m-2k}}{(2k+1)(2m-2k+1)}, \tag{80}
+$$
+
+in which the first term of $W_{ij}$ is the pull on the element acting at
+its center and the second its turning about that center. Since
+$I_{ij} = I_{ji}$, a pair whose second element moves is covered by swapping
+the two. With $s_{ia} = X_{ia} / L_i$ the charge density on element $i$ per
+volt on conductor $a$, (64) and (76) combine to
+
+$$
+\frac{\partial c_{ab}}{\partial p_B} = \frac{1}{2 \pi \varepsilon} \sum_{i \in B} \sum_{j \notin B}
+\left( s_{ia}\, s_{jb} + s_{ib}\, s_{ja} \right) \frac{\partial I_{ij}}{\partial p_B} \tag{81}
+$$
+
+for each of the three parameters $p_B$ of body $B$.
+
+Equation (81) is the derivative of the computed matrix (70) itself, not a
+separate approximation of the derivative of the exact one, so force and
+energy belong to one function of position: with potentials $\mathbf{v}$ the
+force on body $B$ is $\tfrac{1}{2} \mathbf{v}^\top (\partial \mathbf{c} /
+\partial p_B)\, \mathbf{v}$ per unit thickness, and it equals the change of
+$\tfrac{1}{2} \mathbf{v}^\top \mathbf{c}\, \mathbf{v}$ when the bodies and
+their elements are moved, to rounding. It is the pull of the charge on other
+bodies on the charge of body $B$. The field of other bodies is smooth along
+the outlines of $B$, so the squares of charge density that diverge at
+corners, which a surface stress integral would need, never appear. Moving
+every body together changes nothing:
+
+$$
+\sum_B \frac{\partial \mathbf{c}}{\partial a_x^B} = \sum_B \frac{\partial \mathbf{c}}{\partial a_y^B} = \mathbf{0}, \qquad
+\sum_B \frac{\partial \mathbf{c}}{\partial a_\psi^B} = \mathbf{0} \quad \text{for a common } \mathbf{c}_B, \tag{82}
+$$
+
+which holds pair by pair, because $T_{ij} + T_{ji} = 0$ and
+$W_{ij} + W_{ji} = L_i L_j$ is real: forces and torques on the bodies
+balance.
+
 !!! note "Implementation choices"
     Lengths are divided by twice the diagonal of the bounding box of all
     outlines before (64) is formed. Every distance is then below one, which
@@ -1144,7 +1238,8 @@ $h$. An edge shorter than the lengths asked for at its ends is one element.
 
     The system is dense: memory grows as $N^2$ and time as $N^3$. A mesh
     with more elements than `max_elements` is an error rather than a solve
-    that does not finish.
+    that does not finish. The gradient adds one pass over the pairs of
+    elements that lie on different bodies.
 
     A conductor couples to every other conductor in the plane, however far,
     because the plane field decays only as the logarithm of distance. Which

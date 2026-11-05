@@ -2,7 +2,7 @@ import warnings
 
 import numpy as np
 import pytest
-from shapely import MultiPolygon, Polygon, box
+from shapely import MultiPolygon, Polygon, affinity, box
 
 from connflex_core import ElectrostaticParams, sidewall_capacitance
 from connflex_core.electrostatics.outlines import mesh_outlines
@@ -38,6 +38,12 @@ def test_eccentric_circles_have_the_closed_form_capacitance() -> None:
     assert outside.sum() == 180
     assert abs(result.charge[outside, 0].sum()) < 1e-5 * c[0, 0]
 
+    ratio = (a * a + b * b - offset * offset) / (2 * a * b)
+    slope = expected / np.arccosh(ratio) / np.sqrt(ratio * ratio - 1) * offset / (a * b * UM)
+    assert result.gradient[0, 0, 0, 0] == pytest.approx(slope, rel=1e-3)
+    assert result.gradient[0, 0, 1, 0] == pytest.approx(-result.gradient[0, 0, 0, 0], rel=1e-9)
+    assert result.gradient[0, 0, 0, 1:] == pytest.approx([0, 0], abs=1e-9 * slope)
+
 
 def test_long_parallel_strips_approach_the_parallel_plate() -> None:
     gap = 2.0
@@ -50,6 +56,9 @@ def test_long_parallel_strips_approach_the_parallel_plate() -> None:
     added = long.capacitance[0, 0] - short.capacitance[0, 0]
     assert added == pytest.approx(EPS0 * 80.0 / gap, rel=1e-2)
     assert long.capacitance[0, 0] > EPS0 * 160.0 / gap
+
+    pull = long.gradient[0, 0, 1, 1] - short.gradient[0, 0, 1, 1]
+    assert pull == pytest.approx(-EPS0 * 80.0 / (gap * gap * UM), rel=1e-3)
 
     middle = (long.mesh.start + long.mesh.end) / 2 / UM
     facing = np.argmin(np.hypot(middle[:, 0] - 80.0, middle[:, 1] - 4.0))
@@ -67,6 +76,48 @@ def test_refining_the_mesh_converges_from_below() -> None:
     assert fine - medium < 0.5 * (medium - coarse)
     uniform = sidewall_capacitance(squares, params(1.0, grading=1.0)).capacitance[0, 0]
     assert fine - medium < 0.2 * (fine - uniform)
+
+
+def test_gradient_is_the_derivative_of_the_capacitance() -> None:
+    shapes = [box(0, 0, 10, 4), box(12.3, 1, 20, 9), Polygon([(3, 6.1), (9, 7), (8, 12), (2, 11)])]
+    bodies = [0, 1, 0]
+    centers = np.array([[4.0, 5.0], [15.0, 4.0]])
+
+    def solve(body: int = 0, dof: int = 0, step: float = 0.0) -> np.ndarray:
+        moved = []
+        for shape, owner in zip(shapes, bodies, strict=True):
+            if owner == body and dof < 2:
+                shape = affinity.translate(shape, *np.eye(2)[dof] * step)
+            elif owner == body:
+                shape = affinity.rotate(shape, step, origin=tuple(centers[body]), use_radians=True)
+            moved.append(um(shape))
+        result = sidewall_capacitance(moved, params(0.83), bodies=bodies, centers=centers * UM)
+        return result.capacitance if step else result.gradient
+
+    gradient = solve()
+    assert gradient.shape == (3, 3, 2, 3)
+    step = 1e-5
+    for body in range(2):
+        for dof in range(3):
+            difference = (solve(body, dof, step) - solve(body, dof, -step)) / (2 * step)
+            difference /= UM if dof < 2 else 1.0
+            scale = np.max(abs(gradient[:, :, body, dof]))
+            assert gradient[:, :, body, dof] == pytest.approx(
+                difference, rel=1e-6, abs=1e-7 * scale
+            )
+
+
+def test_moving_every_body_together_changes_nothing() -> None:
+    shapes = [um(box(0, 0, 10, 4)), um(box(12.3, 1, 20, 9)), um(box(2, 6, 9, 12))]
+    apart = sidewall_capacitance(shapes, params(1.0))
+    centroids = np.array([shape.centroid.coords[0] for shape in shapes])
+    assert apart.centers == pytest.approx(centroids)
+    pivot = np.tile([[1.0 * UM, 2.0 * UM]], (3, 1))
+    gradient = sidewall_capacitance(shapes, params(1.0), centers=pivot).gradient
+    scale = abs(gradient).max(axis=(0, 1, 2))
+    assert gradient == pytest.approx(gradient.transpose(1, 0, 2, 3), abs=1e-12 * np.max(scale))
+    assert np.all(abs(gradient.sum(axis=2)).max(axis=(0, 1)) < 1e-9 * scale)
+    assert np.all(abs(gradient.sum(axis=0)).max(axis=(0, 1)) < 1e-9 * scale)
 
 
 def test_cavity_that_holds_no_conductor_is_not_meshed() -> None:
@@ -97,3 +148,7 @@ def test_inputs_that_cannot_be_solved_are_rejected() -> None:
         sidewall_capacitance(squares, params(1.0, limit=50))
     with pytest.raises(ValueError, match="conductors 0 and 1"):
         sidewall_capacitance([squares[0], um(box(10, 0, 20, 10))], params(1.0))
+    with pytest.raises(ValueError, match="bodies"):
+        sidewall_capacitance(squares, params(1.0), bodies=[0, 2])
+    with pytest.raises(ValueError, match="centers"):
+        sidewall_capacitance(squares, params(1.0), centers=[[0.0, 0.0]])

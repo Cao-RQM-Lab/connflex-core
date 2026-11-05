@@ -32,7 +32,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `sidewall_capacitance` and `SidewallCapacitance`: capacitance matrix per
   unit thickness between conductors drawn in the layout plane, from a
   boundary element solution of the two-dimensional field with closed-form
-  element integrals. `ElectrostaticParams` gains `element_size`,
+  element integrals, with its exact gradient for travel and rotation of
+  rigid groups of conductors. `ElectrostaticParams` gains `element_size`,
   `corner_grading`, and `max_elements`.
 
 ### Removed

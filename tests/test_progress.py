@@ -154,4 +154,5 @@ def test_sidewall_capacitance_reports_its_stages() -> None:
         Run("mesh", None, 0, True),
         Run("assemble", elements, elements, True),
         Run("solve", None, 0, True),
+        Run("gradient", 2, 2, True),
     ]
