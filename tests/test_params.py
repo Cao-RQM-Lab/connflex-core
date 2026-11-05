@@ -35,6 +35,7 @@ def test_explicit_values_override_dependent_defaults() -> None:
         ({"buffer_resolution": 0}, "buffer_resolution"),
         ({"precision_grid": 0.0}, "precision_grid"),
         ({"anchor": (1.0,)}, "anchor"),
+        ({"via_resistance": -1.0}, "via_resistance"),
     ],
 )
 def test_invalid_parameters_name_the_field(overrides: dict[str, object], field: str) -> None:

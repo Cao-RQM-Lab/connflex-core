@@ -47,8 +47,9 @@ class Link:
             several body polygons, ``"via"`` for a via.
         source: Index of that beam in ``Structure.beams``, candidate in
             ``Structure.rejected``, or via in ``Nets.vias``.
-        resistance: Resistance in ohms, equation (41). Zero for bridges and vias, which
-            are ideal. None for a beam when the device material has no resistivity.
+        resistance: Resistance in ohms: equation (41) for a beam, ``via_resistance`` for a
+            via, zero for a bridge. None for a beam when the device material has no
+            resistivity.
     """
 
     index: int
@@ -64,6 +65,7 @@ def find_electrodes(
     nets: Nets,
     qualified: Qualified,
     resistivity: float | None,
+    via_resistance: float,
     advance: Callable[[], None] | None = None,
 ) -> tuple[list[Electrode], list[Link]]:
     """Electrodes of every body and links that conduct between them.
@@ -71,8 +73,8 @@ def find_electrodes(
     ``layers`` are device polygons of bodies, oxide polygons, and handle polygons, and
     ``owner`` gives the body of each. Device electrodes come first, then handle
     electrodes, each ordered by body and then by descending area. ``resistivity`` of the
-    device layer sets resistance of beam links. ``advance`` is called once per beam,
-    rejected candidate, and via.
+    device layer sets resistance of beam links and ``via_resistance`` that of each via
+    link. ``advance`` is called once per beam, rejected candidate, and via.
     """
     parts, oxide, handle = layers
     device = [conductor for conductor in nets.conductors if conductor.layer == "device"]
@@ -138,21 +140,18 @@ def find_electrodes(
     for via in nets.vias:
         if advance is not None:
             advance()
-        if not via.device or not via.handle:
-            continue
-        joined = [
-            max(
-                (e for e in electrodes if e.conductor == conductor),
+        for reached in via.device:
+            above = max(
+                (e for e in electrodes if e.conductor == reached),
                 key=lambda e: (
                     via.polygon.intersection(e.region).area,
                     -via.polygon.distance(e.region),
                 ),
-            ).index
-            for conductor in via.device
-        ]
-        joined += [on_handle[conductor] for conductor in via.handle]
-        for other in joined[1:]:
-            join(joined[0], other, "via", via.index)
+                default=None,
+            )
+            if above is not None:
+                for below in via.handle:
+                    join(above.index, on_handle[below], "via", via.index, via_resistance)
     return electrodes, links
 
 

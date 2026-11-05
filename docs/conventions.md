@@ -43,6 +43,8 @@ not healed.
 - A `vias` polygon merges every device net and every handle net it overlaps.
 - A via overlapping no conductor on one side produces a warning and is
   ignored.
+- Each via conducts between the device and handle electrodes it joins with
+  `via_resistance`, which is 0 $\Omega$ unless set and does not depend on via area.
 - Vias are electrical only; the mechanical model ignores them.
 
 ## Units

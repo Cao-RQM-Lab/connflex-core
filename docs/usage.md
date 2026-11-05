@@ -188,7 +188,7 @@ link = structure.links[0]
 link.electrodes  # indices of the two electrodes joined
 link.kind  # "beam", "bridge", or "via"
 link.source  # index in structure.beams, structure.rejected, or structure.nets.vias
-link.resistance  # ohms; 0 for bridges and vias; None for a beam without resistivity
+link.resistance  # ohms; None for a beam without resistivity
 ```
 
 An electrode is silicon of one conductor that moves with one body: a device
@@ -206,8 +206,11 @@ through links always share a net.
 A beam link has resistance $\rho_e L / (w t)$ from the beam's own length,
 width, and thickness once the device material carries a resistivity, for
 example `cf.Material.silicon(resistivity=1e-4)`. Resistivity has no default
-because it depends on doping. Bridges and vias are ideal, and resistance
-inside an electrode is neglected. Exact definitions are in
+because it depends on doping. A via link has `via_resistance` from the
+extraction parameters: one value for every via, whatever its area, and
+0 $\Omega$ unless set, for example `cf.ExtractionParams(..., via_resistance=2.0)`.
+Bridges are ideal, and resistance inside an electrode is neglected. Exact
+definitions are in
 [electrodes and links](theory.md#electrodes-and-links).
 
 ## Solve

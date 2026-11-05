@@ -12,7 +12,7 @@ SOLVE_METHODS = ("dense", "sparse")
 
 @dataclass(frozen=True)
 class ExtractionParams:
-    """Geometry extraction parameters. Lengths in meters, areas in square meters.
+    """Extraction parameters. Lengths in meters, areas in square meters, resistances in ohms.
 
     Attributes:
         release_hole_max_area: Holes inside device polygons at or below this area are release
@@ -36,6 +36,8 @@ class ExtractionParams:
         buffer_resolution: Segments per quarter circle of the round release undercut. Healing
             and body opening use mitered corners.
         precision_grid: Snap grid applied before overlay operations. None disables snapping.
+        via_resistance: Resistance of each via link between a device and a handle electrode,
+            whatever the via's area. Zero is an ideal connection.
     """
 
     release_hole_max_area: float
@@ -49,6 +51,7 @@ class ExtractionParams:
     anchor: int | tuple[float, float] | None = None
     buffer_resolution: int = 8
     precision_grid: float | None = None
+    via_resistance: float = 0.0
 
     def __post_init__(self) -> None:
         require_positive("release_hole_max_area", self.release_hole_max_area)
@@ -82,6 +85,7 @@ class ExtractionParams:
             raise ValueError(f"buffer_resolution must be at least 1, got {self.buffer_resolution}")
         if self.precision_grid is not None:
             require_positive("precision_grid", self.precision_grid)
+        require_nonnegative("via_resistance", self.via_resistance)
         anchor = self.anchor
         if isinstance(anchor, int):
             require_nonnegative("anchor", anchor)

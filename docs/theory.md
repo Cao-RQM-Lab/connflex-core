@@ -564,11 +564,12 @@ Links conduct between electrodes:
 - A rejected candidate with $|T_k| \geq 2$ is a bridge. It joins the electrode
   of the largest polygon it touches to the electrode of each other polygon in
   $T_k$.
-- A via joins one electrode of each device conductor it overlaps and the
-  electrode of each handle polygon it overlaps. On the device side this is the
-  electrode it overlaps over the largest area, or the nearest one when the via
-  lies wholly on a beam or a bridge. A via that overlaps no conductor on one
-  side joins nothing.
+- A via joins device electrodes to handle electrodes. It reaches one electrode
+  of each device conductor it overlaps: the one it overlaps over the largest
+  area, or the nearest one when the via lies wholly on a beam or a bridge. It
+  joins each of these to the electrode of every handle polygon it overlaps,
+  with one link per pair. A via that overlaps no conductor on one side joins
+  nothing.
 
 A beam conducts along its length through its full cross-section, so its link
 has resistance
@@ -580,8 +581,10 @@ $$
 where $\rho_e$ is the electrical resistivity of the device layer and $L$, $w$,
 and $t$ are the length, width, and thickness of the beam as extracted: $L$ is
 the distance between the overlap centroids and $w$ is the area $A$ of the
-unexpanded candidate divided by $L$, so $R = \rho_e L^2 / (A t)$. Bridges and
-vias are ideal, $R = 0$.
+unexpanded candidate divided by $L$, so $R = \rho_e L^2 / (A t)$. Bridges are
+ideal, $R = 0$. Each link of a via has resistance $R_v$, one value supplied
+for all vias and independent of via area, which stands for both contacts and
+the plug between them. It is zero unless supplied, which makes vias ideal.
 
 Resistance inside an electrode is neglected, so every electrode is an
 equipotential. A beam contributes $L / w$ squares of the sheet resistance
@@ -612,6 +615,12 @@ end touches several polygons of one body joins only the largest.
     Device electrodes are listed first and handle electrodes after them, each
     ordered by body and then by descending area of the body polygon.
 
+    A via carries one resistance rather than a value per area because the
+    `vias` layer states only that device and handle are connected, not how the
+    contact is made. A via that straps several device electrodes joins each of
+    them to the handle through $R_v$, so two of them see $2 R_v$ between each
+    other.
+
     Resistivity of an SOI device layer spans orders of magnitude with doping,
     so it has no default. Without it the resistance of a beam link is left
     unknown rather than guessed, and extraction is otherwise unchanged.
@@ -631,6 +640,7 @@ and validation rules are on the [parameters page](parameters.md).
 | $t_l$ | layer thickness | `Layer.thickness` on each `Stack` layer |
 | $\rho_l$ | layer density | `Material.density` |
 | $\rho_e$ | electrical resistivity of the device layer | `Material.resistivity` |
+| $R_v$ | resistance of one via link | `ExtractionParams.via_resistance` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
 | $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |

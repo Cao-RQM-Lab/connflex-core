@@ -4,7 +4,8 @@ Every tunable is a named field on one of three configuration objects. There
 are no hidden constants. A test checks that this page and the fields agree.
 
 Lengths are in meters, areas in square meters, densities in kilograms per
-cubic meter, moduli in pascals, resistivities in ohm meters. Fields marked
+cubic meter, moduli in pascals, resistivities in ohm meters, resistances in
+ohms. Fields marked
 **required** have no default:
 a wrong release distance or body width yields a plausible but wrong
 structure, so the library does not guess them.
@@ -26,6 +27,7 @@ Symbols refer to the [theory of operation](theory.md).
 | `anchor` | | largest handle polygon | Override by a point inside the intended handle polygon, or by index into the handle polygons ordered by descending area. |
 | `buffer_resolution` | | 8 | Segments per quarter circle of the round release undercut, equation (2). Healing and body opening use mitered corners. |
 | `precision_grid` | | off | Optional snap grid applied before overlay operations. |
+| `via_resistance` | $R_v$ | 0 | Resistance of each via link between a device and a handle electrode, whatever the via's area. Zero is an ideal connection. |
 
 ## `Stack`, `Layer`, and `Material`
 
@@ -59,7 +61,7 @@ keyword overrides.
 Each object validates itself on construction and raises `ValueError` naming
 the field: lengths, areas, thicknesses, densities, moduli, and resistivity are positive;
 `beam_width_min < beam_width_max`; `beam_overlap_margin < body_min_width / 2`;
-`torsion_beta >= 0`; every stack layer has a thickness.
+`torsion_beta >= 0`; `via_resistance >= 0`; every stack layer has a thickness.
 
 ## TOML files
 

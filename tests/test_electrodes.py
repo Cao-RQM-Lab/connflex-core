@@ -108,6 +108,25 @@ def test_via_links_the_electrodes_it_overlaps(
     assert nets_joined_by_links(structure) == sorted([{pad_a.net}, {pad_b.net}], key=min)
 
 
+def test_via_resistance_applies_between_each_device_and_handle_electrode_it_joins(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    across = box(50, 40, 350, 60)
+    layout = layout_um([PAD_A, PAD_B], [HANDLE_AB], vias=[across])
+    structure = extract(layout, stack, params(via_resistance=5.0))
+    pad_a = structure.electrode_at((50 * UM, 50 * UM), "device")
+    pad_b = structure.electrode_at((350 * UM, 50 * UM), "device")
+    handle = structure.electrode_at((200 * UM, 120 * UM), "handle")
+    assert [(link.kind, link.source, link.resistance) for link in structure.links] == [
+        ("via", 0, 5.0)
+    ] * 2
+    assert {link.electrodes for link in structure.links} == {
+        (pad_a.index, handle.index),
+        (pad_b.index, handle.index),
+    }
+    assert len(nets_joined_by_links(structure)) == structure.nets.count == 1
+
+
 def test_region_touching_no_body_is_an_electrode_of_the_body_whose_oxide_carries_it(
     stack: Stack, params: Params, layout_um: LayoutUm
 ) -> None:
