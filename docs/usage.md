@@ -246,8 +246,9 @@ it.
 
 `evaluate` takes the six degrees of freedom of the body of each electrode,
 ordered ux, uy, uz, tx, ty, tz, and returns capacitance with its gradient and
-Hessian over those twelve, device body first. Vertical travel is exact and
-tilt is carried to second order; in-plane motion does not enter. With a
+Hessian over those twelve, device body first. Vertical travel is exact,
+tilt is carried to second order, and in-plane travel changes the overlap to
+first order wherever the outline of the handle passes under the plate. With a
 potential difference `V` across the plate, `0.5 * V**2 * gradient` is the
 generalized force on the two bodies and `-0.5 * V**2 * hessian` the stiffness
 it adds. A plate whose electrodes move with one body cannot change:

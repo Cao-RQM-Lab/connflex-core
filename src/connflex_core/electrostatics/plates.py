@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
 import shapely
 from numpy.typing import ArrayLike, NDArray
-from shapely import MultiPolygon, STRtree
+from shapely import MultiPolygon, Polygon, STRtree
+from shapely.geometry.base import BaseGeometry
 
 from connflex_core.electrostatics import VACUUM_PERMITTIVITY
 from connflex_core.geometry.heal import as_multipolygon
@@ -35,9 +37,13 @@ class Plate:
             change it.
         gap: Height of the released gap at rest, in meters: thickness of the box layer.
         permittivity: Permittivity of the medium in the released gap, in farads per meter.
-        origin: Reference point (x, y) in meters: center of the bounding box of the overlap.
+        origin: Reference point (x, y, z) in meters: center of the bounding box of the
+            overlap, at mid-height of the gap.
         moments: 3 by 3 integrals over the released overlap of products of 1, x, and y
             measured from ``origin``, equation (48).
+        edges: 3 by 3 integrals along the handle outline under device silicon,
+            equation (52): one row for travel along x, along y, and about z, one column
+            for weight 1, x, and y measured from ``origin``.
         centers: Centers of mass of the two bodies, one row each.
     """
 
@@ -49,6 +55,7 @@ class Plate:
     permittivity: float
     origin: Array
     moments: Array
+    edges: Array
     centers: Array
 
     @property
@@ -59,7 +66,7 @@ class Plate:
     def evaluate(
         self, device: ArrayLike | None = None, handle: ArrayLike | None = None
     ) -> tuple[float, Array, Array]:
-        """Capacitance in farads with its gradient and Hessian, equations (49) to (52).
+        """Capacitance in farads with its gradient and Hessian, equations (55) to (58).
 
         ``device`` and ``handle`` are the six degrees of freedom of equation (12) of the
         body of each electrode, zero when omitted. The gradient has twelve entries and the
@@ -69,21 +76,27 @@ class Plate:
             [_local(self.origin, self.centers[0]), -_local(self.origin, self.centers[1])]
         )
         displaced = [np.zeros(6) if q is None else np.asarray(q, float) for q in (device, handle)]
-        rise, *slopes = jacobian @ np.concatenate(displaced)
+        local = jacobian @ np.concatenate(displaced)
+        travel, rise, slope = local[:3], local[3], local[4:]
         gap = self.gap + rise
         if gap <= 0:
             raise ValueError(f"gap between plates closes: {gap} m at the reference point")
-        slope = np.array(slopes)
-        area, first, second = self.moments[0, 0], self.moments[0, 1:], self.moments[1:, 1:]
+        area = self.moments[0, 0] - travel @ self.edges[:, 0]
+        first = self.moments[0, 1:] - travel @ self.edges[:, 1:]
+        second = self.moments[1:, 1:]
         linear, quadratic = slope @ first, slope @ second @ slope
         value = area / gap - linear / gap**2 + quadratic / gap**3
-        gradient = np.empty(3)
-        gradient[0] = -area / gap**2 + 2 * linear / gap**3 - 3 * quadratic / gap**4
-        gradient[1:] = -first / gap**2 + 2 * second @ slope / gap**3
-        hessian = np.empty((3, 3))
-        hessian[0, 0] = 2 * area / gap**3 - 6 * linear / gap**4 + 12 * quadratic / gap**5
-        hessian[0, 1:] = hessian[1:, 0] = 2 * first / gap**3 - 6 * second @ slope / gap**4
-        hessian[1:, 1:] = 2 * second / gap**3
+        gradient = np.empty(6)
+        gradient[:3] = -self.edges[:, 0] / gap + self.edges[:, 1:] @ slope / gap**2
+        gradient[3] = -area / gap**2 + 2 * linear / gap**3 - 3 * quadratic / gap**4
+        gradient[4:] = -first / gap**2 + 2 * second @ slope / gap**3
+        hessian = np.zeros((6, 6))
+        hessian[:3, 3] = self.edges[:, 0] / gap**2 - 2 * self.edges[:, 1:] @ slope / gap**3
+        hessian[:3, 4:] = self.edges[:, 1:] / gap**2
+        hessian[3, 3] = 2 * area / gap**3 - 6 * linear / gap**4 + 12 * quadratic / gap**5
+        hessian[3, 4:] = 2 * first / gap**3 - 6 * second @ slope / gap**4
+        hessian[4:, 4:] = 2 * second / gap**3
+        hessian = np.triu(hessian) + np.triu(hessian, 1).T
         return (
             float(self.oxide + self.permittivity * value),
             self.permittivity * jacobian.T @ gradient,
@@ -101,8 +114,10 @@ def find_plates(
 
     One plate per pair of a device and a handle electrode that overlap, ordered by device
     electrode and then by handle electrode. Its overlap is split by equation (42) into
-    oxide and released gap; release openings carry no charge. Stage plates logs through
-    the ``connflex_core`` logger and reports to ``progress`` once per device electrode.
+    oxide and released gap; release openings carry no charge. Pieces of handle outline
+    under device silicon give the change of overlap with in-plane travel. Stage plates
+    logs through the ``connflex_core`` logger and reports to ``progress`` once per device
+    electrode.
     """
     params = params or ElectrostaticParams()
     stack = structure.stack
@@ -112,6 +127,7 @@ def find_plates(
     if relative is None:
         raise ValueError("box material has no relative_permittivity")
     gap = stack.box.thickness
+    height = (stack.z_extents[0][1] + stack.z_extents[2][0]) / 2
     device = [e for e in structure.electrodes if e.layer == "device"]
     handle = [e for e in structure.electrodes if e.layer == "handle"]
     plates: list[Plate] = []
@@ -132,7 +148,8 @@ def find_plates(
                     MultiPolygon(openings_within(opening_tree, openings, overlap))
                 )
                 west, south, east, north = overlap.bounds
-                origin = np.array([(west + east) / 2, (south + north) / 2])
+                origin = np.array([(west + east) / 2, (south + north) / 2, height])
+                outline = _crossings(under.region, silicon, openings, opening_tree)
                 plates.append(
                     Plate(
                         index=len(plates),
@@ -143,6 +160,7 @@ def find_plates(
                         permittivity=VACUUM_PERMITTIVITY * params.ambient_permittivity,
                         origin=origin,
                         moments=_about(area_moments(overlap) - bonded - opened, origin),
+                        edges=_edge_integrals(*outline, origin),
                         centers=np.array(
                             [structure.bodies[i].inertial.center for i in (above.body, under.body)]
                         ),
@@ -155,7 +173,7 @@ def find_plates(
 
 def _about(moments: AreaMoments, origin: Array) -> Array:
     """Moment matrix of equation (48) about ``origin``, by the shift of equation (11c)."""
-    x, y = (float(value) for value in origin)
+    x, y = (float(value) for value in origin[:2])
     m = moments
     sx, sy = m.x - x * m.area, m.y - y * m.area
     sxx = m.xx - 2 * x * m.x + x * x * m.area
@@ -164,11 +182,71 @@ def _about(moments: AreaMoments, origin: Array) -> Array:
     return np.array([[m.area, sx, sy], [sx, sxx, sxy], [sy, sxy, syy]])
 
 
+def _crossings(
+    under: MultiPolygon,
+    silicon: BaseGeometry,
+    openings: Sequence[Polygon],
+    opening_tree: STRtree,
+) -> tuple[Array, Array, Array]:
+    """Straight pieces of the outline of ``under`` beneath ``silicon`` less ``openings``, (50).
+
+    Returns start points, end points, and the unit normal out of ``under`` of each piece.
+    """
+    rings, polygon_of = shapely.get_rings(shapely.get_parts(under), return_index=True)
+    coords, ring_of = shapely.get_coordinates(rings, return_index=True)
+    edge = ring_of[:-1] == ring_of[1:]
+    start, end, ring = coords[:-1][edge], coords[1:][edge], ring_of[:-1][edge]
+    cross = start[:, 0] * end[:, 1] - end[:, 0] * start[:, 1]
+    exterior = np.ones(rings.size, dtype=bool)
+    exterior[1:] = polygon_of[1:] != polygon_of[:-1]
+    counterclockwise = np.bincount(ring, weights=cross, minlength=rings.size) > 0
+    outward = np.where(exterior == counterclockwise, 1.0, -1.0)[ring]
+    along = end - start
+    length = np.hypot(along[:, 0], along[:, 1])
+    kept = length > 0
+    normals = outward[kept, None] * np.stack([along[kept, 1], -along[kept, 0]], axis=1)
+    normals /= length[kept, None]
+
+    lines = np.asarray(shapely.linestrings(np.stack([start[kept], end[kept]], axis=1)))
+    shapely.prepare(silicon)
+    inside = np.flatnonzero(shapely.intersects(lines, silicon))
+    pieces = np.asarray(shapely.intersection(lines[inside], silicon))
+    pierced, hit = opening_tree.query(pieces, predicate="intersects")
+    for i in np.unique(pierced):
+        holes = shapely.union_all([openings[j] for j in hit[pierced == i]])
+        pieces[i] = shapely.difference(pieces[i], holes)
+    parts, piece_of = shapely.get_parts(pieces, return_index=True)
+    parts, part_of = shapely.get_parts(parts, return_index=True)
+    points, line_of = shapely.get_coordinates(parts, return_index=True)
+    joined = line_of[:-1] == line_of[1:]
+    owner = inside[piece_of[part_of[line_of[:-1][joined]]]]
+    return points[:-1][joined], points[1:][joined], normals[owner]
+
+
+def _edge_integrals(start: Array, end: Array, normal: Array, origin: Array) -> Array:
+    """Integrals of equation (52) over straight pieces, in the closed form of (54)."""
+    from_origin = [start - origin[:2], end - origin[:2]]
+    length = np.hypot(*(end - start).T)
+    flow = [
+        np.stack([normal[:, 0], normal[:, 1], normal[:, 1] * r[:, 0] - normal[:, 0] * r[:, 1]])
+        for r in from_origin
+    ]
+    weight = [np.stack([np.ones(len(r)), r[:, 0], r[:, 1]]) for r in from_origin]
+    edges: Array = (
+        np.einsum("m,km,jm->kj", length, 2 * flow[0] + flow[1], weight[0])
+        + np.einsum("m,km,jm->kj", length, flow[0] + 2 * flow[1], weight[1])
+    ) / 6
+    return edges
+
+
 def _local(origin: Array, center: Array) -> Array:
-    """Jacobian of gap rise and slopes at ``origin`` in degrees of freedom of a body, (46)."""
-    dx, dy = origin - center[:2]
+    """Jacobian of travel, rise, and slopes at ``origin`` for a body with ``center``, (46)."""
+    dx, dy, dz = origin - center
     return np.array(
         [
+            [1.0, 0.0, 0.0, 0.0, dz, -dy],
+            [0.0, 1.0, 0.0, -dz, 0.0, dx],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
             [0.0, 0.0, 1.0, dy, -dx, 0.0],
             [0.0, 0.0, 0.0, 0.0, -1.0, 0.0],
             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],

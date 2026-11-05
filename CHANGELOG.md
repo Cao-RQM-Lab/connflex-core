@@ -26,7 +26,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and the handle electrode beneath it, through surviving oxide and across the
   released gap with release openings removed. `Plate.evaluate` returns
   capacitance, gradient, and Hessian in the degrees of freedom of the two
-  bodies, exact in vertical travel and of second order in tilt.
+  bodies: exact in vertical travel, of second order in tilt, and of first
+  order in in-plane travel where the handle outline passes under the plate.
   `ElectrostaticParams.ambient_permittivity` sets the medium in the gap.
 
 ## [0.1.0] - 2026-11-04

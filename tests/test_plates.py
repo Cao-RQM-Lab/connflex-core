@@ -33,6 +33,15 @@ def shuttle(stack: Stack, params: Params, layout_um: LayoutUm) -> Structure:
     return extract(layout, stack, params(release_distance=60 * UM))
 
 
+@pytest.fixture
+def overhang(stack: Stack, params: Params, layout_um: LayoutUm) -> Structure:
+    """The same plate half over a handle that ends at x = 650 um, a release hole on that edge."""
+    hole = box(645, 220, 655, 228)
+    perforated = Polygon(PLATE.exterior, [hole.exterior])
+    layout = layout_um([ANCHOR, BEAM, perforated], [box(-50, -50, 650, 450)])
+    return extract(layout, stack, params(release_distance=60 * UM))
+
+
 def test_released_plate_over_the_handle_is_a_parallel_plate(shuttle: Structure) -> None:
     plate = shuttle.plates()[1]
     assert (plate.index, plate.electrodes, plate.bodies) == (1, (1, 2), (1, 0))
@@ -102,6 +111,45 @@ def test_release_openings_are_removed_from_the_released_plate(
     plate = extract(layout, stack, params(release_distance=60 * UM)).plates()[1]
     area = (100 * 100 - 2 * 8 * 8 - 10 * 5) * UM * UM
     assert plate.released == pytest.approx(EPS0 * area / GAP)
+
+
+def test_overlap_follows_in_plane_travel_where_the_handle_outline_crosses(
+    overhang: Structure,
+) -> None:
+    plate = overhang.plates()[1]
+    assert plate.released == pytest.approx(EPS0 * (50 * 100 - 5 * 8) * UM**2 / GAP)
+    cx, cy, cz = overhang.bodies[1].inertial.center
+    assert cx == pytest.approx(650 * UM)
+    crossing = (100 - 8) * UM  # handle edge under silicon
+    lever = ((250**2 - 150**2) / 2 - (228**2 - 220**2) / 2) * UM**2 - crossing * cy
+    first = -(50 * 100 * 25 - 5 * 8 * 2.5) * UM**3  # released area times x from the center
+    _, gradient, hessian = plate.evaluate()
+    scale = EPS0 * crossing / GAP
+    assert gradient[0] == pytest.approx(-scale)
+    assert gradient[6] == pytest.approx(scale)
+    assert gradient[1] == pytest.approx(0, abs=1e-9 * scale)
+    assert gradient[5] == pytest.approx(EPS0 * lever / GAP)
+    assert gradient[4] == pytest.approx(EPS0 * first / GAP**2 - scale * (-26 * UM - cz))
+    assert hessian[0, 2] == pytest.approx(scale / GAP)
+    assert hessian[0, 3] == pytest.approx(EPS0 * lever / GAP**2)
+
+
+def test_gradient_and_hessian_are_derivatives_of_the_capacitance(overhang: Structure) -> None:
+    plate = overhang.plates()[1]
+    scale = np.array([UM, UM, 0.1 * UM, 1e-3, 1e-3, 1e-3] * 2)
+    state = np.random.default_rng(0).uniform(-1, 1, 12) * scale
+    value, gradient, hessian = plate.evaluate(state[:6], state[6:])
+    step = 1e-4
+    for k in range(12):
+        shift = np.zeros(12)
+        shift[k] = step * scale[k]
+        up = plate.evaluate((state + shift)[:6], (state + shift)[6:])
+        down = plate.evaluate((state - shift)[:6], (state - shift)[6:])
+        slope = (up[0] - down[0]) / (2 * step)
+        assert slope == pytest.approx(gradient[k] * scale[k], rel=1e-6, abs=1e-9 * value)
+        curvature = (up[1] - down[1]) * scale / (2 * step)
+        expected = hessian[k] * scale * scale[k]
+        assert curvature == pytest.approx(expected, rel=1e-6, abs=1e-9 * value)
 
 
 def test_plates_need_the_dielectric_constant_of_the_box(
