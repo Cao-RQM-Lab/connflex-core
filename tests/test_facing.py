@@ -1,12 +1,14 @@
+from typing import cast
+
 import numpy as np
 import pytest
-from shapely import Point, Polygon, affinity, box
+from shapely import Point, Polygon, affinity, box, union_all
 
 from connflex_core import ElectrostaticParams, SidewallCapacitance, sidewall_capacitance
 
 EPS0 = 8.8541878188e-12
 UM = 1e-6
-PLATES = ElectrostaticParams(sidewall_method="plates", interaction_distance=30 * UM)
+PLATES = ElectrostaticParams(dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=30 * UM)
 
 
 def um(polygon: Polygon) -> Polygon:
@@ -38,6 +40,10 @@ def test_offset_strips_are_one_plate_over_their_overlap() -> None:
         np.array([10, 10, 100, 100]) * UM
     )
     assert walls.gap == pytest.approx(gap * UM)
+    assert result.feature_size[0, 1] == result.feature_size[1, 0] == pytest.approx(overlap / gap)
+    assert result.method[0, 1] == result.method[1, 0] == "plates"
+    assert np.isnan(result.feature_size[0, 0])
+    assert result.method[0, 0] == ""
 
 
 def test_a_wall_sees_only_the_nearest_conductor_within_reach() -> None:
@@ -64,6 +70,35 @@ def test_wall_faced_lies_to_the_right_of_each_piece() -> None:
     right = np.stack([along[:, 1], -along[:, 0]], axis=1) / np.hypot(*along.T)[:, None]
     for point, faced in zip(walls.start + right * walls.gap[:, :1], walls.facing, strict=True):
         assert conductors[faced].boundary.distance(Point(point)) < 1e-9 * UM
+
+
+def test_feature_size_follows_a_wall_around_a_drawn_arc() -> None:
+    """An inner disk in a ring, both drawn with 180 sides: each facing wall is one run
+    around the whole outline, not 180 pieces."""
+    sides, inner, outer = 180, 10.0, 12.0
+    angle = 2 * np.pi * (np.arange(sides) + 0.5) / sides
+    circle = np.column_stack([np.cos(angle), np.sin(angle)])
+    disk = um(Polygon(inner * circle))
+    ring = Polygon(18.0 * circle * UM, [outer * circle * UM])
+    result = sidewall_capacitance([disk, ring], PLATES)
+    gap = (outer - inner) * np.cos(np.pi / sides)
+    perimeters = np.array([inner, outer]) * 2 * sides * np.sin(np.pi / sides)
+    expected = np.sum(perimeters**2) / (gap * perimeters.sum())
+    assert result.feature_size[0, 1] == pytest.approx(expected, rel=1e-4)
+
+
+def test_wall_over_teeth_is_short_features_not_one_long_wall() -> None:
+    """A flat wall over a toothed rack faces the rack all along, but the gap jumps at
+    every tooth: each tooth top is its own short facing wall."""
+    width, gap, depth, count = 4.0, 2.0, 6.0, 10
+    rack = union_all(
+        [box(-4, -30, 2 * width * count + 4, -depth)]
+        + [box(2 * width * k, -depth, 2 * width * k + width, 0) for k in range(count)]
+    )
+    flat = box(-4, gap, 2 * width * count + 4, gap + 30)
+    result = sidewall_capacitance([um(cast(Polygon, rack)), um(flat)], PLATES)
+    tops = width / gap
+    assert result.feature_size[0, 1] < 2 * tops
 
 
 def test_tilted_wall_integrates_the_inverse_gap() -> None:
@@ -135,11 +170,14 @@ def test_gradient_and_hessian_are_derivatives_of_the_plate_capacitance() -> None
                     )
 
 
-def test_method_and_its_parameters_must_be_chosen() -> None:
+def test_cutoffs_and_their_parameters_are_checked() -> None:
     strips = [um(box(0, 0, 100, 4)), um(box(0, 6, 100, 10))]
-    with pytest.raises(ValueError, match="sidewall_method"):
-        sidewall_capacitance(strips, ElectrostaticParams(element_size=1 * UM))
     with pytest.raises(ValueError, match="interaction_distance"):
-        sidewall_capacitance(strips, ElectrostaticParams(sidewall_method="plates"))
-    with pytest.raises(ValueError, match="sidewall_method"):
-        ElectrostaticParams(sidewall_method="guess")  # type: ignore[arg-type]
+        sidewall_capacitance(strips, ElectrostaticParams(element_size=1 * UM))
+    with pytest.raises(ValueError, match="element_size"):
+        sidewall_capacitance(strips, ElectrostaticParams(interaction_distance=30 * UM))
+    assert sidewall_capacitance(strips, PLATES).method[0, 1] == "plates"
+    with pytest.raises(ValueError, match="dense_cutoff"):
+        ElectrostaticParams(dense_cutoff=-1.0)
+    with pytest.raises(ValueError, match="plates_cutoff"):
+        ElectrostaticParams(dense_cutoff=20.0, plates_cutoff=10.0)

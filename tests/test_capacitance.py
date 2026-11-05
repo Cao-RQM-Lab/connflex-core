@@ -49,8 +49,12 @@ def comb() -> Structure:
 
 @pytest.fixture(scope="module")
 def settings() -> ElectrostaticParams:
+    """Field solved whole for every pair."""
     return ElectrostaticParams(
-        sidewall_method="field", element_size=4 * UM, interaction_distance=30 * UM
+        element_size=4 * UM,
+        interaction_distance=30 * UM,
+        dense_cutoff=float("inf"),
+        plates_cutoff=float("inf"),
     )
 
 
@@ -125,14 +129,40 @@ def test_each_part_can_be_left_out_and_needs_only_its_own_parameters(
     assert not walls_only.released.any()
     assert walls_only.sidewall == pytest.approx(model.sidewall)
 
-    with pytest.raises(ValueError, match="sidewall_method"):
-        comb.capacitance(ElectrostaticParams(element_size=4 * UM, interaction_distance=30 * UM))
     with pytest.raises(ValueError, match="interaction_distance"):
         comb.capacitance(replace(settings, interaction_distance=None))
     with pytest.raises(ValueError, match="element_size"):
         comb.capacitance(replace(settings, element_size=None))
 
     assert comb.capacitance(replace(settings, interaction_distance=1 * UM)).clusters == ()
+
+
+def test_default_cutoffs_solve_a_comb_in_windows_and_report_it(
+    comb: Structure, model: CapacitanceModel, at: dict[str, int]
+) -> None:
+    """Fingers overlap 40 um across 3 um gaps: a feature size of about 13 gaps."""
+    defaults = comb.capacitance(
+        ElectrostaticParams(element_size=4 * UM, interaction_distance=30 * UM)
+    )
+    (cluster,) = defaults.clusters
+    stator, shuttle = (comb.electrodes[at[name]].net for name in ("stator", "shuttle"))
+    (interaction,) = cluster.interactions
+    assert interaction.nets == tuple(sorted((stator, shuttle)))
+    assert interaction.method == "windowed"
+    assert 10 < interaction.feature_size < 15
+    assert defaults.sidewall == pytest.approx(
+        model.sidewall, rel=2e-2, abs=2e-2 * np.max(abs(model.sidewall))
+    )
+    report = defaults.to_dict()["clusters"][0]["interactions"]
+    assert report == [
+        {
+            "nets": list(interaction.nets),
+            "feature_size": interaction.feature_size,
+            "method": "windowed",
+        }
+    ]
+    there = defaults.at([1e-6, 0.0, 0.0, 0.0, 0.0, 0.0])
+    assert there.clusters[0].interactions == cluster.interactions
 
 
 def test_cluster_above_the_element_limit_is_solved_in_windows(
@@ -193,7 +223,7 @@ def test_plates_method_takes_every_comb_gap_as_a_parallel_plate(
 ) -> None:
     """Finger tips are 20 um from the wall they point at, beyond the 10 um that counts."""
     params = ElectrostaticParams(
-        sidewall_method="plates", interaction_distance=10 * UM, include_plates=False
+        dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=10 * UM, include_plates=False
     )
     model = comb.capacitance(params)
     stator, shuttle = at["stator"], at["shuttle"]
@@ -201,7 +231,9 @@ def test_plates_method_takes_every_comb_gap_as_a_parallel_plate(
         GAPS * EPS0 * THICKNESS * OVERLAP / GAP, rel=1e-9
     )
     (cluster,) = model.clusters
-    assert (cluster.electrodes, cluster.elements, cluster.windows) == ((stator, shuttle), 16, 0)
+    assert (cluster.electrodes, cluster.elements, cluster.windows) == ((stator, shuttle), 0, 0)
+    assert len(cluster.walls.conductor) == 16
+    assert {interaction.method for interaction in cluster.interactions} == {"plates"}
     assert cluster.walls.gap == pytest.approx(GAP * UM)
 
     potentials = np.zeros(len(comb.electrodes))
@@ -218,7 +250,7 @@ def test_model_at_displaced_bodies_follows_the_plate_formulas(
 ) -> None:
     """Shuttle moved along and across its fingers and toward the handle."""
     rest = comb.capacitance(
-        ElectrostaticParams(sidewall_method="plates", interaction_distance=10 * UM)
+        ElectrostaticParams(dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=10 * UM)
     )
     stator, shuttle, handle = at["stator"], at["shuttle"], at["handle"]
     assert not rest.displacement.any()
@@ -245,7 +277,7 @@ def test_derivatives_at_displaced_bodies_are_slopes_of_the_displaced_model(
     comb: Structure, at: dict[str, int]
 ) -> None:
     rest = comb.capacitance(
-        ElectrostaticParams(sidewall_method="plates", interaction_distance=30 * UM)
+        ElectrostaticParams(dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=30 * UM)
     )
     place = np.array([2e-6, 0.4e-6, -0.3e-6, 2e-4, -1e-4, 3e-4])
     here = rest.at(place)
@@ -333,7 +365,10 @@ def test_parallel_plate_pulls_and_tilts_a_body_that_carries_handle_silicon() -> 
 
     model = structure.capacitance(
         ElectrostaticParams(
-            sidewall_method="field", element_size=4 * UM, interaction_distance=30 * UM
+            element_size=4 * UM,
+            interaction_distance=30 * UM,
+            dense_cutoff=float("inf"),
+            plates_cutoff=float("inf"),
         )
     )
     potentials = np.zeros(len(structure.electrodes))
@@ -372,6 +407,14 @@ def test_report_lists_capacitance_by_pair_part_net_and_cluster(
             "elements": cluster.elements,
             "windows": 1,
             "asymmetry": cluster.asymmetry,
+            "interactions": [
+                {
+                    "nets": list(interaction.nets),
+                    "feature_size": interaction.feature_size,
+                    "method": "dense",
+                }
+                for interaction in cluster.interactions
+            ],
         }
     ]
     assert report["unassigned_area"] == pytest.approx(2 * 200 * 10 * UM**2)

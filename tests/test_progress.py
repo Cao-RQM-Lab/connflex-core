@@ -146,10 +146,16 @@ def test_plates_report_one_stage_that_advances_once_per_device_electrode(
 def test_sidewall_capacitance_reports_its_stages() -> None:
     recorder = Recorder()
     squares = [box(0, 0, 10e-6, 10e-6), box(12e-6, 0, 22e-6, 10e-6)]
-    field = ElectrostaticParams(sidewall_method="field", element_size=1e-6)
+    field = ElectrostaticParams(
+        element_size=1e-6,
+        interaction_distance=5e-6,
+        dense_cutoff=float("inf"),
+        plates_cutoff=float("inf"),
+    )
     result = sidewall_capacitance(squares, field, progress=recorder)
     elements = len(result.mesh.conductor)
     assert recorder.runs == [
+        Run("facing", None, 0, True),
         Run("mesh", None, 0, True),
         Run("assemble", elements, elements, True),
         Run("solve", None, 0, True),
@@ -159,8 +165,12 @@ def test_sidewall_capacitance_reports_its_stages() -> None:
     recorder = Recorder()
     limited = replace(field, max_elements=elements - 1, window_elements=elements // 4)
     windows = sidewall_capacitance(squares, limited, progress=recorder).windows
-    assert recorder.runs == [Run("mesh", None, 0, True), Run("windows", windows, windows, True)]
+    assert recorder.runs == [
+        Run("facing", None, 0, True),
+        Run("mesh", None, 0, True),
+        Run("windows", windows, windows, True),
+    ]
     recorder = Recorder()
-    plates = ElectrostaticParams(sidewall_method="plates", interaction_distance=5e-6)
+    plates = ElectrostaticParams(dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=5e-6)
     sidewall_capacitance(squares, plates, progress=recorder)
     assert recorder.runs == [Run("facing", None, 0, True)]

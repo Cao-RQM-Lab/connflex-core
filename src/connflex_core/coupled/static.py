@@ -27,7 +27,7 @@ PATIENCE = 4
 
 @dataclass(frozen=True, eq=False)
 class Equilibrium:
-    """Where a structure rests under electrode potentials, equations (115) to (124).
+    """Where a structure rests under electrode potentials, equations (120) to (129).
 
     Attributes:
         scale: Fraction of the potentials asked for at which this equilibrium holds: 1
@@ -48,12 +48,12 @@ class Equilibrium:
         charge: Charge on every electrode, in coulombs.
         force: Electrostatic generalized forces at ``displacement``.
         stiffness: Tangent stiffness there: mechanical plus electrostatic, with the
-            part that charge held on floating nets adds, equation (124).
+            part that charge held on floating nets adds, equation (129).
         softest: Smallest eigenvalue of ``stiffness`` against the mass matrix, the
             squared angular frequency of the softest motion under these potentials.
         margin: Smallest eigenvalue of ``stiffness`` against the mechanical stiffness:
             the fraction of beam stiffness left in the direction the field softens
-            most, equation (119). 1 without potentials, 0 at pull-in.
+            most, equation (124). 1 without potentials, 0 at pull-in.
         stable: Whether ``softest`` is positive.
         iterations: Newton iterations taken, over all steps.
         loose: Bodies that no chain of beams joins to the anchor. Nothing can balance a
@@ -103,14 +103,14 @@ def equilibrium(
 
     ``model`` is the capacitance model of ``structure`` at rest. ``potentials`` maps a
     net to its potential in volts. ``charges`` maps a floating net to the charge it
-    holds, in coulombs; its potential follows from equation (123). A net in neither is
+    holds, in coulombs; its potential follows from equation (128). A net in neither is
     at zero volts. ``loads`` maps a body index to six generalized forces at its center
     of mass, as for ``static``. Potentials and charges rise together from zero.
     Potentials rise from zero in ``steps`` and the equilibrium is followed by Newton
-    iteration, equation (116), which evaluates the capacitance model at every iterate.
+    iteration, equation (121), which evaluates the capacitance model at every iterate.
     Where no stable equilibrium is found the step is halved, and the result is the last
     stable equilibrium with the fraction of the potentials at which stability was lost,
-    equation (120). Stages assemble and equilibrium log through the ``connflex_core``
+    equation (125). Stages assemble and equilibrium log through the ``connflex_core``
     logger and report to ``progress``; equilibrium advances once per step.
     """
     options = options or StaticOptions()

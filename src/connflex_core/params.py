@@ -8,7 +8,6 @@ from typing import Literal
 from connflex_core._validation import require_at_least, require_nonnegative, require_positive
 
 SOLVE_METHODS = ("dense", "sparse")
-SIDEWALL_METHODS = ("field", "plates")
 
 
 @dataclass(frozen=True)
@@ -165,27 +164,30 @@ class ElectrostaticParams:
     Attributes:
         ambient_permittivity: Relative permittivity of the medium that fills released gaps
             and trenches.
-        element_size: Longest boundary element on conductor outlines. Sidewall capacitance
-            requires it; None serves analyses that mesh no outline.
+        element_size: Longest boundary element on conductor outlines. Required when a pair
+            of nets is solved by the field method; None serves analyses that mesh no
+            outline.
         corner_grading: Ratio of ``element_size`` to the element length asked for at a
             convex corner of a right angle or sharper. The length asked for grows with
             distance from the corner. One disables refinement.
-        max_elements: Most boundary elements solved as one dense system. A larger mesh is
-            solved in windows, none of which grows past this number.
+        max_elements: Most boundary elements solved as one dense system. A dense problem
+            that needs more is solved in windows, none of which grows past this number.
         window_elements: Most boundary elements in the core of a window, the part of a
             large mesh whose charge one dense solution supplies.
         window_tolerance: Overlap of a window around its core doubles until the charge
             on the core changes by less than this fraction.
-        sidewall_method: How sidewall capacitance is found: ``"plates"`` takes facing
-            walls as parallel plates, ``"field"`` solves the field between conductors.
-            No default: which one suits a device is the caller's judgment of its
-            geometry, and sidewall capacitance requires the choice.
-        interaction_distance: Device electrodes whose silicon lies within this distance
-            of each other are solved together for sidewall capacitance, as are chains of
-            such neighbors; electrodes farther apart share none. The capacitance model
-            of a structure requires it when sidewalls are included. With method
-            ``"plates"`` it is also the widest gap across which two walls count, and
-            with method ``"field"`` the widest overlap of a window.
+        dense_cutoff: Pairs of nets whose feature size, the length of their facing walls
+            in units of the gap between them, is below this are solved by the field
+            method in one dense system.
+        plates_cutoff: Pairs whose feature size is at least this take their facing walls
+            as parallel plates; pairs between the two cutoffs are solved by the field
+            method in windows. At least ``dense_cutoff``. Zero for both puts every pair
+            on plates, infinity for both every pair in a dense system.
+        interaction_distance: Conductors whose silicon lies within this distance of each
+            other interact, and chains of such neighbors form one cluster; conductors
+            farther apart share no sidewall capacitance. It is also the widest gap
+            across which two walls count as plates and the widest overlap of a window.
+            Sidewall capacitance requires it.
         include_plates: Whether the capacitance model of a structure holds plates between
             device and handle electrodes.
         include_sidewalls: Whether it holds sidewall capacitance between device
@@ -198,7 +200,8 @@ class ElectrostaticParams:
     max_elements: int = 8000
     window_elements: int = 500
     window_tolerance: float = 1e-3
-    sidewall_method: Literal["field", "plates"] | None = None
+    dense_cutoff: float = 10.0
+    plates_cutoff: float = 100.0
     interaction_distance: float | None = None
     include_plates: bool = True
     include_sidewalls: bool = True
@@ -211,9 +214,12 @@ class ElectrostaticParams:
         require_at_least("max_elements", self.max_elements, 1)
         require_at_least("window_elements", self.window_elements, 1)
         require_positive("window_tolerance", self.window_tolerance)
-        if self.sidewall_method not in (None, *SIDEWALL_METHODS):
+        if not self.dense_cutoff >= 0:
+            raise ValueError(f"dense_cutoff must be at least 0, got {self.dense_cutoff}")
+        if not self.plates_cutoff >= self.dense_cutoff:
             raise ValueError(
-                f"sidewall_method must be one of {SIDEWALL_METHODS}, got {self.sidewall_method!r}"
+                f"plates_cutoff must be at least dense_cutoff = {self.dense_cutoff}, "
+                f"got {self.plates_cutoff}"
             )
         if self.interaction_distance is not None:
             require_positive("interaction_distance", self.interaction_distance)

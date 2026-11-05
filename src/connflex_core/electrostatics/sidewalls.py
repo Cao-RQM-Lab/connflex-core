@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from contextlib import AbstractContextManager, nullcontext
+from dataclasses import dataclass, replace
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -11,14 +12,16 @@ from shapely import MultiPolygon, Polygon, STRtree
 
 from connflex_core.electrostatics import VACUUM_PERMITTIVITY
 from connflex_core.electrostatics.dense import Enter, charge_derivatives, solve_charges
-from connflex_core.electrostatics.facing import FacingWalls, facing_plates
+from connflex_core.electrostatics.facing import FacingWalls, facing_plates, feature_sizes
 from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
-from connflex_core.electrostatics.windows import cut_cores, solve_windows
+from connflex_core.electrostatics.windows import cut_cores, smallest_window, solve_windows
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.params import ElectrostaticParams
-from connflex_core.progress import Progress, stage
+from connflex_core.progress import Progress, Stage, stage
 
 Array = NDArray[np.float64]
+Index = NDArray[np.intp]
+Facing = tuple[Array, Array, Array, FacingWalls]
 
 
 @dataclass(frozen=True, eq=False)
@@ -35,28 +38,82 @@ class SidewallCapacitance:
             such motion of each of two bodies. The point a body rotates about travels
             with it.
         centers: m by 2 points about which the bodies rotate, in meters.
-        charge: N by n charges on the elements of ``mesh``, in coulombs per meter of
-            thickness, per volt on each conductor with the others at zero.
-        mesh: Boundary elements on the outlines. Method ``"plates"`` has none and
-            finds no charge.
-        walls: Pieces of wall taken as plates. Method ``"field"`` has none.
-        windows: Number of dense solutions behind the result: 1 for a mesh solved whole,
-            more for one solved in windows, 0 with method ``"plates"``.
+        feature_size: n by n feature size of each pair of conductors within
+            ``interaction_distance``, equation (105): the length of their facing walls
+            in units of the gap between them. NaN for other pairs and on the diagonal.
+        method: n by n method that found each such pair: ``"dense"``, ``"windowed"``,
+            or ``"plates"``; empty for other pairs and on the diagonal. A pair asked to
+            be dense whose problem exceeds ``max_elements`` is ``"windowed"``.
+        charge: N by n charges on the elements of ``mesh`` that a field solution counts,
+            in coulombs per meter of thickness, per volt on each conductor with the
+            others at zero; zero elsewhere.
+        mesh: Boundary elements on the outlines. Empty when no pair is solved by the
+            field method.
+        walls: Pieces of wall facing another conductor, which give feature sizes and
+            the capacitance of pairs taken as plates.
+        windows: Number of field solutions behind the result: 1 for a mesh solved whole,
+            the number of windows otherwise, 0 when every pair is taken as plates.
         asymmetry: Largest difference between the charge on one conductor per volt on
-            another and the same with the two exchanged, against the largest entry,
-            before the two were averaged. Rounding alone for a mesh solved whole; for
-            windows a measure of what their overlap leaves out.
+            another and the same with the two exchanged, over pairs solved by the field
+            method, against the largest such entry, before the two were averaged.
+            Rounding alone for a mesh solved whole; for windows a measure of what their
+            overlap leaves out.
     """
 
     capacitance: Array
     gradient: Array
     hessian: Array
     centers: Array
+    feature_size: Array
+    method: NDArray[np.str_]
     charge: Array
     mesh: Mesh
     walls: FacingWalls
     windows: int
     asymmetry: float
+
+
+@dataclass(frozen=True, eq=False)
+class FieldProblem:
+    """One field solution: the cores it counts charge on and the pairs it supplies.
+
+    Attributes:
+        cores: Elements of each window core.
+        pairs: k by 2 pairs of conductors whose capacitance it supplies.
+        windows: Elements of each window as chosen at rest; None before that.
+    """
+
+    cores: list[Index]
+    pairs: Index
+    windows: list[Index] | None = None
+
+
+@dataclass(frozen=True, eq=False)
+class SidewallPlan:
+    """Choices made at rest that the solution keeps when bodies move, equation (106).
+
+    Attributes:
+        pairs: k by 2 pairs of conductors within ``interaction_distance``, smaller first.
+        feature_size: Feature size of each pair.
+        method: Method of each pair after any fallback from dense to windowed.
+        mesh: Boundary elements of all outlines; empty when no pair is solved by the
+            field method.
+        whole: Whether the mesh is solved as one system: every pair is dense and the
+            mesh fits ``max_elements``.
+        problems: Field solutions in windows, when not ``whole``.
+    """
+
+    pairs: Index
+    feature_size: Array
+    method: tuple[str, ...]
+    mesh: Mesh
+    whole: bool
+    problems: tuple[FieldProblem, ...]
+
+    @property
+    def windows(self) -> int:
+        """Number of windows the field solutions take."""
+        return sum(len(problem.cores) for problem in self.problems)
 
 
 def sidewall_capacitance(
@@ -70,136 +127,217 @@ def sidewall_capacitance(
     """Capacitance between sidewalls of conductors drawn in the layout plane.
 
     Each entry of ``conductors`` is one equipotential region, in meters; regions must
-    not overlap or touch. ``params.sidewall_method`` chooses how. With ``"field"`` the
-    two-dimensional field is solved: the set of conductors carries no net charge and
-    potential far away floats, equations (61) to (71), and ``element_size`` is required.
-    A mesh above ``max_elements`` is solved in windows, equations (91) to (96).
-    With ``"plates"`` every wall that faces another conductor within
-    ``interaction_distance`` is a parallel plate with it, equations (97) to (103).
+    not overlap or touch. Every pair of conductors within ``interaction_distance`` is
+    found by the method its feature size selects, equations (104) to (108): below
+    ``dense_cutoff`` the field in one dense system, equations (61) to (71), up to
+    ``plates_cutoff`` the field in windows, equations (91) to (96), and above it facing
+    walls as parallel plates, equations (97) to (103). ``element_size`` is required
+    when a pair is solved by the field method.
 
     ``bodies`` gives the rigid body of each conductor as an index from zero; conductors
     of one body move together. By default every conductor is its own body. ``centers``
     gives the point each body rotates about, by default the centroid of its conductors.
     Gradient and Hessian are the exact derivatives of the computed capacitance for rigid
-    motion of the bodies. Stages mesh, then assemble, solve, derivatives, and curvature
-    or the one stage windows, or the one stage facing for plates, log through the
-    ``connflex_core`` logger and report to ``progress``.
+    motion of the bodies. Stage facing, and when the field is solved stage mesh and then
+    assemble, solve, derivatives, and curvature or the one stage windows, log through
+    the ``connflex_core`` logger and report to ``progress``.
     """
-    if params.sidewall_method is None:
-        raise ValueError(
-            'sidewall_method is required: "plates" or "field", by the geometry of the device'
-        )
-    permittivity = VACUUM_PERMITTIVITY * params.ambient_permittivity
-    if params.sidewall_method == "plates":
-        if params.interaction_distance is None:
-            raise ValueError('interaction_distance is required for sidewall_method "plates"')
-        regions, body, pivots = _arranged(conductors, bodies, centers)
-        with stage("facing", progress) as current:
-            matrix, gradient, hessian, walls = facing_plates(
-                regions, body, pivots, params.interaction_distance
-            )
-            current.count(pieces=len(walls.conductor))
-        return SidewallCapacitance(
-            capacitance=permittivity * matrix,
-            gradient=permittivity * gradient,
-            hessian=permittivity * hessian,
-            centers=pivots,
-            charge=np.zeros((0, len(regions))),
-            mesh=Mesh.empty(),
-            walls=walls,
-            windows=0,
-            asymmetry=0.0,
-        )
-    if params.element_size is None:
-        raise ValueError('element_size is required for sidewall_method "field"')
     regions, body, pivots = _arranged(conductors, bodies, centers)
-    with stage("mesh", progress) as current:
-        mesh = mesh_outlines(regions, params.element_size, params.corner_grading)
-        current.count(elements=len(mesh.conductor))
-    return solve_field(
-        mesh, body, pivots, params, lambda name, total=None: stage(name, progress, total)
+    with stage("facing", progress) as current:
+        facing = _facing(regions, body, pivots, params)
+        current.count(pieces=len(facing[3].conductor))
+    plan = plan_sidewalls(
+        regions, np.arange(len(regions)), facing[3], params, lambda: stage("mesh", progress)
+    )
+    return solve_sidewalls(
+        body,
+        pivots,
+        plan,
+        plan.mesh,
+        facing,
+        params,
+        lambda name, total=None: stage(name, progress, total),
     )[0]
 
 
-def solve_field(
-    mesh: Mesh,
-    body: NDArray[np.intp],
+def plan_sidewalls(
+    regions: Sequence[MultiPolygon],
+    net: Index,
+    walls: FacingWalls,
+    params: ElectrostaticParams,
+    meshing: Callable[[], AbstractContextManager[Stage]] | None = None,
+) -> SidewallPlan:
+    """Pairs that interact, their feature size and method, and the field problems.
+
+    ``net`` gives the net of every region; pairs of regions take the feature size of
+    their pair of nets. ``meshing`` opens the stage in which outlines are meshed when a
+    pair is solved by the field method.
+    """
+    reach = _reach(params)
+    first, second = STRtree(list(regions)).query(list(regions), predicate="dwithin", distance=reach)
+    keep = first < second
+    pairs = np.unique(np.column_stack([first[keep], second[keep]]), axis=0).astype(np.intp)
+    sizes = feature_sizes(walls, net)
+    feature = np.array(
+        [
+            sizes.get((min(int(net[a]), int(net[b])), max(int(net[a]), int(net[b]))), 0.0)
+            for a, b in pairs
+        ]
+    )
+    method = [
+        "dense" if f < params.dense_cutoff else "windowed" if f < params.plates_cutoff else "plates"
+        for f in feature
+    ]
+    field = [k for k, m in enumerate(method) if m != "plates"]
+    if not field:
+        return SidewallPlan(pairs.reshape(-1, 2), feature, tuple(method), Mesh.empty(), False, ())
+    if params.element_size is None:
+        a, b = pairs[field[0]]
+        raise ValueError(
+            f"element_size is required: conductors {a} and {b} have feature size "
+            f"{feature[field[0]]:.3g}, below plates_cutoff = {params.plates_cutoff:g}, and are "
+            f"solved by the field method"
+        )
+    size = params.element_size
+    with meshing() if meshing is not None else nullcontext() as current:
+        mesh = mesh_outlines(regions, size, params.corner_grading)
+        if current is not None:
+            current.count(elements=len(mesh.conductor))
+    every = len(field) == len(pairs) and all(m == "dense" for m in method)
+    if every and len(mesh.conductor) <= params.max_elements:
+        return SidewallPlan(pairs, feature, tuple(method), mesh, True, ())
+    cores: dict[str, set[int]] = {"dense": set(), "windowed": set()}
+    for k in field:
+        cores[method[k]].update(pairs[k].tolist())
+    problems = []
+    dense = np.flatnonzero(np.isin(mesh.conductor, sorted(cores["dense"])))
+    if dense.size:
+        if smallest_window(mesh, dense, size, reach) <= params.max_elements:
+            chosen = [k for k in field if method[k] == "dense"]
+            problems.append(FieldProblem([dense], pairs[chosen]))
+        else:
+            method = ["windowed" if m == "dense" else m for m in method]
+            cores["windowed"].update(cores["dense"])
+    windowed = np.flatnonzero(np.isin(mesh.conductor, sorted(cores["windowed"])))
+    if windowed.size:
+        chosen = [k for k in field if method[k] == "windowed"]
+        problems.append(
+            FieldProblem(cut_cores(mesh, params.window_elements, windowed), pairs[chosen])
+        )
+    return SidewallPlan(pairs, feature, tuple(method), mesh, False, tuple(problems))
+
+
+def solve_sidewalls(
+    body: Index,
     pivots: Array,
+    plan: SidewallPlan,
+    mesh: Mesh,
+    facing: Facing,
     params: ElectrostaticParams,
     enter: Enter,
-    cores: list[NDArray[np.intp]] | None = None,
     advance: Callable[[], None] | None = None,
-    windows: list[NDArray[np.intp]] | None = None,
-) -> tuple[SidewallCapacitance, list[NDArray[np.intp]]]:
-    """Solve the field of a mesh whose conductors move with ``body`` about ``pivots``.
+) -> tuple[SidewallCapacitance, SidewallPlan]:
+    """Capacitance of conductors that move with ``body`` about ``pivots`` by ``plan``.
 
-    A mesh of at most ``max_elements`` is one dense solution, equation (70). A larger
-    one is solved in windows around ``cores``, by default those of ``cut_cores``,
-    equations (91) to (96). ``enter`` opens each stage: ``stage`` bound to a progress
-    receiver, or ``quiet`` when the solution is one step of a larger stage. With
-    ``advance`` no stage is opened for windows and it is called once per window. Also
-    returns the elements of each window, which passed back as ``windows`` keep a mesh
-    whose bodies have moved in the windows it had.
+    ``mesh`` is the mesh of the plan carried with the bodies and ``facing`` the result of
+    ``facing_plates`` for the regions where they are. Each pair takes its capacitance
+    from its own method, equation (107). ``enter`` opens each stage; with ``advance`` no
+    stage is opened for windows and it is called once per window. Also returns the plan
+    with the elements of each window, which passed back keep the windows at rest.
     """
-    if params.element_size is None:
-        raise ValueError('element_size is required for sidewall_method "field"')
-    chosen: list[NDArray[np.intp]] = []
-    if len(mesh.conductor) <= params.max_elements:
-        charges = solve_charges(mesh, len(body), enter)
-        raw = (
-            charges.capacitance,
-            *charge_derivatives(charges, body, pivots, enter),
-            charges.charge,
-        )
-    else:
-        cores = cut_cores(mesh, params.window_elements) if cores is None else cores
-
-        def solve(step: Callable[[], None]) -> tuple[Array, Array, Array, Array]:
-            *found, kept = solve_windows(
-                mesh,
-                body,
-                pivots,
-                cores,
-                params.element_size or 0.0,
-                params.interaction_distance,
-                params.window_tolerance,
-                params.max_elements,
-                step,
-                windows,
+    count, rigid = len(facing[0]), len(pivots)
+    between = np.zeros((count, count))
+    slopes = np.zeros((count, count, rigid, 3))
+    bends = np.zeros((count, count, rigid, 3, rigid, 3))
+    charge = np.zeros((len(mesh.conductor), count))
+    uneven, largest, problems = 0.0, 0.0, []
+    for k, (a, b) in enumerate(plan.pairs):
+        if plan.method[k] == "plates":
+            for i, j in ((a, b), (b, a)):
+                between[i, j], slopes[i, j], bends[i, j] = (-part[i, j] for part in facing[:3])
+    if plan.whole:
+        charges = solve_charges(mesh, count, enter)
+        solved = [
+            (
+                charges.capacitance,
+                *charge_derivatives(charges, body, pivots, enter),
+                charges.charge,
+                plan.pairs,
             )
-            chosen.extend(kept)
-            return found[0], found[1], found[2], found[3]
-
-        if advance is None:
-            with enter("windows", total=len(cores)) as current:
-                raw = solve(current.advance)
-        else:
-            raw = solve(advance)
+        ]
+    else:
+        solved = []
+        total = plan.windows
+        with (
+            enter("windows", total=total) if advance is None and total else nullcontext()
+        ) as current:
+            step = advance or (current.advance if current is not None else (lambda: None))
+            for problem in plan.problems:
+                *found, kept = solve_windows(
+                    mesh,
+                    body,
+                    pivots,
+                    problem.cores,
+                    params.element_size or 0.0,
+                    params.interaction_distance,
+                    params.window_tolerance,
+                    params.max_elements,
+                    step,
+                    problem.windows,
+                    problem.pairs,
+                )
+                solved.append((found[0], found[1], found[2], found[3], problem.pairs))
+                problems.append(replace(problem, windows=kept))
+    for raw, slope, bend, held, pairs in solved:
+        for a, b in pairs:
+            for i, j in ((a, b), (b, a)):
+                between[i, j] = -(raw[a, b] + raw[b, a]) / 2
+                slopes[i, j] = -(slope[a, b] + slope[b, a]) / 2
+                bends[i, j] = -(bend[a, b] + bend[b, a]) / 2
+            uneven = max(uneven, abs(raw[a, b] - raw[b, a]))
+            largest = max(largest, abs(raw[a, b]), abs(raw[b, a]))
+        counted = np.any(held != 0, axis=1)
+        charge[counted] = held[counted]
     permittivity = VACUUM_PERMITTIVITY * params.ambient_permittivity
-    uneven = np.max(np.abs(raw[0] - raw[0].T)) / np.max(
-        np.abs(raw[0]), initial=np.finfo(float).tiny
-    )
+    feature = np.full((count, count), np.nan)
+    method = np.full((count, count), "", dtype="<U8")
+    for k, (a, b) in enumerate(plan.pairs):
+        feature[a, b] = feature[b, a] = plan.feature_size[k]
+        method[a, b] = method[b, a] = plan.method[k]
     result = SidewallCapacitance(
-        capacitance=permittivity * _paired(raw[0]),
-        gradient=permittivity * _paired(raw[1]),
-        hessian=permittivity * _paired(raw[2]),
+        capacitance=permittivity * _maxwell(between),
+        gradient=permittivity * _maxwell(slopes),
+        hessian=permittivity * _maxwell(bends),
         centers=pivots,
-        charge=permittivity * raw[3],
+        feature_size=feature,
+        method=method,
+        charge=permittivity * charge,
         mesh=mesh,
-        walls=FacingWalls.empty(),
-        windows=max(len(chosen), 1),
-        asymmetry=float(uneven),
+        walls=facing[3],
+        windows=1 if plan.whole else plan.windows,
+        asymmetry=uneven / largest if largest else 0.0,
     )
-    return result, chosen
+    return result, replace(plan, problems=tuple(problems)) if problems else plan
 
 
-def _paired(raw: Array) -> Array:
-    """Symmetric matrix with rows that sum to zero from one whose rows do, equation (94)."""
-    mean = (raw + raw.swapaxes(0, 1)) / 2
-    diagonal = np.arange(len(raw))
-    mean[diagonal, diagonal] = 0.0
-    mean[diagonal, diagonal] = -mean.sum(axis=1)
-    return mean
+def _facing(
+    regions: Sequence[MultiPolygon], body: Index, pivots: Array, params: ElectrostaticParams
+) -> Facing:
+    return facing_plates(regions, body, pivots, _reach(params))
+
+
+def _reach(params: ElectrostaticParams) -> float:
+    if params.interaction_distance is None:
+        raise ValueError("interaction_distance is required for sidewall capacitance")
+    return params.interaction_distance
+
+
+def _maxwell(between: Array) -> Array:
+    """Capacitance matrix from capacitances between pairs, equation (108)."""
+    matrix = -between
+    diagonal = np.arange(len(between))
+    matrix[diagonal, diagonal] = between.sum(axis=1)
+    return matrix
 
 
 def _arranged(

@@ -64,25 +64,26 @@ keyword overrides.
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
 | `ambient_permittivity` | $\varepsilon_a$ | 1 | Relative permittivity of the medium that fills released gaps and trenches, equations (43) and (61). |
-| `element_size` | $h$ | none | Longest boundary element on conductor outlines, equation (73). Sidewall method `"field"` requires it; nothing else uses it. Half of the narrowest trench is a starting value: computed capacitance rises toward the exact one as it shrinks. |
+| `element_size` | $h$ | none | Longest boundary element on conductor outlines, equation (73). Required when a pair of nets is solved by the field method, in one dense system or in windows; a structure whose pairs are all taken as plates needs none. Half of the narrowest trench is a starting value: computed capacitance rises toward the exact one as it shrinks. |
 | `corner_grading` | $g$ | 16 | Ratio of `element_size` to the element length asked for at a convex corner of a right angle or sharper, equation (72). 1 disables refinement. |
-| `max_elements` | | 8000 | Most boundary elements solved as one dense system with method `"field"`. Memory grows with its square and time with its cube. A larger mesh or cluster is solved in windows, equations (91) to (96), and no window grows past this number. |
+| `max_elements` | | 8000 | Most boundary elements solved as one dense system. Memory grows with its square and time with its cube. Pairs asked to be dense whose problem needs more are solved in windows, equations (91) to (96), and reported as windowed; no window grows past this number. |
 | `window_elements` | $n_w$ | 500 | Most boundary elements in the core of a window. Each window is one dense solution of its core and the elements around it, and supplies the charge on its core, equation (92). Smaller cores mean more and smaller solutions. |
 | `window_tolerance` | $\tau$ | 0.001 | The overlap of a window around its core doubles until the charge on the core changes by less than this fraction, equation (96), or the overlap reaches `interaction_distance`. |
-| `sidewall_method` | | none | How sidewall capacitance is found. `"field"` solves the two-dimensional field between conductors, equations (61) to (90): fringe fields included, cost growing steeply with the length of outline. `"plates"` takes every wall that faces another conductor as a parallel plate with it, equations (97) to (103): fast for any size, no fringe field. Sidewall capacitance requires one of the two, and there is no default: plates describe combs and plate actuators well and toothed motors badly, see [what plates leave out](theory.md#what-plates-leave-out), and which a device is only its designer knows. |
-| `interaction_distance` | $d_i$ | none | Device electrodes whose silicon lies within this distance, directly or through a chain of neighbors, are taken together for sidewall capacitance, equation (105). With method `"plates"` it is also the widest gap across which two walls count as a plate, equation (97). With method `"field"` it is the widest overlap of a window, equation (96), so a larger value brings windows closer to one whole solution and takes longer. The capacitance model of a structure requires it when sidewalls are included, and method `"plates"` always. A few times the widest trench that should count is a starting value. |
+| `dense_cutoff` | $\lambda_d$ | 10 | Pairs of nets whose feature size, the length of their facing walls in units of the gap between them, equation (105), is below this are solved by the field method in one dense system, equation (106). Below ten gaps fringe field carries from an eighth to most of the capacitance. |
+| `plates_cutoff` | $\lambda_p$ | 100 | Pairs whose feature size is at least this take their facing walls as parallel plates, equations (97) to (103); pairs between the two cutoffs are solved by the field method in windows. At or above a hundred gaps plates are within about 3.5 percent in capacitance and 1 percent in pull and side spring; see [accuracy and defaults](theory.md#accuracy-and-defaults). Lower it to trade accuracy for time: 15 takes as plates combs whose fingers overlap more than about fifteen gaps. 0 for both cutoffs puts every pair on plates, infinity for both every pair in one dense system. |
+| `interaction_distance` | $d_i$ | none | Device electrodes whose silicon lies within this distance, directly or through a chain of neighbors, are taken together for sidewall capacitance, equation (110), and every pair within it is an interacting pair, equation (106). It is also the widest gap across which two walls count as a plate, equation (97), the widest overlap of a window, equation (96), and the reach of the cores of pairs solved by the field. Sidewall capacitance requires it. A few times the widest trench that should count is a starting value. |
 | `include_plates` | | true | Whether the capacitance model of a structure holds plates between device and handle electrodes. |
-| `include_sidewalls` | | true | Whether it holds sidewall capacitance between device electrodes. Without it none of `sidewall_method`, `element_size`, and `interaction_distance` is needed. |
+| `include_sidewalls` | | true | Whether it holds sidewall capacitance between device electrodes. Without it neither `element_size` nor `interaction_distance` is needed. |
 
 ## `StaticOptions`
 
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
-| `tolerance` | $\tau_s$ | 1e-9 | Newton iteration for static equilibrium stops when the strain energy of its last step is below this fraction, squared, of the strain energy of the displacement, equation (117), or one step after it is below this fraction itself. |
+| `tolerance` | $\tau_s$ | 1e-9 | Newton iteration for static equilibrium stops when the strain energy of its last step is below this fraction, squared, of the strain energy of the displacement, equation (122), or one step after it is below this fraction itself. |
 | `max_iterations` | | 30 | Most Newton iterations at one set of potentials. Reaching it counts as no equilibrium there. |
 | `steps` | | 1 | Equal steps in which potentials rise from zero to the values asked for. The equilibrium is followed from each to the next and all are returned, so more steps trace the curve of displacement against voltage. A step that finds no stable equilibrium is halved. |
-| `pull_in_resolution` | | 0.001 | Halving stops when the largest scale with a stable equilibrium and the smallest without are closer than this fraction of the potentials asked for, equation (120). |
-| `contact_fraction` | $\chi_c$ | 0.1 | An equilibrium at which a gap between two bodies has closed to this fraction of its width at rest, or further, counts as contact, equation (122), and ends the rise of the potentials. 0 accepts every equilibrium short of touching. |
+| `pull_in_resolution` | | 0.001 | Halving stops when the largest scale with a stable equilibrium and the smallest without are closer than this fraction of the potentials asked for, equation (125). |
+| `contact_fraction` | $\chi_c$ | 0.1 | An equilibrium at which a gap between two bodies has closed to this fraction of its width at rest, or further, counts as contact, equation (127), and ends the rise of the potentials. 0 accepts every equilibrium short of touching. |
 
 ## `Wire`
 
@@ -103,8 +104,8 @@ the field: lengths, areas, thicknesses, densities, moduli, and resistivity are p
 `torsion_beta >= 0`; `via_resistance >= 0`; `relative_permittivity >= 1`;
 `ambient_permittivity >= 1`; `element_size > 0` and `interaction_distance > 0`
 when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
-`window_tolerance > 0`; `sidewall_method` is `"field"` or `"plates"` when
-given; `tolerance > 0`, `max_iterations >= 1`, `steps >= 1`, and
+`window_tolerance > 0`; `dense_cutoff >= 0` and `plates_cutoff >= dense_cutoff`;
+`tolerance > 0`, `max_iterations >= 1`, `steps >= 1`, and
 `0 < pull_in_resolution < 1`, and `0 <= contact_fraction < 1` of
 `StaticOptions`; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
 `"device"` or `"handle"`, and its `resistance >= 0`; every stack layer has a

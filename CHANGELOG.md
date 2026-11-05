@@ -52,20 +52,25 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   potentials.
 - `CapacitanceModel.to_dict`: review report of capacitance by pair of
   electrodes and part, between nets, by cluster, and of silicon left out.
-- `ElectrostaticParams.sidewall_method`, required for sidewall capacitance
-  and without default: `"field"` is the boundary element solution, and
-  `"plates"` takes every wall that faces another conductor within
-  `interaction_distance` as a parallel plate with it, with exact gradient
-  and Hessian for rigid motion. Plates have no size limit and no fringe
-  field. `SidewallCapacitance.walls` and `Cluster.walls` hold the pieces of
-  wall taken as plates, as `FacingWalls`.
-- Field solution in windows: a mesh or cluster above `max_elements` is cut
-  into cores of at most `window_elements`, each solved densely with the
-  elements around it out to an overlap that doubles until the charge on the
-  core settles within `window_tolerance` or reaches `interaction_distance`.
-  Gradient and Hessian are exact for the windowed matrix. `windows` and
-  `asymmetry` on `SidewallCapacitance` and `Cluster` report the number of
-  solutions and their mismatch, so no cluster is too large to solve.
+- Facing walls as parallel plates: every wall that faces another conductor
+  within `interaction_distance` is a plate with it, with exact gradient and
+  Hessian for rigid motion. `SidewallCapacitance.walls` and `Cluster.walls`
+  hold the pieces of wall, as `FacingWalls`.
+- Field solution in windows: cores of at most `window_elements`, each
+  solved densely with the elements around it out to an overlap that doubles
+  until the charge on the core settles within `window_tolerance` or reaches
+  `interaction_distance`. Gradient and Hessian are exact for the windowed
+  matrix. `windows` and `asymmetry` on `SidewallCapacitance` and `Cluster`
+  report the number of solutions and their mismatch, so no cluster is too
+  large to solve.
+- Method for each pair of nets: every pair whose electrodes lie within
+  `interaction_distance` gets a feature size, the length of its facing walls
+  in units of the gap between them, and takes one dense system below
+  `ElectrostaticParams.dense_cutoff` (10), windows below `plates_cutoff`
+  (100), and plates from there. Pairs are assembled into one matrix with
+  exact derivatives. `SidewallCapacitance.feature_size` and `method` and
+  `Cluster.interactions` report the choice; a dense problem above
+  `max_elements` is solved in windows and reported so.
 - `CapacitanceModel.at`: the capacitance model with bodies displaced from
   rest, with matrices, gradient, forces, and stiffness at that displacement.
   Plates are evaluated in closed form and sidewalls on moved outlines, with

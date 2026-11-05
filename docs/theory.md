@@ -973,16 +973,15 @@ polygons, conductor $a$ at potential $V_a$, in a medium of permittivity
 $\varepsilon = \varepsilon_0 \varepsilon_a$. Every charge and capacitance
 here is per unit thickness.
 
-Two methods find the capacitance matrix of the plane problem. The field
-method of this section solves the field between the conductors. It
-approaches the exact answer of the plane problem as its mesh is refined,
-and a mesh too large for one solution is solved in
-[windows](#windows). The plates method of the
-[next section](#sidewalls-as-facing-plates) takes every wall that faces
-another conductor as a parallel plate with it. It costs far less and leaves
-out all fringe field. Which one suits a
-device is a judgment of its geometry, so `sidewall_method` has no default:
-the caller chooses.
+Three methods find the capacitance of the plane problem. The field method
+of this section solves the field between the conductors in one dense system
+and approaches the exact answer of the plane problem as its mesh is
+refined. The same field solved in [windows](#windows) costs time in
+proportion to the length of outline instead of its cube. The plates method
+of the [next section](#sidewalls-as-facing-plates) takes every wall that
+faces another conductor as a parallel plate with it, costs far less again,
+and leaves out all fringe field. Each pair of interacting nets takes the
+method that its [feature size](#method-for-each-pair-of-nets) selects.
 
 Charge sits on the outlines $\Gamma_a$ with density $\sigma$ and produces
 the potential
@@ -1640,7 +1639,9 @@ Capacitance is low by the share of the fringe field. Force and stiffness of
 a comb or a plate are close, because their fringe field hardly changes with
 travel. A toothed motor is the opposite case: its force is the change of
 the fringe field as teeth pass each other, and plates see only the overlap
-of tooth tops. Such a device needs the field method.
+of tooth tops. Such a device needs the field method, which the feature
+size of (105) selects for it: tooth tops a few gaps wide are far below any
+plates cutoff that keeps plates accurate.
 
 Teeth that stand tip to tip at rest are the worst case. By plates their
 capacitance is a cusp in travel: it falls to either side of rest, the two
@@ -1690,6 +1691,152 @@ the two sides and is far less affected.
     wall, with the conductor each faces and the gap at both ends, are kept
     for review.
 
+## Method for each pair of nets
+
+The three methods differ most where fringe field matters. Plates miss it
+entirely; windows miss only the far field beyond their overlap; one dense
+system misses nothing but grows with the cube of its size. Fringe field
+matters least between long walls across narrow gaps, which is also where
+outlines are longest and a field solution costs most. Each pair of nets
+that interact therefore takes its method from the shape of its facing walls.
+
+### Feature size
+
+The pieces of (99) to (101) that continue each other form runs. A piece
+continues another when it starts where the other ends, on the outline of
+the same conductor, facing the same net, and when the points at which the
+normals of the two meet the faced wall at their junction lie within half a
+gap of each other. A run follows a wall around a drawn arc or a corner of
+its own outline as long as the wall it faces runs on, and ends where the
+gap jumps, as at the edge of a tooth. Let run $r$ have length $L_r$ and
+
+$$
+w_r = \int_r \frac{ds}{\gamma}, \tag{104}
+$$
+
+its capacitance per permittivity as a plate, which is also its length over
+its mean gap, $L_r / \bar{\gamma}_r$ with $1 / \bar{\gamma}_r$ the mean of
+$1 / \gamma$ along it. The feature size of nets $A$ and $B$ is the mean of
+$w_r$ over the runs of $A$ facing $B$ and of $B$ facing $A$, weighted by
+$w_r$:
+
+$$
+\lambda_{AB} = \frac{\sum_r w_r^2}{\sum_r w_r}. \tag{105}
+$$
+
+It is the length of their facing walls in units of the gap between them,
+counted where the capacitance is: for a comb the finger overlap over the
+finger gap, for a plate actuator its length over its gap, for teeth the
+tooth width over the gap at the tips. Two nets whose silicon lies within
+$d_i$ but whose walls do not face have $\lambda_{AB} = 0$. Electrodes of one
+net are a pair $A = B$ like any other.
+
+### Choice and assembly
+
+With the dense cutoff $\lambda_d$ and the plates cutoff $\lambda_p$, the
+pair takes
+
+$$
+m_{AB} =
+\begin{cases}
+\text{one dense system} & \lambda_{AB} < \lambda_d, \\
+\text{windows} & \lambda_d \le \lambda_{AB} < \lambda_p, \\
+\text{plates} & \lambda_p \le \lambda_{AB},
+\end{cases} \tag{106}
+$$
+
+and every pair of conductors $a$, $b$ of a cluster, one in net $A$ and one in
+net $B$, within $d_i$ of each other, takes the method of $(A, B)$. Plates
+pairs take $c_{ab}$ of (97) and its derivatives (103). Pairs solved by the
+field count charge on the elements of their two conductors. The elements of
+the conductors of all dense pairs form the core of one window, (91) with a
+single core, and those of all windowed pairs are cut into cores of at most
+$n_w$ elements. A window is solved only when it holds both conductors of
+one of its pairs and its core lies on one of them, so where only pairs taken
+as plates meet, nothing is solved. Each gives $\hat{\mathbf{c}}$ of (93)
+over all conductors. A pair takes
+
+$$
+p_{ab} = -\tfrac{1}{2} \bigl( \hat{c}_{ab} + \hat{c}_{ba} \bigr) \tag{107}
+$$
+
+from the solution of its method, or $p_{ab} = -c_{ab}$ from plates, and the
+capacitance matrix of the cluster is assembled from the pairs,
+
+$$
+c_{ab} = -p_{ab} \quad (a \ne b), \qquad c_{aa} = \sum_{b \ne a} p_{ab}, \tag{108}
+$$
+
+which is symmetric with rows that sum to zero, as (71) requires. Gradient
+and Hessian go through (107) and (108) unchanged: they are linear, so the
+derivatives of the assembled matrix are exact. When every pair of a cluster
+is dense and its mesh fits `max_elements`, the cluster is solved whole by
+(70) instead. A dense window whose smallest overlap would exceed
+`max_elements` is solved in windows, and its pairs are reported as such.
+
+### Accuracy and defaults
+
+Measured against one dense system on the same mesh, with elements of half
+a gap up to 2 um and $d_i$ of 30 um, over combs of 6 fingers with overlaps
+of 5 to 160 um and gaps of 2 to 8 um, single walls of 4 to 400 um across 2
+to 8 um, and racks of 12 teeth 2 to 32 um wide across 1 to 4 um, as the
+ratio to the dense result:
+
+| Feature size $\lambda$ | Plates: capacitance | Plates: pull across the gap, side spring | Windows: capacitance, force |
+| --- | --- | --- | --- |
+| about 1 | 0.27 to 0.70 | 0.63 to 0.76 | within 1 percent |
+| 2 | 0.39 to 0.72 | 0.77 to 0.89 | within 1 percent |
+| 4 to 5 | 0.61 to 0.79 | 0.86 to 0.94 | within 1 percent |
+| 8 to 10 | 0.75 to 0.88 | 0.93 to 0.97 | within 1.5 percent |
+| 12 to 20 | 0.81 to 0.93 | 0.95 to 0.98 | within 2 percent |
+| 25 to 40 | 0.88 to 0.96 | 0.98 to 0.99 | within 2 percent |
+| 50 | 0.93 to 0.94 | 0.988 to 0.994 | within 2 percent |
+| 80 to 100 | 0.965 to 0.975 | 0.993 to 0.997 | within 1 percent |
+| 200 | 0.98 | 0.997 to 0.998 | within 1 percent |
+
+The error of plates is the share of fringe field, and it falls with
+$\lambda$ for every geometry; length alone does not order it, since a
+wall hundreds of microns long across a wide trench is still mostly fringe.
+At one $\lambda$ a comb is closer than a single wall, whose two open ends
+carry fringe that a finger between two others does not.
+Two errors of plates do not fall with $\lambda$: the force of a comb along
+its fingers, which comes from the finger tips, is 0.97 to 1.11 of the field
+at every overlap, and plates have no detent stiffness at all. The error of
+windows grows with the number of windows and not with $\lambda$.
+
+The defaults are $\lambda_d = 10$ and $\lambda_p = 100$. Plates take only
+pairs whose walls are at least a hundred gaps long, where every geometry
+measured is within 3.5 percent in capacitance and 1 percent in pull and
+side spring. Below ten gaps fringe carries from an eighth to most of the
+capacitance and a pair gets one dense system. Pairs between take windows,
+within 2 percent at any size. A caller trades accuracy for time with the
+two cutoffs: $\lambda_p$ of 15 puts on plates combs whose fingers overlap
+more than about fifteen gaps. At twenty gaps such a comb is 7 to 9 percent
+low in capacitance, within 3 percent in side spring, and up to 8 percent
+off in force along the fingers, found in a fraction of the time.
+$\lambda_d = \lambda_p = 0$ takes every pair as plates, $\lambda_d = \lambda_p
+= \infty$ solves every pair in one dense system as far as `max_elements`
+allows, and $\lambda_d = 0$, $\lambda_p = \infty$ solves every pair in
+windows.
+
+!!! note "Implementation choices"
+    Pieces of the plates method are found for every cluster whatever the
+    methods, since they give the feature sizes. They cost a small part of
+    a field solution.
+
+    Methods, cores, and windows are fixed at rest. Evaluated at displaced
+    bodies, a pair keeps its method, so capacitance stays a smooth function
+    of displacement, and (106) is never applied anew to a moved geometry.
+
+    A window reaches no farther than its overlap, at most $d_i$, so charge
+    on parts of a conductor whose windows reach no partner is not counted.
+    A cluster solved whole counts it. The two differ most between large pads
+    across wide gaps: by 4.5 percent for pads 200 um long across 16 um with
+    $d_i$ of 30 um, and by 3 percent with $d_i$ of 60 um.
+
+    A pair solved by the field needs `element_size`; a cluster whose pairs
+    are all plates is not meshed.
+
 ## Capacitance of a structure
 
 The electrodes of a structure, $n$ in all, are the nodes of one capacitance
@@ -1703,7 +1850,7 @@ $\tfrac{1}{2} c\, (v_a - v_b)^2$, so with $\mathbf{e}_a$ the unit vector of
 electrode $a$ it adds
 
 $$
-c\, (\mathbf{e}_a - \mathbf{e}_b)(\mathbf{e}_a - \mathbf{e}_b)^\top \tag{104}
+c\, (\mathbf{e}_a - \mathbf{e}_b)(\mathbf{e}_a - \mathbf{e}_b)^\top \tag{109}
 $$
 
 to $\mathbf{C}$: $c$ to the two diagonal entries and $-c$ to the two
@@ -1711,40 +1858,37 @@ others. Each plate enters twice, with $C_\text{ox}$ of (43) into
 $\mathbf{C}^\text{ox}$ and with $\varepsilon A / g_0$ into
 $\mathbf{C}^\text{rel}$.
 
-Sidewalls are found in the plane of the device layer, by the method the
-caller chooses. In that plane the field couples every conductor to every
-other, however far, which the handle beneath and the space above prevent in
+Sidewalls are found in the plane of the device layer. In that plane the
+field couples every conductor to every other, however far, which the handle beneath and the space above prevent in
 the real stack. Electrodes are therefore taken together only when their
 silicon is close. Let $d_i$ be the interaction distance and join device
 electrodes $a$ and $b$ when
 
 $$
-\operatorname{dist}(E_a, E_b) \le d_i. \tag{105}
+\operatorname{dist}(E_a, E_b) \le d_i. \tag{110}
 $$
 
 A cluster is a connected set of this relation with two or more electrodes:
 electrodes joined directly or through a chain of neighbors. Each cluster is
-one plane problem with its electrodes as conductors. With the field method
-it is one problem (62), all conductors coupled to one another whatever
-their distance, and $\mathbf{c}$ is that of (70), or that of (94) when the
-cluster needs more elements than `max_elements` and is solved in windows
-whose overlap stops at the same $d_i$. With the plates method $\mathbf{c}$
-is that of (97) and (98), where $d_i$ is the widest gap across which two
-walls count. Its matrix times the thickness of the device layer fills the
-rows and columns of its electrodes,
+one plane problem with its electrodes as conductors and their nets as the
+nets of (105), and its matrix $\mathbf{c}$ is that of (108), each pair of
+nets found by its own method. The same $d_i$ is the widest gap across which
+two walls count as plates and the widest overlap of a window. The matrix
+times the thickness of the device layer fills the rows and columns of its
+electrodes,
 
 $$
-\bigl[ \mathbf{C}^\text{sw} \bigr]_{ab} = t_\text{device}\, c_{ab} \quad \text{for } a, b \text{ in one cluster}, \tag{106}
+\bigl[ \mathbf{C}^\text{sw} \bigr]_{ab} = t_\text{device}\, c_{ab} \quad \text{for } a, b \text{ in one cluster}, \tag{111}
 $$
 
 and electrodes of different clusters share no sidewall capacitance. Then
 
 $$
 \mathbf{C} = \mathbf{C}^\text{ox} + \mathbf{C}^\text{rel} + \mathbf{C}^\text{sw}, \qquad
-\mathbf{C}^\top = \mathbf{C}, \qquad \mathbf{C}\, \mathbf{1} = \mathbf{0}. \tag{107}
+\mathbf{C}^\top = \mathbf{C}, \qquad \mathbf{C}\, \mathbf{1} = \mathbf{0}. \tag{112}
 $$
 
-Rows sum to zero because (104), (71), and (98) do: a potential common to all
+Rows sum to zero because (109), (71), and (98) do: a potential common to all
 electrodes moves no charge, nothing outside the structure holds charge, and
 $-C_{ab}$ is the capacitance between electrodes $a$ and $b$.
 
@@ -1753,7 +1897,7 @@ With $S_{a\nu} = 1$ when electrode $a$ belongs to net $\nu$ and zero
 otherwise, the capacitance matrix between nets is
 
 $$
-\mathbf{C}^\text{net} = \mathbf{S}^\top \mathbf{C}\, \mathbf{S}, \tag{108}
+\mathbf{C}^\text{net} = \mathbf{S}^\top \mathbf{C}\, \mathbf{S}, \tag{113}
 $$
 
 which adds the entries of $\mathbf{C}$ over the electrodes of each pair of
@@ -1764,7 +1908,7 @@ nets. Capacitance between two electrodes of one net drops out.
 $\mathbf{C}$ depends on the positions of the bodies. Let $\mathbf{q}$ stack
 the degrees of freedom (12) of every movable body, in the order of the
 assembled matrices (34) and (35). A plate between two bodies contributes
-its gradient and Hessian (58) in the pattern of (104). A cluster contributes
+its gradient and Hessian (58) in the pattern of (109). A cluster contributes
 through the in-plane motion of its bodies at the mid-plane of the device
 layer, $z_m = -t_\text{device} / 2$, where sidewall forces act. Body $B$
 with center of mass $\mathbf{c}_B$ turns about the vertical through
@@ -1776,7 +1920,7 @@ $$
 1 & 0 & 0 & 0 & d_z & 0 \\
 0 & 1 & 0 & -d_z & 0 & 0 \\
 0 & 0 & 0 & 0 & 0 & 1
-\end{bmatrix}, \qquad d_z = z_m - c_{B,z}, \tag{109}
+\end{bmatrix}, \qquad d_z = z_m - c_{B,z}, \tag{114}
 $$
 
 so that with the gradient and second derivative of the cluster, (81) and
@@ -1786,7 +1930,7 @@ centers of mass,
 $$
 \frac{\partial \mathbf{C}^\text{sw}}{\partial \mathbf{q}_B} = t_\text{device}\, \frac{\partial \mathbf{c}}{\partial \mathbf{a}_B}\, \mathbf{J}_B, \qquad
 \frac{\partial^2 \mathbf{C}^\text{sw}}{\partial \mathbf{q}_B\, \partial \mathbf{q}_{B'}^\top}
-= t_\text{device}\, \mathbf{J}_B^\top \frac{\partial^2 \mathbf{c}}{\partial \mathbf{a}_B\, \partial \mathbf{a}_{B'}^\top}\, \mathbf{J}_{B'}. \tag{110}
+= t_\text{device}\, \mathbf{J}_B^\top \frac{\partial^2 \mathbf{c}}{\partial \mathbf{a}_B\, \partial \mathbf{a}_{B'}^\top}\, \mathbf{J}_{B'}. \tag{115}
 $$
 
 The lever $d_z$ is zero for a body of device silicon alone and large for
@@ -1800,17 +1944,17 @@ generalized forces and the electrostatic stiffness are
 
 $$
 f_k = \frac{1}{2}\, \mathbf{v}^\top \frac{\partial \mathbf{C}}{\partial q_k}\, \mathbf{v}, \qquad
-\bigl[ \mathbf{K}_e \bigr]_{kl} = -\frac{1}{2}\, \mathbf{v}^\top \frac{\partial^2 \mathbf{C}}{\partial q_k\, \partial q_l}\, \mathbf{v}. \tag{111}
+\bigl[ \mathbf{K}_e \bigr]_{kl} = -\frac{1}{2}\, \mathbf{v}^\top \frac{\partial^2 \mathbf{C}}{\partial q_k\, \partial q_l}\, \mathbf{v}. \tag{116}
 $$
 
 $\mathbf{K}_e$ adds to $\mathbf{K}^\text{full}$ of (35). It is symmetric,
 and a negative diagonal entry means that the field softens that motion. For
 a comb of $N$ gaps of width $g$ and overlap $\ell$ between a stator at $V$
-and a shuttle at zero, the ideal values that (111) approaches are
+and a shuttle at zero, the ideal values that (116) approaches are
 
 $$
 f_\parallel = \frac{N \varepsilon\, t_\text{device} V^2}{2 g}, \qquad
-\bigl[ \mathbf{K}_e \bigr]_{\perp\perp} = -\frac{N \varepsilon\, t_\text{device}\, \ell\, V^2}{g^3}, \tag{112}
+\bigl[ \mathbf{K}_e \bigr]_{\perp\perp} = -\frac{N \varepsilon\, t_\text{device}\, \ell\, V^2}{g^3}, \tag{117}
 $$
 
 along the fingers and across them. With the field method the computed
@@ -1824,12 +1968,12 @@ Nothing above needs the bodies to be at rest. With every body at a
 displacement from rest, stacked in $\mathbf{q}$, the same construction gives
 a matrix $\mathbf{C}(\mathbf{q})$. A plate is evaluated by (55) at the
 displacements of its two bodies. Sidewall outlines of body $B$ are carried
-by the in-plane part (109) of its displacement,
+by the in-plane part (114) of its displacement,
 
 $$
 z \mapsto c_B + a + e^{\mathrm{i} a_\psi} (z - c_B), \qquad
 a = a_x + \mathrm{i}\, a_y, \qquad
-\begin{bmatrix} a_x \\ a_y \\ a_\psi \end{bmatrix} = \mathbf{J}_B\, \mathbf{q}_B, \tag{113}
+\begin{bmatrix} a_x \\ a_y \\ a_\psi \end{bmatrix} = \mathbf{J}_B\, \mathbf{q}_B, \tag{118}
 $$
 
 which is the motion (83) at finite size: travel, and rotation about the
@@ -1838,24 +1982,24 @@ the carried outlines. Its gradient and second derivative there, taken about
 the carried centers $c_B + a$, are the derivatives of its matrix in
 $(a_x, a_y, a_\psi)$ at that displacement, because (83) composes: a further
 small motion of a carried body is again (83) about its carried center. With
-$\mathbf{J}_B$ constant, (110) holds at every $\mathbf{q}$, and so do (57)
+$\mathbf{J}_B$ constant, (115) holds at every $\mathbf{q}$, and so do (57)
 and (58) for plates. Forces are therefore conservative,
 
 $$
 f_k(\mathbf{q}) = \frac{\partial}{\partial q_k}\, \frac{1}{2}\, \mathbf{v}^\top \mathbf{C}(\mathbf{q})\, \mathbf{v}, \qquad
-\bigl[ \mathbf{K}_e(\mathbf{q}) \bigr]_{kl} = -\frac{\partial f_k}{\partial q_l}, \tag{114}
+\bigl[ \mathbf{K}_e(\mathbf{q}) \bigr]_{kl} = -\frac{\partial f_k}{\partial q_l}, \tag{119}
 $$
 
 exactly, for the function $\mathbf{C}(\mathbf{q})$ that the model computes.
 
-What was found at rest stays. Clusters are those of (105) at rest. With the
+What was found at rest stays. Clusters are those of (110) at rest. With the
 field method the mesh is carried with the bodies and not made anew, and a
 cluster solved in windows keeps the elements of each window, so
 $\mathbf{C}(\mathbf{q})$ is smooth and (95) remains its exact derivative.
 The plates method finds its pieces anew on the carried outlines, since they
 are exact for any outlines; its kinks are those of (97). The limits are
 those of the parts: a plate is exact in rise, of second order in tilt, and
-of first order in in-plane travel, and the lever of (109) is that of a small
+of first order in in-plane travel, and the lever of (114) is that of a small
 tilt. Electrodes of different bodies that touch after the motion are an
 error.
 
@@ -1871,13 +2015,13 @@ error.
     electrode. Where a beam met an electrode, the outline is closed by a
     short straight wall that carries charge like any other.
 
-    The map (109) is linear. Terms of second order in tilt are left out of
-    (110), as they are for plates, and so is any dependence of sidewall
+    The map (114) is linear. Terms of second order in tilt are left out of
+    (115), as they are for plates, and so is any dependence of sidewall
     capacitance on travel out of the plane: facing sidewalls overlap fully
     at rest, so that dependence is even and exerts no force there.
 
     The second derivative is kept as one block per plate and per cluster,
-    over the electrodes and degrees of freedom each involves, and (111) sums
+    over the electrodes and degrees of freedom each involves, and (116) sums
     the blocks. A dense array over all pairs of electrodes and all pairs of
     degrees of freedom would not fit for a large structure.
 
@@ -1885,14 +2029,10 @@ error.
     faces of beams and bridges, coupling between clusters, and the field
     that leaves the plane of a layer at the top and bottom of a sidewall.
 
-    With the field method a cluster of at most `max_elements` is one dense
-    solution and a larger one is solved in windows. No cluster is left out:
-    a matrix without it would look complete and not be. The number of
-    windows and the asymmetry of (94) are kept for every cluster.
-
-    The method is one choice for the whole structure and has no default. No
-    rule in the library could tell a comb, which plates describe well, from
-    a toothed motor, which they do not.
+    No cluster is left out, whatever its size: a matrix without it would
+    look complete and not be. The feature size and method of every pair of
+    nets, the number of windows, and the asymmetry of (94) are kept for
+    every cluster.
 
     Plates and sidewalls are independent of each other and of any
     mechanical solution: each can be left out, and each needs only its own
@@ -1903,27 +2043,27 @@ error.
 With potentials on its nets a structure comes to rest where the pull of its
 beams balances the electrostatic forces. Nothing flows at rest, so no link
 carries a voltage and the electrodes of a net share its potential:
-$\mathbf{v} = \mathbf{S}\, \mathbf{v}^\text{net}$ with $\mathbf{S}$ of (108).
+$\mathbf{v} = \mathbf{S}\, \mathbf{v}^\text{net}$ with $\mathbf{S}$ of (113).
 Beams are linear, with the stiffness $\mathbf{K}^\text{full}$ of (35), and
-the electrostatic force is that of (114) at the displaced bodies. With
+the electrostatic force is that of (119) at the displaced bodies. With
 mechanical loads $\mathbf{f}_0$ on the bodies, the displacement $\mathbf{q}$
 solves
 
 $$
 \mathbf{K}^\text{full} \mathbf{q} = \mathbf{f}(\mathbf{q}) + \mathbf{f}_0, \qquad
-f_k(\mathbf{q}) = \frac{1}{2}\, \mathbf{v}^\top \frac{\partial \mathbf{C}}{\partial q_k}(\mathbf{q})\, \mathbf{v}. \tag{115}
+f_k(\mathbf{q}) = \frac{1}{2}\, \mathbf{v}^\top \frac{\partial \mathbf{C}}{\partial q_k}(\mathbf{q})\, \mathbf{v}. \tag{120}
 $$
 
-The force grows as gaps close, so (115) is not linear and is solved by
+The force grows as gaps close, so (120) is not linear and is solved by
 Newton iteration from rest, $\mathbf{q}_0 = \mathbf{0}$:
 
 $$
 \bigl( \mathbf{K}^\text{full} + \mathbf{K}_e(\mathbf{q}_i) \bigr)\, \Delta \mathbf{q}
 = \mathbf{f}(\mathbf{q}_i) + \mathbf{f}_0 - \mathbf{K}^\text{full} \mathbf{q}_i, \qquad
-\mathbf{q}_{i+1} = \mathbf{q}_i + \Delta \mathbf{q}, \tag{116}
+\mathbf{q}_{i+1} = \mathbf{q}_i + \Delta \mathbf{q}, \tag{121}
 $$
 
-with $\mathbf{K}_e$ of (114). Every iterate evaluates the capacitance model
+with $\mathbf{K}_e$ of (119). Every iterate evaluates the capacitance model
 at $\mathbf{q}_i$ for its gradient and second derivative, which are exact
 there, so the iteration converges quadratically. Displacements mix meters
 and radians, and steps are therefore measured by the strain energy they
@@ -1931,12 +2071,12 @@ would store in the beams. Iteration stops when
 
 $$
 \Delta \mathbf{q}^\top \mathbf{K}^\text{full} \Delta \mathbf{q}
-\le \tau_s^2\; \mathbf{q}_{i+1}^\top \mathbf{K}^\text{full} \mathbf{q}_{i+1}, \tag{117}
+\le \tau_s^2\; \mathbf{q}_{i+1}^\top \mathbf{K}^\text{full} \mathbf{q}_{i+1}, \tag{122}
 $$
 
 with $\tau_s$ the tolerance of the solve, or one step after the left side
 has fallen below $\tau_s$ times the right side without the square. A step
-that small is followed by one of about its square, which meets (117), unless
+that small is followed by one of about its square, which meets (122), unless
 rounding in the forces keeps it larger, and then further steps would not
 shrink it either.
 
@@ -1948,7 +2088,7 @@ its smallest eigenvalue,
 $$
 \bigl( \mathbf{K}^\text{full} + \mathbf{K}_e(\mathbf{q}) \bigr)\, \boldsymbol{\phi}
 = \lambda\, \mathbf{M}^\text{full} \boldsymbol{\phi}, \qquad
-\lambda_\text{min} > 0, \tag{118}
+\lambda_\text{min} > 0, \tag{123}
 $$
 
 is the squared angular frequency of the softest motion under these
@@ -1958,7 +2098,7 @@ Against the beam stiffness instead,
 $$
 \bigl( \mathbf{K}^\text{full} + \mathbf{K}_e(\mathbf{q}) \bigr)\, \boldsymbol{\psi}
 = \mu\, \mathbf{K}^\text{full} \boldsymbol{\psi}, \qquad
-\mu_\text{min} = \min_{\boldsymbol{\psi}} \frac{\boldsymbol{\psi}^\top \bigl( \mathbf{K}^\text{full} + \mathbf{K}_e \bigr) \boldsymbol{\psi}}{\boldsymbol{\psi}^\top \mathbf{K}^\text{full} \boldsymbol{\psi}}, \tag{119}
+\mu_\text{min} = \min_{\boldsymbol{\psi}} \frac{\boldsymbol{\psi}^\top \bigl( \mathbf{K}^\text{full} + \mathbf{K}_e \bigr) \boldsymbol{\psi}}{\boldsymbol{\psi}^\top \mathbf{K}^\text{full} \boldsymbol{\psi}}, \tag{124}
 $$
 
 the smallest eigenvalue is the share of beam stiffness left in the
@@ -1971,8 +2111,8 @@ $\mu_\text{min}$ falls steadily. A square plate on four beams over the
 handle at 95 percent of its pull-in voltage has $\mu_\text{min} = 0.44$,
 while its softest motion, a travel in the plane that the field does not
 touch, keeps the frequency it has without voltage.
-For a plate of area $A$ on a spring $k$ over a gap $g_0$, (115) reads
-$k\, z = -\varepsilon A V^2 / \bigl( 2 (g_0 + z)^2 \bigr)$ and (118) is
+For a plate of area $A$ on a spring $k$ over a gap $g_0$, (120) reads
+$k\, z = -\varepsilon A V^2 / \bigl( 2 (g_0 + z)^2 \bigr)$ and (123) is
 $k > \varepsilon A V^2 / (g_0 + z)^3$.
 
 ### Pull-in
@@ -1983,19 +2123,19 @@ step starts the iteration of the next, so the solution that is followed is
 the one that grows out of rest. Pull-in is where it ends:
 
 $$
-s^* = \sup \bigl\{ s : \mathbf{q}(s) \text{ solves (115) at } \mathbf{v}(s),\ \text{continues from } \mathbf{q}(0),\ \lambda_\text{min}\bigl(\mathbf{q}(s)\bigr) > 0 \bigr\}. \tag{120}
+s^* = \sup \bigl\{ s : \mathbf{q}(s) \text{ solves (120) at } \mathbf{v}(s),\ \text{continues from } \mathbf{q}(0),\ \lambda_\text{min}\bigl(\mathbf{q}(s)\bigr) > 0 \bigr\}. \tag{125}
 $$
 
 It ends in one of two ways. At a fold $\lambda_\text{min}$ falls to zero and
 no equilibrium exists beyond: the plate above meets its fold at one third
 of the gap. At a loss of symmetry the equilibrium goes on but no longer
 holds against a push: a comb between two stators at one potential stays
-centered while the spring across its fingers is used up by (112). The two
+centered while the spring across its fingers is used up by (117). The two
 closed forms are
 
 $$
 V^* = \sqrt{\frac{8\, k\, g_0^3}{27\, \varepsilon A}} \ \text{ at } z = -\frac{g_0}{3}, \qquad
-V^*_\perp = \sqrt{\frac{k_\perp\, g^3}{N \varepsilon\, t_\text{device}\, \ell}}. \tag{121}
+V^*_\perp = \sqrt{\frac{k_\perp\, g^3}{N \varepsilon\, t_\text{device}\, \ell}}. \tag{126}
 $$
 
 A step that finds no equilibrium, or finds one that is not stable, is
@@ -2015,7 +2155,7 @@ $$
 \chi(\mathbf{q}) = \min \Bigl\{
 \min_{\text{plates}} \frac{g_0 + h_0 - |h_x|\, e_x - |h_y|\, e_y}{g_0},\;
 \min_{(a, b)} \frac{\operatorname{dist}\bigl( E_a(\mathbf{q}), E_b(\mathbf{q}) \bigr)}{\operatorname{dist}(E_a, E_b)}
-\Bigr\}. \tag{122}
+\Bigr\}. \tag{127}
 $$
 
 The first runs over plates between two bodies, with the rise $h_0$ and
@@ -2023,7 +2163,7 @@ slopes $h_x$, $h_y$ of (45) and the half widths $e_x$, $e_y$ of the bounding
 box of the overlap about its reference point: its numerator is the gap (45)
 at the corner of that box that comes closest. The second runs over pairs of
 device electrodes of one cluster that move with different bodies and lie
-within $d_i$ of each other at rest, with the outlines carried by (113), and
+within $d_i$ of each other at rest, with the outlines carried by (118), and
 is the exact distance between their silicon. An equilibrium with
 $\chi \le \chi_c$, the contact fraction, ends the rise of the potentials as
 pull-in does, and the scale at which it happens is found by the same
@@ -2034,26 +2174,26 @@ bisection.
 A net that nothing drives keeps the charge it has. Split the nets into
 driven ones, $d$, whose potentials are given, and floating ones, $f$, whose
 charges $\mathbf{Q}_f$ are given. With the matrix between nets
-$\mathbf{C}^\text{net}(\mathbf{q})$ of (108) in blocks, the charge on the
+$\mathbf{C}^\text{net}(\mathbf{q})$ of (113) in blocks, the charge on the
 floating nets fixes their potentials at every displacement:
 
 $$
 \mathbf{C}^\text{net}_{ff}\, \mathbf{v}_f + \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d = \mathbf{Q}_f
 \quad \Longrightarrow \quad
-\mathbf{v}_f(\mathbf{q}) = \mathbf{C}_{ff}^{\text{net}\,-1} \bigl( \mathbf{Q}_f - \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d \bigr). \tag{123}
+\mathbf{v}_f(\mathbf{q}) = \mathbf{C}_{ff}^{\text{net}\,-1} \bigl( \mathbf{Q}_f - \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d \bigr). \tag{128}
 $$
 
-The force keeps the form (115), now with these potentials. Its change with
+The force keeps the form (120), now with these potentials. Its change with
 displacement gains a part, because moving a body changes
 $\mathbf{v}_f$: with $\boldsymbol{\Gamma}_f$ the rows for floating nets of
 $\Gamma_{\nu k} = \sum_\mu \bigl( \partial C^\text{net}_{\nu\mu} / \partial q_k \bigr) v_\mu$,
 
 $$
 \mathbf{K}_t = \mathbf{K}^\text{full} + \mathbf{K}_e
-+ \boldsymbol{\Gamma}_f^\top\, \mathbf{C}_{ff}^{\text{net}\,-1}\, \boldsymbol{\Gamma}_f \tag{124}
++ \boldsymbol{\Gamma}_f^\top\, \mathbf{C}_{ff}^{\text{net}\,-1}\, \boldsymbol{\Gamma}_f \tag{129}
 $$
 
-replaces the tangent stiffness in (116), (118), and (119). The added part is never
+replaces the tangent stiffness in (121), (123), and (124). The added part is never
 negative: a body that moves toward a floating electrode lowers its
 potential, which weakens the pull. A plate that holds a fixed charge and
 has no other capacitance loses no stiffness at all, and never pulls in.
@@ -2076,7 +2216,7 @@ together with the potentials.
     without that being pull-in. Such a device needs the field method.
 
     The bounding box of a plate reaches at least as far as the plate, so
-    (122) reports contact of a tilted plate no later than it happens, and
+    (127) reports contact of a tilted plate no later than it happens, and
     earlier for a plate that does not fill its box. A tilted plate is also
     where the capacitance of (55), of second order in tilt, is least
     accurate: at a clearance of one half its integrand is 12 percent low
@@ -2104,7 +2244,7 @@ together with the potentials.
     A body that no chain of beams joins to the anchor has no stiffness, and
     nothing balances a force on it. Such a body, for instance an island
     left on a neck too thin to qualify as a beam, is kept at rest and
-    listed with the result. (115) to (119) are taken over the other bodies.
+    listed with the result. (120) to (124) are taken over the other bodies.
 
 ## Symbols and parameters
 
@@ -2127,7 +2267,9 @@ and validation rules are on the [parameters page](parameters.md).
 | $\varepsilon_a$ | relative permittivity of the medium in released gaps and trenches | `ElectrostaticParams.ambient_permittivity` |
 | $h$ | longest boundary element | `ElectrostaticParams.element_size` |
 | $g$ | refinement of elements at convex corners | `ElectrostaticParams.corner_grading` |
-| $d_i$ | distance within which device electrodes are taken together for sidewalls; with the plates method also the widest gap between walls that count, with the field method the widest overlap of a window | `ElectrostaticParams.interaction_distance` |
+| $d_i$ | distance within which device electrodes are taken together for sidewalls, the widest gap between walls that count as plates, and the widest overlap of a window | `ElectrostaticParams.interaction_distance` |
+| $\lambda_d$ | feature size below which a pair of nets is solved in one dense system | `ElectrostaticParams.dense_cutoff` |
+| $\lambda_p$ | feature size from which a pair of nets is taken as plates | `ElectrostaticParams.plates_cutoff` |
 | $n_w$ | most elements in the core of a window | `ElectrostaticParams.window_elements` |
 | $\tau$ | change of the charge on a core below which the overlap of its window stops growing | `ElectrostaticParams.window_tolerance` |
 | $\tau_s$ | relative size of the last Newton step at which static equilibrium is accepted | `StaticOptions.tolerance` |

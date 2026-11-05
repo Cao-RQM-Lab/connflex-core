@@ -27,11 +27,14 @@ def um(polygon: Polygon) -> Polygon:
 
 
 def params(size: float, grading: float = 16.0, limit: int = 8000) -> ElectrostaticParams:
+    """Field solved whole for every pair, as far as ``limit`` allows."""
     return ElectrostaticParams(
-        sidewall_method="field",
         element_size=size * UM,
         corner_grading=grading,
         max_elements=limit,
+        interaction_distance=1e-3,
+        dense_cutoff=float("inf"),
+        plates_cutoff=float("inf"),
     )
 
 
@@ -189,6 +192,7 @@ def test_mesh_above_the_element_limit_is_solved_in_windows() -> None:
     windowed = sidewall_capacitance(conductors, limited)
     assert whole.windows == 1
     assert windowed.windows >= 8
+    assert (whole.method[0, 1], windowed.method[0, 1]) == ("dense", "windowed")
     assert whole.asymmetry < 1e-9 < windowed.asymmetry < 2e-2
     for found, expected in (
         (windowed.capacitance, whole.capacitance),
@@ -240,6 +244,65 @@ def test_derivatives_of_charge_on_some_elements_are_exact() -> None:
                 assert expected == pytest.approx(found, rel=1e-5, abs=1e-6 * np.max(abs(found)))
 
 
+def test_each_pair_takes_the_method_its_feature_size_falls_in() -> None:
+    """A block faces a long wall across 1.5 um, feature size 133, and a toothed rack
+    whose teeth are 2 gaps wide. The rack moves."""
+    block = box(0, 0, 200, 30)
+    wall = box(0, 31.5, 200, 51.5)
+    rack = union_all(
+        [box(0, -40, 200, -10)] + [box(20 + 40 * k, -10, 24 + 40 * k, -2) for k in range(5)]
+    )
+    conductors = [um(block), um(wall), um(cast(Polygon, rack))]
+    mixed = ElectrostaticParams(
+        element_size=2 * UM, corner_grading=4.0, interaction_distance=30 * UM
+    )
+    assert (mixed.dense_cutoff, mixed.plates_cutoff) == (10.0, 100.0)
+    bodies, centers = [0, 1, 2], np.array([[100, 15], [100, 41.5], [100, -25]]) * UM
+    result = sidewall_capacitance(conductors, mixed, bodies=bodies, centers=centers)
+    assert result.method[0, 1] == "plates"
+    assert result.method[0, 2] == "dense"
+    assert result.method[1, 2] == ""
+    assert result.feature_size[0, 1] == pytest.approx(200 / 1.5, rel=1e-6)
+    assert result.feature_size[0, 2] < 10
+    c = result.capacitance
+    assert np.array_equal(c, c.T)
+    assert np.max(abs(c.sum(axis=1))) < 1e-12 * np.max(abs(c))
+    plates = sidewall_capacitance(conductors, replace(mixed, dense_cutoff=0.0, plates_cutoff=0.0))
+    dense = sidewall_capacitance(
+        conductors, replace(mixed, dense_cutoff=float("inf"), plates_cutoff=float("inf"))
+    )
+    assert c[0, 1] == pytest.approx(plates.capacitance[0, 1], rel=1e-12)
+    assert c[0, 2] == pytest.approx(dense.capacitance[0, 2], rel=2e-2)
+    assert result.gradient[0, 2, 2] == pytest.approx(
+        dense.gradient[0, 2, 2], rel=2e-2, abs=2e-2 * abs(dense.gradient[0, 2, 2]).max()
+    )
+    assert not c[1, 2]
+
+    windowed = sidewall_capacitance(conductors, replace(mixed, plates_cutoff=float("inf")))
+    assert windowed.method[0, 1] == "windowed"
+    assert windowed.capacitance[0, 1] == pytest.approx(dense.capacitance[0, 1], rel=2e-2)
+
+    def moved(dof: int, step: float) -> SidewallCapacitance:
+        shifted = conductors[:2]
+        pivots = centers.copy()
+        if dof < 2:
+            pivots[2, dof] += step
+            shifted.append(affinity.translate(conductors[2], *np.eye(2)[dof] * step))
+        else:
+            origin = tuple(centers[2])
+            shifted.append(affinity.rotate(conductors[2], step, origin=origin, use_radians=True))
+        return sidewall_capacitance(shifted, mixed, bodies=bodies, centers=pivots)
+
+    for dof, step in ((0, 1e-10), (1, 1e-10), (2, 1e-7)):
+        ahead, behind = moved(dof, step), moved(dof, -step)
+        slope = (ahead.capacitance - behind.capacitance) / (2 * step)
+        expected = result.gradient[:, :, 2, dof]
+        assert expected == pytest.approx(slope, rel=1e-4, abs=1e-5 * np.max(abs(expected)))
+        bend = (ahead.gradient[:, :, 2, dof] - behind.gradient[:, :, 2, dof]) / (2 * step)
+        expected = result.hessian[:, :, 2, dof, 2, dof]
+        assert expected == pytest.approx(bend, rel=1e-3, abs=1e-4 * np.max(abs(expected)))
+
+
 def test_cavity_that_holds_no_conductor_is_not_meshed() -> None:
     solid, other = um(box(0, 0, 10, 10)), um(box(12, 0, 22, 10))
     hollow = Polygon(solid.exterior, [um(box(3, 3, 7, 7)).exterior])
@@ -263,7 +326,7 @@ def test_elements_tile_a_long_outline_within_the_size_limit() -> None:
 def test_inputs_that_cannot_be_solved_are_rejected() -> None:
     squares = [um(box(0, 0, 10, 10)), um(box(12, 0, 22, 10))]
     with pytest.raises(ValueError, match="element_size"):
-        sidewall_capacitance(squares, ElectrostaticParams(sidewall_method="field"))
+        sidewall_capacitance(squares, replace(params(1.0), element_size=None))
     with pytest.raises(ValueError, match="max_elements"):
         sidewall_capacitance(squares, params(1.0, limit=50))
     with pytest.raises(ValueError, match="conductors 0 and 1"):

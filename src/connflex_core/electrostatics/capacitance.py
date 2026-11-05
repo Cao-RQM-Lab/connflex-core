@@ -12,12 +12,15 @@ import shapely
 from numpy.typing import ArrayLike, NDArray
 from shapely import MultiPolygon, STRtree, affinity
 
-from connflex_core.electrostatics import VACUUM_PERMITTIVITY
 from connflex_core.electrostatics.facing import FacingWalls, facing_plates
-from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
+from connflex_core.electrostatics.outlines import Mesh
 from connflex_core.electrostatics.plates import Plate, find_plates
-from connflex_core.electrostatics.sidewalls import solve_field
-from connflex_core.electrostatics.windows import cut_cores
+from connflex_core.electrostatics.sidewalls import (
+    Facing,
+    SidewallPlan,
+    plan_sidewalls,
+    solve_sidewalls,
+)
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.mechanics.assembly import DOF_NAMES, Dof
 from connflex_core.params import ElectrostaticParams
@@ -30,19 +33,37 @@ Array = NDArray[np.float64]
 
 
 @dataclass(frozen=True)
+class Interaction:
+    """How sidewall capacitance between two nets of a cluster is found.
+
+    Attributes:
+        nets: The two nets, smaller first; equal for electrodes of one net.
+        feature_size: Length of their facing walls in units of the gap between them,
+            equation (105). Zero when no wall of one faces the other.
+        method: ``"dense"``, ``"windowed"``, or ``"plates"``, equation (106).
+    """
+
+    nets: tuple[int, int]
+    feature_size: float
+    method: str
+
+
+@dataclass(frozen=True)
 class Cluster:
     """Device electrodes whose sidewall capacitance is found together.
 
     Attributes:
         electrodes: Indices of its electrodes, ascending.
-        elements: Number of boundary elements on their outlines with method ``"field"``,
-            of pieces of wall taken as plates with method ``"plates"``.
-        windows: Number of dense solutions it took: 1 when solved whole, more when
-            solved in windows, 0 with method ``"plates"``.
-        asymmetry: Asymmetry of its capacitance matrix before it was made symmetric,
+        elements: Number of boundary elements on their outlines, 0 when no pair of its
+            nets is solved by the field method.
+        windows: Number of field solutions it took: 1 when solved whole, the number of
+            windows otherwise, 0 when every pair is taken as plates.
+        asymmetry: Asymmetry of its field solutions before they were made symmetric,
             as on ``SidewallCapacitance``: for windows a measure of their error.
-        walls: Pieces of wall taken as plates, with conductors numbered by position in
-            ``electrodes``. Method ``"field"`` has none.
+        walls: Pieces of wall facing another electrode, with electrodes numbered by
+            position in ``electrodes``.
+        interactions: Feature size and method of each pair of nets whose electrodes in
+            the cluster lie within ``interaction_distance`` of each other.
     """
 
     electrodes: tuple[int, ...]
@@ -50,6 +71,7 @@ class Cluster:
     windows: int
     asymmetry: float
     walls: FacingWalls
+    interactions: tuple[Interaction, ...]
 
 
 @dataclass(frozen=True, eq=False)
@@ -93,9 +115,8 @@ class RestCluster:
         regions: Silicon of each electrode.
         bodies: Bodies its electrodes move with, ascending.
         body: Position in ``bodies`` of the body of each electrode.
-        mesh: Boundary elements on the outlines with method ``"field"``, else None.
-        cores: Cores of its windows; empty when it is one dense solution.
-        windows: Elements of each window as chosen at rest; None before that.
+        plan: Pairs, feature sizes, methods, mesh, and windows chosen at rest.
+        facing: Result of ``facing_plates`` at rest.
         near: Pairs of its electrodes on different bodies within ``interaction_distance``
             of each other, as positions in ``electrodes``, each with the distance between
             their silicon.
@@ -106,9 +127,8 @@ class RestCluster:
     bodies: tuple[int, ...]
     body: NDArray[np.intp]
     near: tuple[tuple[int, int, float], ...]
-    mesh: Mesh | None
-    cores: list[NDArray[np.intp]]
-    windows: list[NDArray[np.intp]] | None
+    plan: SidewallPlan
+    facing: Facing
 
 
 @dataclass(frozen=True, eq=False)
@@ -137,7 +157,7 @@ class CapacitanceModel:
         displacement: Displacement of every degree of freedom in ``dofs`` at which the
             model is evaluated, in meters and radians. Zero at rest.
         clearance: Smallest ratio of a gap between two bodies at ``displacement`` to the
-            same gap at rest, equation (122): over plates between two bodies, at the
+            same gap at rest, equation (127): over plates between two bodies, at the
             corner of the plate that comes closest, and over device electrodes of one
             cluster on different bodies, by the distance between their silicon. 1 at
             rest.
@@ -162,7 +182,7 @@ class CapacitanceModel:
     rest: RestGeometry
 
     def at(self, displacement: ArrayLike, *, progress: Progress | None = None) -> CapacitanceModel:
-        """The model with its bodies displaced, equations (113) and (114).
+        """The model with its bodies displaced, equations (118) and (119).
 
         ``displacement`` holds one value for each degree of freedom in ``dofs``, measured
         from rest. Every matrix, the gradient, and the second derivative are those at the
@@ -186,13 +206,13 @@ class CapacitanceModel:
         return tied
 
     def force(self, potentials: ArrayLike) -> Array:
-        """Generalized forces on ``dofs`` with ``potentials`` on the electrodes, equation (111)."""
+        """Generalized forces on ``dofs`` with ``potentials`` on the electrodes, equation (116)."""
         v = self._volts(potentials)
         force: Array = 0.5 * np.einsum("a,abk,b->k", v, self.gradient, v)
         return force
 
     def stiffness(self, potentials: ArrayLike) -> Array:
-        """D by D electrostatic stiffness with ``potentials`` on the electrodes, equation (111).
+        """D by D electrostatic stiffness with ``potentials`` on the electrodes, equation (116).
 
         It adds to the mechanical stiffness; a negative diagonal entry softens that motion.
         """
@@ -241,6 +261,14 @@ class CapacitanceModel:
                     "elements": cluster.elements,
                     "windows": cluster.windows,
                     "asymmetry": cluster.asymmetry,
+                    "interactions": [
+                        {
+                            "nets": list(interaction.nets),
+                            "feature_size": interaction.feature_size,
+                            "method": interaction.method,
+                        }
+                        for interaction in cluster.interactions
+                    ],
                 }
                 for cluster in self.clusters
             ],
@@ -266,12 +294,14 @@ def find_capacitance(
     *,
     progress: Progress | None = None,
 ) -> CapacitanceModel:
-    """Capacitance between all electrodes of a structure at rest, equations (104) to (111).
+    """Capacitance between all electrodes of a structure at rest, equations (109) to (116).
 
     Plates between device and handle electrodes and sidewalls between device electrodes
     are each included unless ``params`` leaves them out. Sidewalls need
-    ``sidewall_method`` and ``interaction_distance``, and ``element_size`` with method
-    ``"field"``. Derivatives are in the six degrees of freedom of every movable body.
+    ``interaction_distance``, and ``element_size`` when a pair of nets is solved by the
+    field method; each pair of nets in a cluster takes the method its feature size
+    selects, equations (104) to (108). Derivatives are in the six degrees of freedom of
+    every movable body.
     Stages plates, clusters, and sidewalls log through the
     ``connflex_core`` logger and report to ``progress``; sidewalls advances once per
     cluster, and once per window for a cluster solved in windows.
@@ -280,19 +310,11 @@ def find_capacitance(
     plates = find_plates(structure, params, progress=progress) if params.include_plates else ()
     groups: list[RestCluster] = []
     if params.include_sidewalls:
-        method, reach, size = (
-            params.sidewall_method,
-            params.interaction_distance,
-            params.element_size,
-        )
-        if method is None or reach is None or (size is None and method == "field"):
-            missing = (
-                "sidewall_method"
-                if method is None
-                else "interaction_distance" if reach is None else "element_size"
-            )
+        reach = params.interaction_distance
+        if reach is None:
             raise ValueError(
-                f"{missing} is required for sidewall capacitance; set it or include_sidewalls=False"
+                "interaction_distance is required for sidewall capacitance; set it or "
+                "include_sidewalls=False"
             )
         device = [e for e in structure.electrodes if e.layer == "device"]
         with stage("clusters", progress) as current:
@@ -307,30 +329,28 @@ def find_capacitance(
             ):
                 regions = tuple(silicon[k] for k in members)
                 bodies = tuple(sorted({device[k].body for k in members}))
+                body = np.array([bodies.index(device[k].body) for k in members], np.intp)
                 place = {k: position for position, k in enumerate(members)}
                 apart = tuple(
                     (place[i], place[j], float(silicon[i].distance(silicon[j])))
                     for i, j in near.T.tolist()
                     if i < j and i in place and j in place and device[i].body != device[j].body
                 )
-                mesh, cores = None, []
-                if size is not None and method == "field":
-                    mesh = mesh_outlines(regions, size, params.corner_grading)
-                    if len(mesh.conductor) > params.max_elements:
-                        cores = cut_cores(mesh, params.window_elements)
+                pivots = np.array([structure.bodies[b].inertial.center[:2] for b in bodies])
+                facing = facing_plates(regions, body, pivots, reach)
+                nets = np.array([device[k].net for k in members], dtype=np.intp)
                 groups.append(
                     RestCluster(
                         electrodes=tuple(device[k].index for k in members),
                         regions=regions,
                         bodies=bodies,
-                        body=np.array([bodies.index(device[k].body) for k in members], np.intp),
+                        body=body,
                         near=apart,
-                        mesh=mesh,
-                        cores=cores,
-                        windows=None,
+                        plan=plan_sidewalls(regions, nets, facing[3], params),
+                        facing=facing,
                     )
                 )
-            current.count(clusters=len(groups), windows=sum(len(g.cores) for g in groups))
+            current.count(clusters=len(groups), windows=sum(g.plan.windows for g in groups))
     rest = RestGeometry(structure, params, plates, tuple(groups))
     return _evaluate(
         rest, np.zeros(6 * sum(not body.anchor for body in structure.bodies)), progress
@@ -376,8 +396,7 @@ def _evaluate(
     clusters: list[Cluster] = []
     groups: list[RestCluster] = []
     thickness = structure.stack.device.thickness
-    permittivity = VACUUM_PERMITTIVITY * params.ambient_permittivity
-    steps = sum(max(len(group.cores), 1) for group in rest.groups)
+    steps = sum(1 + group.plan.windows for group in rest.groups)
     if rest.groups:
         with stage("sidewalls", progress, total=steps) as current:
             for group in rest.groups:
@@ -392,46 +411,41 @@ def _evaluate(
                     ratio = float(regions[i].distance(regions[j])) / width
                     if ratio < clearance:
                         clearance, closest = ratio, (group.electrodes[i], group.electrodes[j])
-                if group.mesh is not None:
-                    mesh = _carried(group, np.array([c[:2] for c in centers]), motion)
-                    field, kept = solve_field(
-                        mesh,
-                        group.body,
-                        pivots,
-                        params,
-                        quiet,
-                        group.cores,
-                        current.advance,
-                        group.windows,
-                    )
-                    per_meter = (field.capacitance, field.gradient, field.hessian)
-                    walls = FacingWalls.empty()
-                    solved = Cluster(
-                        group.electrodes, len(mesh.conductor), field.windows, field.asymmetry, walls
-                    )
-                    groups.append(replace(group, windows=kept) if group.cores else group)
-                else:
-                    between, slope, bend, walls = facing_plates(
+                facing = group.facing
+                if motion.any() and "plates" in group.plan.method:
+                    facing = facing_plates(
                         regions, group.body, pivots, params.interaction_distance or 0.0
                     )
-                    per_meter = (permittivity * between, permittivity * slope, permittivity * bend)
-                    solved = Cluster(group.electrodes, len(walls.conductor), 0, 0.0, walls)
-                    groups.append(group)
-                clusters.append(solved)
+                mesh = _carried(
+                    group.plan.mesh, group.body, np.array([c[:2] for c in centers]), motion
+                )
+                found, plan = solve_sidewalls(
+                    group.body, pivots, group.plan, mesh, facing, params, quiet, current.advance
+                )
+                groups.append(replace(group, plan=plan))
+                clusters.append(
+                    Cluster(
+                        group.electrodes,
+                        len(mesh.conductor),
+                        found.windows,
+                        found.asymmetry,
+                        found.walls,
+                        _interactions(group, structure, plan),
+                    )
+                )
                 held, size = group.electrodes, len(group.electrodes)
-                sidewall[np.ix_(held, held)] += thickness * per_meter[0]
+                sidewall[np.ix_(held, held)] += thickness * found.capacitance
                 free = [k for k, index in enumerate(group.bodies) if index in first]
                 if free:
                     travel = scipy.linalg.block_diag(*(levers[k] for k in free))
                     dofs = np.concatenate([first[group.bodies[k]] + np.arange(6) for k in free])
-                    slope = per_meter[1][:, :, free].reshape(size, size, -1)
+                    slope = found.gradient[:, :, free].reshape(size, size, -1)
                     gradient[np.ix_(held, held, dofs)] += thickness * slope @ travel
-                    bend = per_meter[2][:, :, free][:, :, :, :, free]
+                    bend = found.hessian[:, :, free][:, :, :, :, free]
                     bend = bend.reshape(size, size, 3 * len(free), 3 * len(free))
                     values = thickness * np.einsum("abpq,pk,ql->abkl", bend, travel, travel)
                     blocks.append(HessianBlock(held, dofs, values))
-                if not group.cores:
-                    current.advance()
+                current.advance()
 
     bridges = {link.source for link in structure.links if link.kind == "bridge"}
     return CapacitanceModel(
@@ -460,7 +474,7 @@ def _turn(angle: float) -> Array:
 
 
 def _displaced(group: RestCluster, centers: Array, motion: Array) -> list[MultiPolygon]:
-    """Silicon of a cluster with each body moved in the plane, equation (113)."""
+    """Silicon of a cluster with each body moved in the plane, equation (118)."""
     regions = []
     for region, k in zip(group.regions, group.body, strict=True):
         if motion[k].any():
@@ -479,14 +493,11 @@ def _displaced(group: RestCluster, centers: Array, motion: Array) -> list[MultiP
     return regions
 
 
-def _carried(group: RestCluster, centers: Array, motion: Array) -> Mesh:
+def _carried(mesh: Mesh, body: NDArray[np.intp], centers: Array, motion: Array) -> Mesh:
     """Mesh of a cluster with the elements of each body moved in the plane."""
-    mesh = group.mesh
-    if mesh is None:
-        raise ValueError("cluster has no mesh")
-    if not motion.any():
+    if not motion.any() or not len(mesh.conductor):
         return mesh
-    of = group.body[mesh.conductor]
+    of = body[mesh.conductor]
     ends = []
     for points in (mesh.start, mesh.end):
         carried = np.empty_like(points)
@@ -499,6 +510,17 @@ def _carried(group: RestCluster, centers: Array, motion: Array) -> Mesh:
     return Mesh(ends[0], ends[1], mesh.conductor)
 
 
+def _interactions(
+    group: RestCluster, structure: Structure, plan: SidewallPlan
+) -> tuple[Interaction, ...]:
+    """Feature size and method of each pair of nets of a cluster."""
+    found: dict[tuple[int, int], Interaction] = {}
+    for (a, b), size, method in zip(plan.pairs, plan.feature_size, plan.method, strict=True):
+        first, second = sorted(structure.electrodes[group.electrodes[k]].net for k in (a, b))
+        found.setdefault((first, second), Interaction((first, second), float(size), method))
+    return tuple(found[key] for key in sorted(found))
+
+
 def _merged(region: MultiPolygon, margin: float) -> MultiPolygon:
     """Silicon of an electrode as one region, closed by ``margin`` where its polygons meet."""
     joined = shapely.union_all(shapely.get_parts(region))
@@ -507,7 +529,7 @@ def _merged(region: MultiPolygon, margin: float) -> MultiPolygon:
 
 
 def _in_plane(lever: float) -> Array:
-    """Travel along x and y and rotation about z at device mid-plane, equation (109)."""
+    """Travel along x and y and rotation about z at device mid-plane, equation (114)."""
     return np.array(
         [
             [1.0, 0.0, 0.0, 0.0, lever, 0.0],

@@ -257,18 +257,17 @@ definitions are in
 ## Capacitance model
 
 ```python
-params = cf.ElectrostaticParams(sidewall_method="plates", interaction_distance=30e-6)
+params = cf.ElectrostaticParams(element_size=2e-6, interaction_distance=30e-6)
 model = structure.capacitance(params)
 
-params = cf.ElectrostaticParams(
-    sidewall_method="field", element_size=2e-6, interaction_distance=30e-6
-)
+fast = cf.ElectrostaticParams(element_size=2e-6, interaction_distance=30e-6, plates_cutoff=15.0)
 
 model.matrix  # n by n over structure.electrodes, farads
 model.oxide, model.released, model.sidewall  # the three parts it sums
 -model.matrix[a, b]  # capacitance between electrodes a and b
 model.net_matrix  # between nets, electrodes of each net tied together
 model.clusters  # groups of device electrodes whose sidewalls were taken together
+model.clusters[0].interactions  # each pair of nets: feature size and method that found it
 model.plates  # plates behind the oxide and released parts
 
 model.dofs  # (body, "ux" | "uy" | "uz" | "tx" | "ty" | "tz") per degree of freedom
@@ -289,29 +288,44 @@ oxide and across released gaps, and sidewalls between device electrodes. It
 needs no mechanical solution. Rows sum to zero, so only differences of
 potential matter and nothing outside the structure holds charge.
 
-Sidewall capacitance needs a choice that only the designer of a device can
-make, so `sidewall_method` has no default. `"plates"` takes every wall that
-faces another conductor within `interaction_distance` as a parallel plate
-with it. It is fast for combs of any size and right for them and for plate
-actuators within a few percent in force and stiffness, low by the fringe
-field in capacitance, and wrong for toothed motors, whose force is all
-fringe field. `"field"` solves the field between the walls with boundary
-elements of `element_size`, fringe fields included, and takes far longer.
-Measured differences are in
-[what plates leave out](theory.md#what-plates-leave-out).
-
 Sidewalls are found in clusters. Device electrodes whose silicon lies
 within `interaction_distance` of each other, directly or through a chain of
 neighbors, form a cluster; electrodes in different clusters share no
-sidewall capacitance. With method `"field"` a cluster of at most
-`max_elements` boundary elements is one dense solution. A larger one is
-solved in windows: cores of at most `window_elements` elements, each solved
-together with the elements around it, out to an overlap that doubles until
-the charge on the core settles within `window_tolerance` or the overlap
-reaches `interaction_distance`. Each cluster reports its `windows` and its
-`asymmetry`, which is rounding for one dense solution and a measure of the
-error for windows. With method `"plates"` each cluster carries `walls`, the
-pieces of wall that were taken as plates, for a check against the layout.
+sidewall capacitance.
+
+Within a cluster each pair of nets whose electrodes lie within
+`interaction_distance` takes its own method, chosen by the feature size of
+their interaction: the length of the walls that face each other in units of
+the gap between them, weighted by where the capacitance is. A comb has the
+finger overlap over the finger gap, a plate actuator its length over its
+gap, a toothed motor its tooth width over the gap at the tips.
+
+| Feature size | Method | Accuracy against one dense system |
+| --- | --- | --- |
+| below `dense_cutoff`, 10 | field in one dense system | reference |
+| up to `plates_cutoff`, 100 | field in windows | within about 2 percent |
+| from `plates_cutoff` | facing walls as parallel plates | within about 3.5 percent in capacitance and 1 percent in pull and side spring at 100 gaps, better beyond |
+
+Plates cost a small part of a field solution and leave out all fringe
+field, which is why they take only long walls by default. Lower
+`plates_cutoff` to put more pairs on plates when time matters more than a
+fringe of 5 to 15 percent; 0 for both cutoffs puts every pair on plates,
+infinity for both solves every pair in one dense system, and
+`dense_cutoff=0` with `plates_cutoff=float("inf")` every pair in windows.
+Pairs asked to be dense whose problem needs more than `max_elements`
+boundary elements are solved in windows instead: cores of at most
+`window_elements` elements, each solved together with the elements around
+it, out to an overlap that doubles until the charge on the core settles
+within `window_tolerance` or the overlap reaches `interaction_distance`.
+Measured accuracy is in [accuracy and defaults](theory.md#accuracy-and-defaults)
+and what plates miss in [what plates leave out](theory.md#what-plates-leave-out).
+
+Each cluster reports `interactions`, the feature size and method of every
+pair of its nets, `windows` and `asymmetry`, which is rounding for one
+dense system and a measure of the error for windows, and `walls`, the
+pieces of wall that face another electrode, for a check against the
+layout. `element_size` is needed as soon as one pair is solved by the
+field; a structure whose pairs are all plates needs none.
 
 The model also holds how the matrix changes when bodies move, in the six
 degrees of freedom of every movable body and in the order of `result.dofs`
@@ -328,21 +342,22 @@ rest. It returns a model of the same kind whose matrices, gradient, force,
 and stiffness are those at the displaced bodies, so forces away from rest
 are exact derivatives of the capacitance away from rest. Plates are
 re-evaluated in closed form and sidewalls are found again on the moved
-outlines, with the clusters, mesh, and windows of the model at rest; one
-call costs about as much as the sidewalls of the model at rest. Bodies that
+outlines, with the clusters, methods, mesh, and windows of the model at
+rest; one call costs about as much as the sidewalls of the model at rest. Bodies that
 touch after the motion raise an error.
 
 `to_dict` gives a tree for review. It lists every pair of electrodes with
 capacitance between them, split into oxide, released, and sidewall parts,
 with their nets and the change of the total with each body that moves it;
-the matrix between nets; the clusters with their size, windows, and
-asymmetry; and `unassigned_area`, the device silicon of beams and bridges,
+the matrix between nets; the clusters with their size, windows,
+asymmetry, and the feature size and method of each pair of nets; and
+`unassigned_area`, the device silicon of beams and bridges,
 which belongs to no electrode and is not in the model.
 
 Either part can be left out, and then needs none of its parameters:
 `cf.ElectrostaticParams(include_sidewalls=False)` gives plates to the handle
-alone with no sidewall method, and `include_plates=False` gives sidewalls
-alone. Definitions
+alone with no element size or interaction distance, and
+`include_plates=False` gives sidewalls alone. Definitions
 are in [capacitance of a structure](theory.md#capacitance-of-a-structure).
 
 ## Capacitance to the handle
@@ -384,7 +399,7 @@ are in [plates between device and handle](theory.md#plates-between-device-and-ha
 ## Sidewall capacitance
 
 ```python
-params = cf.ElectrostaticParams(sidewall_method="field", element_size=1e-6)
+params = cf.ElectrostaticParams(element_size=1e-6, interaction_distance=30e-6)
 result = cf.sidewall_capacitance([finger, slot], params)
 
 result.capacitance  # n by n, farads per meter of thickness
@@ -392,35 +407,35 @@ result.capacitance  # n by n, farads per meter of thickness
 result.gradient  # n by n by bodies by 3: change with x, y, and rotation of each body
 result.hessian  # n by n by bodies by 3 by bodies by 3: second derivatives
 result.centers  # point each body rotates about
-result.charge  # charge on each element per volt on each conductor
+result.feature_size  # n by n: facing wall length over gap for each interacting pair
+result.method  # n by n: "dense", "windowed", or "plates" for each interacting pair
+result.charge  # charge on each element per volt on each conductor, where counted
 result.mesh.start, result.mesh.end, result.mesh.conductor  # boundary elements
-result.windows, result.asymmetry  # dense solutions it took, and their mismatch
+result.windows, result.asymmetry  # field solutions it took, and their mismatch
+result.walls.start, result.walls.end  # pieces of wall facing another conductor
+result.walls.conductor, result.walls.facing, result.walls.gap
 
 result = cf.sidewall_capacitance(conductors, params, bodies=[0, 0, 1], centers=centers)
-
-params = cf.ElectrostaticParams(sidewall_method="plates", interaction_distance=30e-6)
-result = cf.sidewall_capacitance([finger, slot], params)
-result.walls.start, result.walls.end  # pieces of wall taken as plates
-result.walls.conductor, result.walls.facing, result.walls.gap
 ```
 
 `sidewall_capacitance` finds capacitance between conductors drawn in the
-layout plane, by the method that `sidewall_method` names. Each conductor is
-a shapely polygon or multipolygon in meters and is one equipotential;
+layout plane, each pair within `interaction_distance` by the method its
+feature size selects, as for the capacitance model with every conductor
+its own net. Each conductor is a shapely polygon or multipolygon in meters and is one equipotential;
 conductors must not overlap or touch. The problem is two-dimensional, which
 holds where the layer is thick against its trenches, so the result is per
 meter of thickness. Only differences of potential matter: every row of
 `capacitance` sums to zero, and `-capacitance[a, b]` is the capacitance
 between conductors `a` and `b`.
 
-With method `"field"` the conductors carry no net charge together and
-potential far away floats. With method `"plates"` a wall counts toward two
-conductors where its normal first meets the other within
-`interaction_distance`; `charge` and `mesh` are then empty, and `walls`
-lists the pieces that count, each with the conductor it faces and the gap
-at its two ends. Going from `start` to `end` of a piece, the wall it faces
-lies to the right, so the four points `start`, `end`, and each moved to the
-right by its gap outline the plate.
+A field solution carries no net charge and lets the potential far away
+float. As plates a wall counts toward two conductors where its normal first
+meets the other within `interaction_distance`. `walls` lists the pieces of
+wall that face another conductor, each with the conductor it faces and the
+gap at its two ends; they give the feature sizes and the plates. Going from
+`start` to `end` of a piece, the wall it faces lies to the right, so the
+four points `start`, `end`, and each moved to the right by its gap outline
+the plate. `charge` and `mesh` are empty when every pair is plates.
 
 `gradient[a, b, k]` holds the derivatives of `capacitance[a, b]` for travel
 of body `k` along x and y, per meter, and for its rotation about z through
@@ -435,8 +450,8 @@ stiffness between those two motions. Both are exact derivatives of the
 computed capacitance, so forces on all bodies sum to zero. The point a body
 rotates about travels with it.
 
-Method `"field"` requires `element_size`. Outlines are cut into straight elements of at
-most that length, shorter toward convex corners by up to `corner_grading`.
+A pair solved by the field requires `element_size`. Outlines are cut into
+straight elements of at most that length, shorter toward convex corners by up to `corner_grading`.
 The computed capacitance never exceeds the exact one and rises toward it as
 `element_size` shrinks, so halving it shows how far a value has settled. A
 mesh of at most `max_elements` is one dense solution; a larger one is solved
@@ -536,9 +551,10 @@ set otherwise, since nothing in the model describes bodies that touch. The
 gap is that of a plate at its closest corner or the distance between
 silicon of two electrodes, and `result.model.closest` names the two
 electrodes on either side. With more `steps` the `ramp_` arrays trace displacement,
-margin, and softest frequency against voltage. With sidewall method `"plates"` on
-teeth that stand tip to tip, the iteration fails at any voltage and `scale`
-ends near zero; that is the cusp of the plates method and not pull-in. Formulas are in
+margin, and softest frequency against voltage. If `plates_cutoff` is lowered
+so far that teeth standing tip to tip are taken as plates, the iteration
+fails at any voltage and `scale` ends near zero; that is the cusp of the
+plates method and not pull-in. Formulas are in
 [static equilibrium](theory.md#static-equilibrium).
 
 ## Progress and logging

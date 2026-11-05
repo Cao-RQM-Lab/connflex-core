@@ -22,6 +22,7 @@ PIECES_PER_PASS = 8000
 SERIES_TERMS = 13
 SERIES_BELOW = 0.25
 STEEPEST = 10.0
+RUN_JUMP = 0.5
 
 
 @dataclass(frozen=True, eq=False)
@@ -393,3 +394,61 @@ def _shape_bend(x: Array) -> Array:
     )
     first = (1 / (1 - safe**2) - np.arctanh(safe) / safe) / safe
     return np.where(small, series, (2 * safe / (1 - safe**2) ** 2 - 2 * first) / safe)
+
+
+def feature_sizes(walls: FacingWalls, net: Index) -> dict[tuple[int, int], float]:
+    """Feature size of each pair of nets that face each other, equation (105).
+
+    ``net`` gives the net of every conductor. Pieces that continue each other along one
+    outline, face one net, and meet it where the last piece left off form one run. A
+    run's length over its mean gap is its capacitance per permittivity, and the feature
+    size is the mean of that over the runs between two nets, weighted by itself. Keys
+    are pairs of nets, smaller first.
+    """
+    count = len(walls.conductor)
+    if not count:
+        return {}
+    along = walls.end - walls.start
+    length = np.hypot(along[:, 0], along[:, 1])
+    right = np.stack([along[:, 1], -along[:, 0]], axis=1) / length[:, None]
+    weight = length * _mean_inverse(walls.gap)
+    own, faced = net[walls.conductor], net[walls.facing]
+    hit = [walls.start + right * walls.gap[:, :1], walls.end + right * walls.gap[:, 1:]]
+    grid = 1e-9 * float(np.max(length))
+    starts: dict[tuple[int, int, int, int], list[int]] = {}
+    for k, (x, y) in enumerate(np.round(walls.start / grid).astype(np.int64).tolist()):
+        starts.setdefault((x, y, int(own[k]), int(faced[k])), []).append(k)
+    parent = list(range(count))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    ends = np.round(walls.end / grid).astype(np.int64).tolist()
+    for k, (x, y) in enumerate(ends):
+        for j in starts.get((x, y, int(own[k]), int(faced[k])), []):
+            jump = float(np.hypot(*(hit[1][k] - hit[0][j])))
+            if j != k and jump <= RUN_JUMP * min(walls.gap[k, 1], walls.gap[j, 0]):
+                parent[root(j)] = root(k)
+    runs: dict[int, list[float]] = {}
+    for k in range(count):
+        run = runs.setdefault(root(k), [0.0, float(own[k]), float(faced[k])])
+        run[0] += weight[k]
+    totals: dict[tuple[int, int], list[float]] = {}
+    for run_weight, a, b in runs.values():
+        pair = (int(min(a, b)), int(max(a, b)))
+        total = totals.setdefault(pair, [0.0, 0.0])
+        total[0] += run_weight**2
+        total[1] += run_weight
+    return {pair: aspect / weight for pair, (aspect, weight) in totals.items()}
+
+
+def _mean_inverse(gap: Array) -> Array:
+    """Mean of 1 / gap over a piece whose gap changes linearly between its two ends."""
+    low, high = gap.min(axis=1), gap.max(axis=1)
+    close = high - low <= 1e-9 * high
+    spread = np.where(close, 1.0, high - low)
+    mean: Array = np.where(close, 1 / high, np.log(high / np.where(close, 1.0, low)) / spread)
+    return mean

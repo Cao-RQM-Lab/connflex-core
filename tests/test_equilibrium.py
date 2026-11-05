@@ -34,7 +34,7 @@ EXTRACTION = ExtractionParams(
 )
 HANDLE_ALONE = ElectrostaticParams(include_sidewalls=False)
 WALLS_ALONE = ElectrostaticParams(
-    sidewall_method="plates", interaction_distance=10 * UM, include_plates=False
+    dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=10 * UM, include_plates=False
 )
 
 
