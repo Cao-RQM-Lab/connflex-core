@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from typing import NamedTuple
 
 import shapely
 from shapely import MultiPolygon, Polygon, STRtree
@@ -23,6 +24,15 @@ def beam_candidates(
     return opening(outside, sliver / 2)
 
 
+class Qualified(NamedTuple):
+    """Beams and rejected candidates, each with indices of the body polygons it touches."""
+
+    beams: list[Beam]
+    rejected: list[RejectedCandidate]
+    beam_parts: list[tuple[int, ...]]
+    rejected_parts: list[tuple[int, ...]]
+
+
 def find_beams(
     candidates: MultiPolygon,
     body_parts: Sequence[Polygon],
@@ -34,7 +44,7 @@ def find_beams(
     thickness: float,
     net_of: Callable[[Polygon], int],
     advance: Callable[[], None] | None = None,
-) -> tuple[list[Beam], list[RejectedCandidate]]:
+) -> Qualified:
     """Qualify beam candidates as beams joining exactly two bodies.
 
     ``body_parts`` are the device-layer polygons of all bodies and ``body_of`` maps each part
@@ -43,37 +53,43 @@ def find_beams(
     """
     tree = STRtree(list(body_parts))
     z = -thickness / 2
-    beams: list[Beam] = []
-    rejected: list[RejectedCandidate] = []
+    found = Qualified([], [], [], [])
+    beams = found.beams
+
+    def reject(candidate: Polygon, reason: str, bodies: tuple[int, ...]) -> None:
+        found.rejected.append(RejectedCandidate(candidate, reason, bodies))
+        found.rejected_parts.append(parts)
+
     for candidate in candidates.geoms:
         if advance is not None:
             advance()
         expanded = candidate.buffer(margin, join_style="mitre")
-        touched: dict[int, list[Polygon]] = {}
+        touched: dict[int, list[int]] = {}
         for j in tree.query(expanded, predicate="intersects"):
             if expanded.intersection(body_parts[j]).area > 0:
-                touched.setdefault(body_of[j], []).append(body_parts[j])
+                touched.setdefault(body_of[j], []).append(int(j))
+        parts = tuple(sorted(j for group in touched.values() for j in group))
         if len(touched) != 2:
             noun = "body" if len(touched) == 1 else "bodies"
-            reason = f"touches {len(touched)} {noun}"
-            rejected.append(RejectedCandidate(candidate, reason, tuple(sorted(touched))))
+            reject(candidate, f"touches {len(touched)} {noun}", tuple(sorted(touched)))
             continue
         (a, parts_a), (b, parts_b) = sorted(touched.items())
-        start = expanded.intersection(shapely.union_all(parts_a)).centroid
-        end = expanded.intersection(shapely.union_all(parts_b)).centroid
+        start = expanded.intersection(shapely.union_all([body_parts[j] for j in parts_a])).centroid
+        end = expanded.intersection(shapely.union_all([body_parts[j] for j in parts_b])).centroid
         length = start.distance(end)
         if length <= 0:
-            rejected.append(RejectedCandidate(candidate, "zero length", (a, b)))
+            reject(candidate, "zero length", (a, b))
             continue
         width = candidate.area / length
         if width < width_min:
             reason = f"width {width:.3g} m is below beam_width_min {width_min:.3g} m"
-            rejected.append(RejectedCandidate(candidate, reason, (a, b)))
+            reject(candidate, reason, (a, b))
             continue
         if width > width_max:
             reason = f"width {width:.3g} m is above beam_width_max {width_max:.3g} m"
-            rejected.append(RejectedCandidate(candidate, reason, (a, b)))
+            reject(candidate, reason, (a, b))
             continue
+        found.beam_parts.append(parts)
         beams.append(
             Beam(
                 index=len(beams),
@@ -87,4 +103,4 @@ def find_beams(
                 net=net_of(candidate),
             )
         )
-    return beams, rejected
+    return found

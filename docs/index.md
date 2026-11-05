@@ -16,6 +16,7 @@ layout's electrical nets.
 | Beam stiffness | beam geometry and material | 12 by 12 stiffness on body degrees of freedom |
 | Assembly and solve | all bodies and beams | frequencies and mode shapes |
 | Electrical nets | device, handle, vias | net graph |
+| Electrodes and links | bodies, stubs, beams, vias | nodes and branches of the electrical model |
 
 - [Installation](installation.md)
 - [Usage](usage.md)

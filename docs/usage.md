@@ -129,6 +129,8 @@ structure.beams  # beams joining exactly two bodies: length, width, thickness, e
 structure.rejected  # beam candidates that did not qualify, each with a reason
 structure.graph  # networkx MultiGraph, bodies as nodes and beams as edges
 structure.nets  # electrical nets of remaining device and handle polygons
+structure.electrodes  # silicon with one potential and one rigid motion: nodes of the electrical model
+structure.links  # beams, bridges, and vias that conduct between electrodes
 structure.to_dict()  # JSON-serializable tree with GeoJSON-style polygons
 ```
 
@@ -170,6 +172,36 @@ conductor. A via joins every conductor it overlaps on both sides, and nets
 are the connected components. A via that overlaps no conductor on one side
 is ignored with a warning. Polygons dropped by anchor pruning are not
 conductors. `cf.find_nets` computes the same from any lists of polygons.
+
+## Electrodes and links
+
+```python
+structure.electrodes  # device electrodes, then handle electrodes
+structure.links  # beams, bridges, and vias that conduct between electrodes
+structure.electrode_at((x, y), "device")  # electrode covering a point
+
+electrode = structure.electrodes[0]
+electrode.body, electrode.conductor, electrode.net
+electrode.region  # body polygon followed by its stubs, in meters
+
+link = structure.links[0]
+link.electrodes  # indices of the two electrodes joined
+link.kind  # "beam", "bridge", or "via"
+link.source  # index in structure.beams, structure.rejected, or structure.nets.vias
+```
+
+An electrode is silicon of one conductor that moves with one body: a device
+polygon of a body with the stubs that touch it alone, or a handle polygon. It
+is the node of the electrical model, since the anchor body spans several nets
+and one net spans several bodies. A point on a comb finger finds the electrode
+of the pad or shuttle that finger is attached to.
+
+Links follow from the structure. A beam links the electrodes it joins. A
+rejected candidate that touches several body polygons, such as a narrow strip
+between two bonded pads or a junction, is a bridge between their electrodes.
+A via links the device and handle electrodes it overlaps. Electrodes joined
+through links always share a net. Exact definitions are in
+[electrodes and links](theory.md#electrodes-and-links).
 
 ## Solve
 
@@ -236,6 +268,7 @@ result = structure.modal(progress=Bar())
 ```
 
 `extract` reports heal, release, prune, nets, opening, bodies, candidates,
-beams, and mass, in that order. `modal` and `static` report assemble and
-solve. Prune, bodies, mass, and beams advance once per polygon, body, or
-candidate; the other stages are single operations.
+beams, mass, and electrodes, in that order. `modal` and `static` report
+assemble and solve. Prune and bodies advance once per polygon, beams once per
+candidate, mass once per body, and electrodes once per beam, rejected
+candidate, and via; the other stages are single operations.

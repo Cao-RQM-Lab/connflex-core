@@ -5,6 +5,14 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Electrodes and links: `Structure.electrodes` lists silicon of one conductor
+  that moves with one body, `Structure.links` lists beams, bridges, and vias
+  that conduct between them, and `Structure.electrode_at` finds an electrode
+  by point. Extraction reports an `electrodes` stage and the JSON tree carries
+  both lists.
+
 ## [0.1.0] - 2026-11-04
 
 ### Added

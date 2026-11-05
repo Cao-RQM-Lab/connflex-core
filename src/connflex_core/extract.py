@@ -5,6 +5,7 @@ from __future__ import annotations
 import shapely
 from shapely import MultiPolygon, Polygon, STRtree
 
+from connflex_core.electrical.electrodes import find_electrodes
 from connflex_core.electrical.nets import find_nets
 from connflex_core.geometry.beams import beam_candidates, find_beams
 from connflex_core.geometry.bodies import layered_components, select_anchor
@@ -33,10 +34,12 @@ def extract(
     layer. Device regions removed by
     the opening are qualified as beams; a candidate touching exactly one body is a stub that
     adds mass to that body. Remaining device and handle polygons are conductors of the
-    nets, joined through vias.
+    nets, joined through vias. Each body polygon with the stubs that touch it alone is an
+    electrode, and beams, candidates that touch several body polygons, and vias are links
+    between electrodes.
 
-    Stages heal, release, prune, nets, opening, bodies, candidates, beams, and mass each log
-    through the ``connflex_core`` logger and report to ``progress``.
+    Stages heal, release, prune, nets, opening, bodies, candidates, beams, mass, and
+    electrodes each log through the ``connflex_core`` logger and report to ``progress``.
     """
     tolerance = params.simplify_tolerance
     margin = params.beam_overlap_margin
@@ -107,21 +110,20 @@ def extract(
         components = layered_components(layers, seed=(2, anchor), advance=current.advance)
         current.count(bodies=len(components))
     grouped: list[list[list[Polygon]]] = [[[], [], []] for _ in components]
-    body_of = [0] * len(body_parts)
+    owner = [[0] * len(layer) for layer in layers]
     for index, component in enumerate(components):
         for layer, i in component:
             grouped[index][layer].append(layers[layer][i])
-            if layer == 0:
-                body_of[i] = index
+            owner[layer][i] = index
 
     with stage("candidates", progress) as current:
         candidates = beam_candidates(device, body_parts, params.heal_distance)
         current.count(candidates=len(candidates.geoms))
     with stage("beams", progress, total=len(candidates.geoms)) as current:
-        beams, rejected = find_beams(
+        qualified = find_beams(
             candidates,
             body_parts,
-            body_of,
+            owner[0],
             margin=margin,
             width_min=params.beam_width_min,
             width_max=width_max,
@@ -129,6 +131,7 @@ def extract(
             net_of=net_of,
             advance=current.advance,
         )
+        beams, rejected = qualified.beams, qualified.rejected
         current.count(beams=len(beams), rejected=len(rejected))
     stubs: list[list[Polygon]] = [[] for _ in components]
     for candidate in rejected:
@@ -156,12 +159,19 @@ def extract(
                 )
             )
             current.advance()
+
+    connectors = len(beams) + len(rejected) + len(nets.vias)
+    with stage("electrodes", progress, total=connectors) as current:
+        electrodes, links = find_electrodes(layers, owner, nets, qualified, current.advance)
+        current.count(electrodes=len(electrodes), links=len(links))
     return Structure(
         bodies=tuple(bodies),
         beams=tuple(beams),
         rejected=tuple(rejected),
         material=stack.device.material,
         nets=nets,
+        electrodes=tuple(electrodes),
+        links=tuple(links),
     )
 
 

@@ -525,6 +525,73 @@ $$
 where $\omega_n$ is the resonant angular frequency and $\boldsymbol{\phi}_n$
 is the mechanical mode.
 
+## Electrodes and links
+
+The electrical model is a network whose nodes are electrodes and whose
+branches are links. Its conductors are the connected regions of the healed
+device and handle layers that survive pruning, and nets are the groups of
+conductors joined through vias.
+
+Let $B_j$ be the device polygons of the bodies from (3) and $P_k$ the beam
+candidates $D - B$ of (4). Candidate $P_k$ touches body polygon $B_j$ when
+its expansion overlaps it,
+
+$$
+P_k \sim B_j \iff \operatorname{area}\bigl((P_k \oplus \epsilon) \cap B_j\bigr) > 0, \tag{39}
+$$
+
+which is the test that qualifies beams. Let $T_k = \{\, j : P_k \sim B_j \,\}$
+be the set of body polygons that candidate $k$ touches. The electrode of body
+polygon $B_j$ is that polygon together with every candidate that touches it
+and no other body polygon,
+
+$$
+E_j = B_j \cup \bigcup_{k \,:\, T_k = \{j\}} P_k. \tag{40}
+$$
+
+Every handle polygon is an electrode by itself. A candidate with
+$T_k = \emptyset$, such as a narrow trace that stands on its own oxide, is an
+electrode by itself as well. An electrode moves with one body and lies in one
+conductor. For $E_j$ these are the body that owns $B_j$ and the conductor that
+contains it. A handle electrode moves with the body that owns its polygon. A
+candidate that touches no body polygon moves with the body whose oxide it
+overlaps over the largest area.
+
+Links conduct between electrodes:
+
+- A beam joins two electrodes, one on each of its two bodies. Where it touches
+  several polygons of one body, it joins the largest.
+- A rejected candidate with $|T_k| \geq 2$ is a bridge. It joins the electrode
+  of the largest polygon it touches to the electrode of each other polygon in
+  $T_k$.
+- A via joins one electrode of each device conductor it overlaps and the
+  electrode of each handle polygon it overlaps. On the device side this is the
+  electrode it overlaps over the largest area, or the nearest one when the via
+  lies wholly on a beam or a bridge. A via that overlaps no conductor on one
+  side joins nothing.
+
+Links never join electrodes of different nets: a beam or a bridge lies within
+one conductor, and a via joins conductors of one net. Conversely, the
+electrodes of one net are joined through links, because the pieces of a
+conductor that the opening in (3) separates are joined by the candidates
+between them. There are two exceptions. A candidate narrower than $r_h$ is
+removed as a sliver before qualification and leaves no link, and a beam whose
+end touches several polygons of one body joins only the largest.
+
+!!! note "Implementation choices"
+    Neither a body nor a net can serve as a node. The anchor body carries every
+    bonded pad and every stator, which sit on different nets, and one net runs
+    through every body that beams join to its pad. An electrode is the largest
+    piece of silicon that has both one potential and one rigid motion.
+
+    A candidate that touches two polygons of the same body is a stub of that
+    body for mass, since it moves with it, and a bridge for conduction, since
+    it joins two electrodes. The silicon of a bridge or a beam belongs to no
+    electrode.
+
+    Device electrodes are listed first and handle electrodes after them, each
+    ordered by body and then by descending area of the body polygon.
+
 ## Symbols and parameters
 
 Every symbol below is a documented input. Full definitions, units, defaults,

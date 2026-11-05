@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING, Any
 
 import networkx as nx
 import numpy as np
-from shapely import MultiPolygon, Polygon
+from shapely import MultiPolygon, Point, Polygon
 from shapely.geometry import mapping
 
+from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Nets
 from connflex_core.materials import Material
 from connflex_core.mechanics.inertia import MassProperties
@@ -104,6 +105,9 @@ class Structure:
         rejected: Beam candidates that did not qualify, each with a reason.
         material: Device-layer material, which sets beam stiffness.
         nets: Electrical nets of conductors that remain after pruning.
+        electrodes: Nodes of the electrical model, device electrodes first, then handle
+            electrodes, each ordered by body and then by descending area.
+        links: Beams, bridges, and vias that conduct between electrodes.
     """
 
     bodies: tuple[Body, ...]
@@ -111,6 +115,8 @@ class Structure:
     rejected: tuple[RejectedCandidate, ...]
     material: Material
     nets: Nets
+    electrodes: tuple[Electrode, ...] = ()
+    links: tuple[Link, ...] = ()
 
     @property
     def anchor(self) -> Body:
@@ -126,6 +132,14 @@ class Structure:
         for beam in self.beams:
             graph.add_edge(*beam.bodies, key=beam.index, beam=beam)
         return graph
+
+    def electrode_at(self, point: Point | tuple[float, float], layer: str) -> Electrode:
+        """Electrode of ``layer`` covering ``point``."""
+        point = Point(point)
+        for electrode in self.electrodes:
+            if electrode.layer == layer and electrode.region.covers(point):
+                return electrode
+        raise ValueError(f"no {layer} electrode at ({point.x}, {point.y})")
 
     def modal(
         self, options: SolveOptions | None = None, *, progress: Progress | None = None
@@ -184,4 +198,24 @@ class Structure:
                 for candidate in self.rejected
             ],
             "nets": self.nets.to_dict(),
+            "electrodes": [
+                {
+                    "index": electrode.index,
+                    "layer": electrode.layer,
+                    "body": electrode.body,
+                    "conductor": electrode.conductor,
+                    "net": electrode.net,
+                    "region": mapping(electrode.region),
+                }
+                for electrode in self.electrodes
+            ],
+            "links": [
+                {
+                    "index": link.index,
+                    "electrodes": list(link.electrodes),
+                    "kind": link.kind,
+                    "source": link.source,
+                }
+                for link in self.links
+            ],
         }
