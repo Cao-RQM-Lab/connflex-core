@@ -20,9 +20,10 @@ layout's electrical nets.
 | Plates to the handle | electrodes, oxide, release openings, stack | capacitance of each device electrode to the handle beneath it, with gradient and Hessian in body degrees of freedom |
 | Sidewall capacitance | conductor outlines in the layout plane | capacitance matrix between conductors per unit thickness |
 | Capacitance model | electrodes, plates, sidewall clusters | capacitance matrix between electrodes and between nets |
+| Static equilibrium | beam stiffness, capacitance model, potentials on nets | displacement under voltage and its stability |
 
 Mechanical and electrostatic analyses each run on their own from one extracted
-structure.
+structure. Static equilibrium under voltage takes both.
 
 - [Installation](installation.md)
 - [Usage](usage.md)

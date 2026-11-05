@@ -14,13 +14,14 @@ from shapely.geometry import mapping
 from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Nets
 from connflex_core.mechanics.inertia import MassProperties
-from connflex_core.params import ElectrostaticParams, ExtractionParams, SolveOptions
+from connflex_core.params import ElectrostaticParams, ExtractionParams, SolveOptions, StaticOptions
 from connflex_core.progress import Progress
 from connflex_core.stack import Stack
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
+    from connflex_core.coupled.static import Equilibrium
     from connflex_core.electrostatics.capacitance import CapacitanceModel
     from connflex_core.electrostatics.plates import Plate
     from connflex_core.mechanics.modal import ModalResult
@@ -180,6 +181,20 @@ class Structure:
         from connflex_core.electrostatics.capacitance import find_capacitance
 
         return find_capacitance(self, params, progress=progress)
+
+    def equilibrium(
+        self,
+        model: CapacitanceModel,
+        potentials: Mapping[int, float],
+        *,
+        loads: Mapping[int, Sequence[float]] | None = None,
+        options: StaticOptions | None = None,
+        progress: Progress | None = None,
+    ) -> Equilibrium:
+        """Displacement under potentials on nets, with the capacitance model of this structure."""
+        from connflex_core.coupled.static import equilibrium
+
+        return equilibrium(self, model, potentials, loads=loads, options=options, progress=progress)
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-serializable tree with polygons as GeoJSON-style mappings."""

@@ -74,6 +74,13 @@ keyword overrides.
 | `include_plates` | | true | Whether the capacitance model of a structure holds plates between device and handle electrodes. |
 | `include_sidewalls` | | true | Whether it holds sidewall capacitance between device electrodes. Without it none of `sidewall_method`, `element_size`, and `interaction_distance` is needed. |
 
+## `StaticOptions`
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `tolerance` | $\tau_s$ | 1e-9 | Newton iteration for static equilibrium stops when the strain energy of its last step is below this fraction, squared, of the strain energy of the displacement, equation (117), or one step after it is below this fraction itself. |
+| `max_iterations` | | 30 | Most Newton iterations. Reaching it without an equilibrium is an error. |
+
 ## Validation
 
 Each object validates itself on construction and raises `ValueError` naming
@@ -83,4 +90,5 @@ the field: lengths, areas, thicknesses, densities, moduli, and resistivity are p
 `ambient_permittivity >= 1`; `element_size > 0` and `interaction_distance > 0`
 when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
 `window_tolerance > 0`; `sidewall_method` is `"field"` or `"plates"` when
-given; every stack layer has a thickness.
+given; `tolerance > 0` and `max_iterations >= 1` of `StaticOptions`; every
+stack layer has a thickness.

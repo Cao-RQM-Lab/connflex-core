@@ -120,6 +120,25 @@ class SolveOptions:
 
 
 @dataclass(frozen=True)
+class StaticOptions:
+    """Options of the static equilibrium under electrode potentials.
+
+    Attributes:
+        tolerance: Newton iteration stops when the strain energy of its last step is
+            below this fraction, squared, of the strain energy of the displacement, or
+            one step after it is below this fraction itself.
+        max_iterations: Most Newton iterations.
+    """
+
+    tolerance: float = 1e-9
+    max_iterations: int = 30
+
+    def __post_init__(self) -> None:
+        require_positive("tolerance", self.tolerance)
+        require_at_least("max_iterations", self.max_iterations, 1)
+
+
+@dataclass(frozen=True)
 class ElectrostaticParams:
     """Electrostatic model parameters. Lengths in meters.
 

@@ -65,6 +65,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Plates are evaluated in closed form and sidewalls on moved outlines, with
   the clusters, mesh, and windows found at rest. `CapacitanceModel.displacement`
   records where a model was evaluated.
+- `Structure.equilibrium`, `Equilibrium`, and `StaticOptions`: displacement at
+  which beam forces balance electrostatic forces for potentials on nets, by
+  Newton iteration on the capacitance model at displaced bodies, with
+  tangent stiffness and whether the equilibrium is stable.
 
 ### Removed
 

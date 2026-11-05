@@ -160,7 +160,8 @@ Mechanical analysis ([solve](#solve)) and electrostatic analysis
 ([capacitance model](#capacitance-model)) both work from this structure, and
 each runs without the other: neither needs the other's parameters or
 results. [Sidewall capacitance](#sidewall-capacitance) takes polygons
-directly and needs no structure.
+directly and needs no structure. [Static equilibrium](#static-equilibrium)
+under voltage is electromechanical and takes both.
 
 ## Electrical nets
 
@@ -436,6 +437,43 @@ degrees of freedom. Static loads act at the named body's center of mass.
 Mode shapes mix translations in meters and rotations in radians, so compare
 components of the same kind when reading them.
 
+## Static equilibrium
+
+```python
+model = structure.capacitance(params)
+drive = structure.electrode_at((1.2e-3, 0.4e-3), "device").net
+result = structure.equilibrium(model, {drive: 40.0})
+
+result.displacement  # one value per degree of freedom in result.dofs, from rest
+result.stable  # whether a small push is met by a restoring force
+result.softest  # squared angular frequency of the softest motion under bias
+result.stiffness  # tangent stiffness: mechanical plus electrostatic
+result.force  # electrostatic forces at the equilibrium
+result.potentials, result.charge  # per electrode
+result.model  # capacitance model at the equilibrium
+result.loose  # bodies that no beam holds, kept at rest
+
+result = structure.equilibrium(model, {drive: 40.0}, loads={1: [0, 0, -1e-6, 0, 0, 0]})
+result = structure.equilibrium(model, {drive: 40.0}, options=cf.StaticOptions(tolerance=1e-12))
+```
+
+`structure.equilibrium` finds where the structure rests with potentials on
+its nets. It needs both analyses: the structure for beam stiffness and a
+capacitance model of that structure for the forces. Potentials are in volts
+by net index, as `structure.nets` and `electrode.net` number them; a net
+that is not named is at zero volts. `loads` adds mechanical forces, as for
+`static`.
+
+The solve is a Newton iteration that evaluates the capacitance model at
+every displacement it visits, so forces and the tangent stiffness are those
+of the displaced structure and not a linearization about rest. `stable`
+tells whether the equilibrium holds against a small push, and `softest` is
+how far it is from losing that: it falls to zero at pull-in. Potentials for
+which no equilibrium is found raise an error. A body that no chain of beams
+joins to the anchor cannot be in equilibrium under a force; it stays at
+rest and is listed in `loose`. Formulas are in
+[static equilibrium](theory.md#static-equilibrium).
+
 ## Progress and logging
 
 Each stage of `extract`, `modal`, `static`, `plates`, `capacitance`, and
@@ -478,7 +516,7 @@ result = structure.modal(progress=Bar())
 
 `extract` reports heal, release, prune, nets, opening, bodies, candidates,
 beams, mass, and electrodes, in that order. `modal` and `static` report
-assemble and solve. Prune and bodies advance once per polygon, beams once per
+assemble and solve, and `equilibrium` reports assemble and equilibrium. Prune and bodies advance once per polygon, beams once per
 candidate, mass once per body, and electrodes once per beam, rejected
 candidate, and via; the other stages are single operations. `plates` reports
 one stage, plates, that advances once per device electrode.

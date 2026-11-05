@@ -1881,6 +1881,95 @@ error.
     mechanical solution: each can be left out, and each needs only its own
     parameters.
 
+## Static equilibrium
+
+With potentials on its nets a structure comes to rest where the pull of its
+beams balances the electrostatic forces. Nothing flows at rest, so no link
+carries a voltage and the electrodes of a net share its potential:
+$\mathbf{v} = \mathbf{S}\, \mathbf{v}^\text{net}$ with $\mathbf{S}$ of (108).
+Beams are linear, with the stiffness $\mathbf{K}^\text{full}$ of (35), and
+the electrostatic force is that of (114) at the displaced bodies. With
+mechanical loads $\mathbf{f}_0$ on the bodies, the displacement $\mathbf{q}$
+solves
+
+$$
+\mathbf{K}^\text{full} \mathbf{q} = \mathbf{f}(\mathbf{q}) + \mathbf{f}_0, \qquad
+f_k(\mathbf{q}) = \frac{1}{2}\, \mathbf{v}^\top \frac{\partial \mathbf{C}}{\partial q_k}(\mathbf{q})\, \mathbf{v}. \tag{115}
+$$
+
+The force grows as gaps close, so (115) is not linear and is solved by
+Newton iteration from rest, $\mathbf{q}_0 = \mathbf{0}$:
+
+$$
+\bigl( \mathbf{K}^\text{full} + \mathbf{K}_e(\mathbf{q}_i) \bigr)\, \Delta \mathbf{q}
+= \mathbf{f}(\mathbf{q}_i) + \mathbf{f}_0 - \mathbf{K}^\text{full} \mathbf{q}_i, \qquad
+\mathbf{q}_{i+1} = \mathbf{q}_i + \Delta \mathbf{q}, \tag{116}
+$$
+
+with $\mathbf{K}_e$ of (114). Every iterate evaluates the capacitance model
+at $\mathbf{q}_i$ for its gradient and second derivative, which are exact
+there, so the iteration converges quadratically. Displacements mix meters
+and radians, and steps are therefore measured by the strain energy they
+would store in the beams. Iteration stops when
+
+$$
+\Delta \mathbf{q}^\top \mathbf{K}^\text{full} \Delta \mathbf{q}
+\le \tau_s^2\; \mathbf{q}_{i+1}^\top \mathbf{K}^\text{full} \mathbf{q}_{i+1}, \tag{117}
+$$
+
+with $\tau_s$ the tolerance of the solve, or one step after the left side
+has fallen below $\tau_s$ times the right side without the square. A step
+that small is followed by one of about its square, which meets (117), unless
+rounding in the forces keeps it larger, and then further steps would not
+shrink it either.
+
+An equilibrium holds only if a small push meets a restoring force in every
+direction. The tangent stiffness $\mathbf{K}^\text{full} +
+\mathbf{K}_e(\mathbf{q})$ answers that, and against the mass matrix of (34)
+its smallest eigenvalue,
+
+$$
+\bigl( \mathbf{K}^\text{full} + \mathbf{K}_e(\mathbf{q}) \bigr)\, \boldsymbol{\phi}
+= \lambda\, \mathbf{M}^\text{full} \boldsymbol{\phi}, \qquad
+\lambda_\text{min} > 0, \tag{118}
+$$
+
+is the squared angular frequency of the softest motion under these
+potentials, as in (38). The equilibrium is stable while it is positive.
+For a plate of area $A$ on a spring $k$ over a gap $g_0$, (115) reads
+$k\, z = -\varepsilon A V^2 / \bigl( 2 (g_0 + z)^2 \bigr)$ and (118) is
+$k > \varepsilon A V^2 / (g_0 + z)^3$.
+
+!!! note "Implementation choices"
+    A Newton step that would close a gap between a plate and the handle,
+    or bring electrodes of two bodies into contact, is halved until it does
+    not, up to twelve times. A halved step never ends the iteration.
+
+    No equilibrium within `max_iterations` is an error. One cause is
+    potentials beyond pull-in, where (115) has no solution near rest. The
+    other is the plates method on teeth that stand tip to tip: its force
+    jumps at the cusp of (97), the iteration steps back and forth across
+    it, and the field method is the one to use.
+
+    Forces of the field method carry rounding of its dense solutions, which
+    grows with the size of a cluster. A structure with a very soft motion
+    turns that into steps above a tight $\tau_s$, which is what the second way
+    of stopping is for.
+
+    Every iterate costs one evaluation of the capacitance model at
+    displaced bodies. That is a fraction of a second with plates alone or
+    with the plates method, and as long as the model at rest took with the
+    field method.
+
+    Beams stay linear at any displacement, and the limits of the
+    capacitance model at displaced bodies carry over: tilt of a plate to
+    second order, and in-plane travel of a plate to first.
+
+    A body that no chain of beams joins to the anchor has no stiffness, and
+    nothing balances a force on it. Such a body, for instance an island
+    left on a neck too thin to qualify as a beam, is kept at rest and
+    listed with the result. (115) to (118) are taken over the other bodies.
+
 ## Symbols and parameters
 
 Every symbol below is a documented input. Full definitions, units, defaults,
@@ -1905,6 +1994,7 @@ and validation rules are on the [parameters page](parameters.md).
 | $d_i$ | distance within which device electrodes are taken together for sidewalls; with the plates method also the widest gap between walls that count, with the field method the widest overlap of a window | `ElectrostaticParams.interaction_distance` |
 | $n_w$ | most elements in the core of a window | `ElectrostaticParams.window_elements` |
 | $\tau$ | change of the charge on a core below which the overlap of its window stops growing | `ElectrostaticParams.window_tolerance` |
+| $\tau_s$ | relative size of the last Newton step at which static equilibrium is accepted | `StaticOptions.tolerance` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
 | $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |

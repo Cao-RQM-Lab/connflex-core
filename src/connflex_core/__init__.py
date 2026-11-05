@@ -6,6 +6,7 @@ from connflex_core import adapters
 from connflex_core.adapters.gds import load_gds
 from connflex_core.adapters.gdsfactory_ import from_gdsfactory
 from connflex_core.adapters.klayout_ import from_klayout
+from connflex_core.coupled.static import Equilibrium
 from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Conductor, Nets, Via, find_nets
 from connflex_core.electrostatics.capacitance import CapacitanceModel, Cluster, HessianBlock
@@ -18,7 +19,12 @@ from connflex_core.materials import Material
 from connflex_core.mechanics.inertia import MassProperties
 from connflex_core.mechanics.modal import ModalResult
 from connflex_core.model import Beam, Body, RejectedCandidate, Structure
-from connflex_core.params import ElectrostaticParams, ExtractionParams, SolveOptions
+from connflex_core.params import (
+    ElectrostaticParams,
+    ExtractionParams,
+    SolveOptions,
+    StaticOptions,
+)
 from connflex_core.progress import Progress
 from connflex_core.stack import Layer, Stack
 
@@ -32,6 +38,7 @@ __all__ = [
     "Conductor",
     "Electrode",
     "ElectrostaticParams",
+    "Equilibrium",
     "ExtractionParams",
     "FacingWalls",
     "HessianBlock",
@@ -49,6 +56,7 @@ __all__ = [
     "SidewallCapacitance",
     "SolveOptions",
     "Stack",
+    "StaticOptions",
     "Structure",
     "Via",
     "__version__",
