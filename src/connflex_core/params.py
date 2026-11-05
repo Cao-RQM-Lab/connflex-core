@@ -120,13 +120,28 @@ class SolveOptions:
 
 @dataclass(frozen=True)
 class ElectrostaticParams:
-    """Electrostatic model parameters.
+    """Electrostatic model parameters. Lengths in meters.
 
     Attributes:
-        ambient_permittivity: Relative permittivity of the medium that fills released gaps.
+        ambient_permittivity: Relative permittivity of the medium that fills released gaps
+            and trenches.
+        element_size: Longest boundary element on conductor outlines. Sidewall capacitance
+            requires it; None serves analyses that mesh no outline.
+        corner_grading: Ratio of ``element_size`` to the element length asked for at a
+            convex corner of a right angle or sharper. The length asked for grows with
+            distance from the corner. One disables refinement.
+        max_elements: Most boundary elements solved as one dense system. A larger mesh is
+            an error.
     """
 
     ambient_permittivity: float = 1.0
+    element_size: float | None = None
+    corner_grading: float = 16.0
+    max_elements: int = 8000
 
     def __post_init__(self) -> None:
         require_at_least("ambient_permittivity", self.ambient_permittivity, 1)
+        if self.element_size is not None:
+            require_positive("element_size", self.element_size)
+        require_at_least("corner_grading", self.corner_grading, 1)
+        require_at_least("max_elements", self.max_elements, 1)

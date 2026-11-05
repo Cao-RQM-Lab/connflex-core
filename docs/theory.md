@@ -945,6 +945,211 @@ and adds $-\tfrac{1}{2} V^2\, \partial^2 C_{ab} / \partial \mathbf{q}\,
     that tilt. A rise that closes the gap at the reference point,
     $\bar{g} \le 0$, is an error.
 
+## Sidewall capacitance
+
+Facing sidewalls of device silicon form capacitors across trenches. Where the
+device layer is thick against the width of a trench, the field between
+sidewalls does not vary through the thickness, and capacitance is that of a
+two-dimensional problem in the layout plane times the thickness. This section
+treats the plane problem for a set of conductors: regions bounded by
+polygons, conductor $a$ at potential $V_a$, in a medium of permittivity
+$\varepsilon = \varepsilon_0 \varepsilon_a$. Every charge and capacitance
+here is per unit thickness.
+
+Charge sits on the outlines $\Gamma_a$ with density $\sigma$ and produces
+the potential
+
+$$
+\varphi(\mathbf{r}) = -\frac{1}{2 \pi \varepsilon} \sum_a \oint_{\Gamma_a} \sigma(\mathbf{r}') \ln |\mathbf{r} - \mathbf{r}'|\, ds' + \varphi_0. \tag{61}
+$$
+
+In two dimensions the potential of a net charge grows as the logarithm of
+distance, so capacitance to a ground at infinity does not exist. The set of
+conductors is therefore neutral as a whole, and the constant $\varphi_0$,
+the potential far away, is an unknown that floats:
+
+$$
+\varphi(\mathbf{r}) = V_a \quad \text{for } \mathbf{r} \text{ on } \Gamma_a, \qquad
+\sum_a \oint_{\Gamma_a} \sigma\, ds = 0. \tag{62}
+$$
+
+Only differences of potential matter. Equations (61) and (62) have one
+solution. Its potential is constant inside every conductor, so $\sigma$ is
+the charge density that the field outside leaves on the surface.
+
+### Elements
+
+Outlines are divided into $N$ straight elements. Element $j$ has length
+$L_j$ and carries charge $q_j$, spread evenly along it. Requiring the first
+condition of (62) on average over each element, which is Galerkin's method
+with constant weights, gives
+
+$$
+\sum_{j=1}^{N} P_{ij}\, q_j + \varphi_0 = V_{a(i)}, \quad i = 1, \dots, N, \qquad
+\sum_{j=1}^{N} q_j = 0, \tag{63}
+$$
+
+where $a(i)$ is the conductor of element $i$ and
+
+$$
+P_{ij} = -\frac{I_{ij}}{2 \pi \varepsilon\, L_i L_j}, \qquad
+I_{ij} = \int_{\text{element } i} \int_{\text{element } j} \ln |\mathbf{r} - \mathbf{r}'|\, ds'\, ds. \tag{64}
+$$
+
+$P_{ij}$ is the average potential on element $i$ of a unit charge on element
+$j$. It is symmetric, which makes the capacitance matrix symmetric exactly
+and not only in the limit of a fine mesh.
+
+### Pair integral
+
+The double integral of (64) has a closed form. Write a point as the complex
+number $z = x + \mathrm{i} y$ and element $i$ as $z_i(s) = z_i^0 + \tau_i s$
+for $0 \le s \le L_i$, with end points $z_i^0$ and $z_i^1$ and unit tangent
+$\tau_i = (z_i^1 - z_i^0) / L_i$. Since $\ln |z| = \operatorname{Re} \ln z$,
+
+$$
+I_{ij} = \operatorname{Re} \int_0^{L_i} \int_0^{L_j} \ln \bigl( z_i(s) - z_j(s') \bigr)\, ds'\, ds. \tag{65}
+$$
+
+The argument of the logarithm is linear in $s$ and $s'$. With
+
+$$
+G(u) = u^2 \left( \tfrac{1}{2} \ln u - \tfrac{3}{4} \right), \qquad G''(u) = \ln u, \tag{66}
+$$
+
+$\partial^2 G(z_i(s) - z_j(s')) / \partial s\, \partial s' = -\tau_i \tau_j
+\ln(z_i(s) - z_j(s'))$, so the integral is a second difference of $G$ over
+the four pairs of end points, $u_{kl} = z_i^k - z_j^l$:
+
+$$
+I_{ij} = \operatorname{Re} \left\{ -\frac{1}{\tau_i \tau_j} \bigl[ G(u_{11}) - G(u_{10}) - G(u_{01}) + G(u_{00}) \bigr] \right\}. \tag{67}
+$$
+
+The four values $u_{kl}$ are the corners of a parallelogram in the complex
+plane, and the logarithm must be one continuous branch over it. Two
+different elements that do not cross leave the origin outside the
+parallelogram or at one of its corners, so the branch cut can be laid away from it: every $u_{kl}$ is
+multiplied by $\bar{u}_c / |u_c|$ before the principal logarithm is taken,
+where $u_c$ is the difference of the element centers. The constant this
+removes from the logarithm multiplies $L_i L_j$ by a purely imaginary number
+and drops out of the real part. Elements that share an end point have
+$u_{kl} = 0$ at one corner, where $G(0) = 0$. For an element with itself
+(67) reduces to
+
+$$
+I_{ii} = L_i^2 \left( \ln L_i - \tfrac{3}{2} \right). \tag{68}
+$$
+
+Equation (67) subtracts numbers of size $|u|^2 \ln |u|$ to leave one of size
+$L_i L_j \ln |u|$, so it loses accuracy when the elements are short against
+their distance. For such pairs the logarithm is expanded about $u_c$
+instead. With $\alpha = \tau_i L_i / (2 u_c)$ and
+$\beta = \tau_j L_j / (2 u_c)$, odd powers integrate to zero and
+
+$$
+I_{ij} = L_i L_j \operatorname{Re} \left[ \ln u_c - \sum_{m=1}^{M} \frac{S_m}{2m} \right], \qquad
+S_m = \sum_{k=0}^{m} \binom{2m}{2k} \frac{\alpha^{2k} \beta^{2m-2k}}{(2k+1)(2m-2k+1)}. \tag{69}
+$$
+
+The series is used when $L_i + L_j \le 2 \rho\, |u_c|$ with $\rho = 1/8$,
+and is cut at $M = 7$. Its remainder is below $\rho^{16} / 16$, about
+$2 \times 10^{-16}$ of $L_i L_j$.
+
+### Capacitance matrix
+
+Let $\mathbf{E}$ be the $N \times n$ matrix with $E_{ia} = 1$ when element
+$i$ lies on conductor $a$ and zero otherwise, $\mathbf{v}$ the potentials of
+the $n$ conductors, and $\mathbf{1}$ the vector of ones. Eliminating
+$\varphi_0$ from (63) gives the element charges and the capacitance matrix,
+
+$$
+\mathbf{q} = \mathbf{M} \mathbf{E} \mathbf{v}, \qquad
+\mathbf{M} = \mathbf{P}^{-1} - \frac{\mathbf{P}^{-1} \mathbf{1} \mathbf{1}^\top \mathbf{P}^{-1}}{\mathbf{1}^\top \mathbf{P}^{-1} \mathbf{1}}, \qquad
+\mathbf{c} = \mathbf{E}^\top \mathbf{M} \mathbf{E}, \tag{70}
+$$
+
+where $c_{ab}$ is the charge on conductor $a$ per volt on conductor $b$ with
+all others at zero. It has three properties by construction:
+
+$$
+\mathbf{c}^\top = \mathbf{c}, \qquad \mathbf{c}\, \mathbf{1} = \mathbf{0}, \qquad
+\mathbf{v}^\top \mathbf{c}\, \mathbf{v} \ge 0. \tag{71}
+$$
+
+The second states that a common potential on all conductors moves no charge,
+so $-c_{ab}$ is the capacitance between conductors $a$ and $b$. Stored
+energy is $\tfrac{1}{2} \mathbf{v}^\top \mathbf{c}\, \mathbf{v}$. It equals
+the largest value of $\mathbf{v}^\top \mathbf{E}^\top \mathbf{q} -
+\tfrac{1}{2} \mathbf{q}^\top \mathbf{P} \mathbf{q}$ over neutral charges
+$\mathbf{q}$, and charge that is constant on each element is a restricted
+choice, so the computed energy never exceeds the exact one for the same
+polygons and rises toward it as the mesh is refined. Capacitance of a layer
+of thickness $t$ is $t\, \mathbf{c}$.
+
+### Mesh
+
+Charge density is smooth along a straight sidewall, diverges at a convex
+corner of a conductor, as $r^{-1/3}$ at a right angle, and vanishes at a
+concave one. Elements are therefore at most $h$ long and shorten toward
+convex corners. Let a vertex turn the outline by the angle $\theta$ toward
+the conductor, so that $\theta > 0$ at a convex corner and $\theta = \pi/2$
+at a right angle. The length asked for at the vertex is
+
+$$
+h_c = h\, g^{-w}, \qquad w = \min \bigl( \max( 2 \theta / \pi,\, 0 ),\, 1 \bigr), \tag{72}
+$$
+
+which is $h / g$ at a right angle or sharper, and $h$ at a straight or
+concave vertex, so the many vertices of a drawn arc cause no refinement.
+Along an edge of length $\ell$ between vertices that ask for $h_L$ and
+$h_R$, the length asked for at distance $x$ from the first grows with
+distance from either end,
+
+$$
+s(x) = \min ( h,\; h_L + x,\; h_R + \ell - x ). \tag{73}
+$$
+
+The edge gets $n$ elements with nodes $x_k$ at equal steps of the element
+count that $s$ implies,
+
+$$
+\nu(x) = \int_0^x \frac{dx'}{s(x')}, \qquad n = \lceil \nu(\ell) \rceil, \qquad
+\nu(x_k) = \frac{k}{n}\, \nu(\ell), \quad k = 0, \dots, n. \tag{74}
+$$
+
+On a rising ramp $\nu = \ln(1 + x / h_L)$, so lengths there grow by a factor
+of at most $e$ from one element to the next, and no element is longer than
+$h$. An edge shorter than the lengths asked for at its ends is one element.
+
+!!! note "Implementation choices"
+    Lengths are divided by twice the diagonal of the bounding box of all
+    outlines before (64) is formed. Every distance is then below one, which
+    makes $\mathbf{P}$ positive definite, and (70) is solved with one
+    Cholesky factorization and $n + 1$ right-hand sides. The scaling adds
+    the same constant to every $P_{ij}$, which cancels through the second
+    condition of (63), and $\varepsilon$ is applied to the result.
+
+    A hole in a conductor is meshed only when another polygon lies inside
+    it. A cavity that holds no conductor holds no field and its wall carries
+    no charge.
+
+    Conductors must not overlap or touch: two regions in contact at
+    different potentials have no finite capacitance. Touching regions at
+    one potential are passed as one conductor.
+
+    In (67) the remaining loss of accuracy is set by how short an element is
+    against a neighbor, which (72) bounds by $g$. Measured against 40-digit
+    arithmetic over random pairs with length ratios up to 64, both forms
+    agree with the exact integral to $10^{-12}\, L_i L_j$.
+
+    The system is dense: memory grows as $N^2$ and time as $N^3$. A mesh
+    with more elements than `max_elements` is an error rather than a solve
+    that does not finish.
+
+    A conductor couples to every other conductor in the plane, however far,
+    because the plane field decays only as the logarithm of distance. Which
+    conductors enter one solution is the caller's choice.
+
 ## Symbols and parameters
 
 Every symbol below is a documented input. Full definitions, units, defaults,
@@ -963,7 +1168,9 @@ and validation rules are on the [parameters page](parameters.md).
 | $R_v$ | resistance of one via link | `ExtractionParams.via_resistance` |
 | $g_0$ | gap between device and handle silicon | `Layer.thickness` of the box layer |
 | $\varepsilon_\text{ox}$ | relative permittivity of buried oxide | `Material.relative_permittivity` of the box layer |
-| $\varepsilon_a$ | relative permittivity of the medium in released gaps | `ElectrostaticParams.ambient_permittivity` |
+| $\varepsilon_a$ | relative permittivity of the medium in released gaps and trenches | `ElectrostaticParams.ambient_permittivity` |
+| $h$ | longest boundary element | `ElectrostaticParams.element_size` |
+| $g$ | refinement of elements at convex corners | `ElectrostaticParams.corner_grading` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
 | $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |

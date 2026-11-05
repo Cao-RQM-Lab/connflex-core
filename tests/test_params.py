@@ -53,6 +53,17 @@ def test_solve_options_reject_unknown_method() -> None:
         SolveOptions(method="magic")  # type: ignore[arg-type]
 
 
-def test_ambient_permittivity_below_vacuum_is_rejected() -> None:
-    with pytest.raises(ValueError, match="ambient_permittivity"):
-        ElectrostaticParams(ambient_permittivity=0.5)
+@pytest.mark.parametrize(
+    ("overrides", "field"),
+    [
+        ({"ambient_permittivity": 0.5}, "ambient_permittivity"),
+        ({"element_size": 0.0}, "element_size"),
+        ({"corner_grading": 0.5}, "corner_grading"),
+        ({"max_elements": 0}, "max_elements"),
+    ],
+)
+def test_invalid_electrostatic_parameters_name_the_field(
+    overrides: dict[str, float], field: str
+) -> None:
+    with pytest.raises(ValueError, match=field):
+        ElectrostaticParams(**overrides)  # type: ignore[arg-type]

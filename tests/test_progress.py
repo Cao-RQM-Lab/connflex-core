@@ -6,7 +6,14 @@ from dataclasses import dataclass
 import pytest
 from shapely import box
 
-from connflex_core import ExtractionParams, Layout, Stack, extract
+from connflex_core import (
+    ElectrostaticParams,
+    ExtractionParams,
+    Layout,
+    Stack,
+    extract,
+    sidewall_capacitance,
+)
 from connflex_core.progress import stage
 
 EXTRACT_STAGES = [
@@ -134,3 +141,17 @@ def test_plates_report_one_stage_that_advances_once_per_device_electrode(
     recorder = Recorder()
     assert len(structure.plates(progress=recorder)) == 1
     assert recorder.runs == [Run("plates", 2, 2, True)]
+
+
+def test_sidewall_capacitance_reports_its_stages() -> None:
+    recorder = Recorder()
+    squares = [box(0, 0, 10e-6, 10e-6), box(12e-6, 0, 22e-6, 10e-6)]
+    result = sidewall_capacitance(
+        squares, ElectrostaticParams(element_size=1e-6), progress=recorder
+    )
+    elements = len(result.mesh.conductor)
+    assert recorder.runs == [
+        Run("mesh", None, 0, True),
+        Run("assemble", elements, elements, True),
+        Run("solve", None, 0, True),
+    ]

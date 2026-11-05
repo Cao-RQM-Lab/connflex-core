@@ -9,6 +9,7 @@ from connflex_core.adapters.klayout_ import from_klayout
 from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Conductor, Nets, Via, find_nets
 from connflex_core.electrostatics.plates import Plate
+from connflex_core.electrostatics.sidewalls import SidewallCapacitance, sidewall_capacitance
 from connflex_core.extract import extract
 from connflex_core.layout import LayerMap, Layout
 from connflex_core.materials import Material
@@ -39,6 +40,7 @@ __all__ = [
     "Plate",
     "Progress",
     "RejectedCandidate",
+    "SidewallCapacitance",
     "SolveOptions",
     "Stack",
     "Structure",
@@ -50,4 +52,5 @@ __all__ = [
     "from_gdsfactory",
     "from_klayout",
     "load_gds",
+    "sidewall_capacitance",
 ]

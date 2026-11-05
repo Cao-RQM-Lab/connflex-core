@@ -159,7 +159,8 @@ already exclude them. The JSON tree does not list them.
 Mechanical analysis ([solve](#solve)) and electrostatic analysis
 ([capacitance to the handle](#capacitance-to-the-handle)) both work from this
 structure, and each runs without the other: neither needs the other's
-parameters or results.
+parameters or results. [Sidewall capacitance](#sidewall-capacitance) takes
+polygons directly and needs no structure.
 
 ## Electrical nets
 
@@ -257,6 +258,37 @@ evaluated with the same motion for both, it returns its rest value. Beams and
 bridges belong to no electrode and are not counted. Definitions and limits
 are in [plates between device and handle](theory.md#plates-between-device-and-handle).
 
+## Sidewall capacitance
+
+```python
+params = cf.ElectrostaticParams(element_size=1e-6)
+result = cf.sidewall_capacitance([finger, slot], params)
+
+result.capacitance  # n by n, farads per meter of thickness
+-result.capacitance[0, 1] * 25e-6  # farads between the two across a 25 um layer
+result.charge  # charge on each element per volt on each conductor
+result.mesh.start, result.mesh.end, result.mesh.conductor  # boundary elements
+```
+
+`sidewall_capacitance` solves the field between conductors drawn in the
+layout plane. Each conductor is a shapely polygon or multipolygon in meters
+and is one equipotential; conductors must not overlap or touch. The field is
+two-dimensional, which holds where the layer is thick against its trenches,
+so the result is per meter of thickness.
+
+The conductors carry no net charge together and potential far away floats.
+Only differences of potential matter: every row of `capacitance` sums to
+zero, and `-capacitance[a, b]` is the capacitance between conductors `a` and
+`b`.
+
+`element_size` is required. Outlines are cut into straight elements of at
+most that length, shorter toward convex corners by up to `corner_grading`.
+The computed capacitance never exceeds the exact one and rises toward it as
+`element_size` shrinks, so halving it shows how far a value has settled. The
+solve is dense, and a mesh above `max_elements` raises an error; pass fewer
+conductors or a larger `element_size`. Formulas are in
+[sidewall capacitance](theory.md#sidewall-capacitance).
+
 ## Solve
 
 ```python
@@ -283,8 +315,8 @@ components of the same kind when reading them.
 
 ## Progress and logging
 
-Each stage of `extract`, `modal`, `static`, and `plates` logs when it starts and
-when it finishes, with elapsed time and counts, through the standard `connflex_core`
+Each stage of `extract`, `modal`, `static`, `plates`, and
+`sidewall_capacitance` logs when it starts and when it finishes, with elapsed time and counts, through the standard `connflex_core`
 logger. The logger is silent until a handler is attached:
 
 ```python
@@ -327,3 +359,5 @@ assemble and solve. Prune and bodies advance once per polygon, beams once per
 candidate, mass once per body, and electrodes once per beam, rejected
 candidate, and via; the other stages are single operations. `plates` reports
 one stage, plates, that advances once per device electrode.
+`sidewall_capacitance` reports mesh, assemble, and solve; assemble advances
+once per boundary element.

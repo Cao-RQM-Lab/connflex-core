@@ -18,6 +18,7 @@ layout's electrical nets.
 | Electrical nets | device, handle, vias | net graph |
 | Electrodes and links | bodies, stubs, beams, vias | nodes and branches of the electrical model |
 | Plates to the handle | electrodes, oxide, release openings, stack | capacitance of each device electrode to the handle beneath it, with gradient and Hessian in body degrees of freedom |
+| Sidewall capacitance | conductor outlines in the layout plane | capacitance matrix between conductors per unit thickness |
 
 Mechanical and electrostatic analyses each run on their own from one extracted
 structure.
