@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from shapely import Polygon, affinity, box
+from shapely import Point, Polygon, affinity, box
 
 from connflex_core import ElectrostaticParams, SidewallCapacitance, sidewall_capacitance
 
@@ -48,6 +48,22 @@ def test_a_wall_sees_only_the_nearest_conductor_within_reach() -> None:
     assert c[0, 2] == 0.0
     far = [um(box(0, 0, 50, 4)), um(box(0, 40, 50, 44))]
     assert not sidewall_capacitance(far, PLATES).capacitance.any()
+
+
+def test_wall_faced_lies_to_the_right_of_each_piece() -> None:
+    """A block in the opening of a frame: walls of a hole face inward."""
+    hole = np.array([(0, 0), (50, 0), (50, 14), (0, 14)])
+    frame = Polygon(np.array([(-10, -10), (60, -10), (60, 24), (-10, 24)]) * UM, [hole * UM])
+    conductors = [frame, um(box(3, 2, 47, 11))]
+    walls = sidewall_capacitance(conductors, PLATES).walls
+    assert set(zip(walls.conductor.tolist(), walls.facing.tolist(), strict=True)) == {
+        (0, 1),
+        (1, 0),
+    }
+    along = walls.end - walls.start
+    right = np.stack([along[:, 1], -along[:, 0]], axis=1) / np.hypot(*along.T)[:, None]
+    for point, faced in zip(walls.start + right * walls.gap[:, :1], walls.facing, strict=True):
+        assert conductors[faced].boundary.distance(Point(point)) < 1e-9 * UM
 
 
 def test_tilted_wall_integrates_the_inverse_gap() -> None:

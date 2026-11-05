@@ -372,7 +372,9 @@ potential far away floats. With method `"plates"` a wall counts toward two
 conductors where its normal first meets the other within
 `interaction_distance`; `charge` and `mesh` are then empty, and `walls`
 lists the pieces that count, each with the conductor it faces and the gap
-at its two ends.
+at its two ends. Going from `start` to `end` of a piece, the wall it faces
+lies to the right, so the four points `start`, `end`, and each moved to the
+right by its gap outline the plate.
 
 `gradient[a, b, k]` holds the derivatives of `capacitance[a, b]` for travel
 of body `k` along x and y, per meter, and for its rotation about z through

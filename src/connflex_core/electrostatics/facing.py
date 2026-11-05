@@ -30,7 +30,8 @@ class FacingWalls:
 
     Attributes:
         start: P by 2 first end points of pieces, in meters.
-        end: P by 2 second end points.
+        end: P by 2 second end points. Going from ``start`` to ``end``, silicon of the
+            piece lies to the left and the wall it faces to the right.
         conductor: Conductor of each piece.
         facing: Conductor each piece faces.
         gap: P by 2 distances along the normal of a piece to the wall it faces, at
@@ -122,9 +123,12 @@ def facing_plates(
                             value.hessian[:, 3 * i : 3 * i + 3, 3 * j : 3 * j + 3] / 2,
                         )
     edge = pieces[:, 0]
+    ends = np.stack([left, right], axis=1)
+    turned = outward[edge] < 0
+    ends[turned], gap[turned] = ends[turned, ::-1], gap[turned, ::-1]
     walls = FacingWalls(
-        start=start[edge] + left[:, None] * tangent[edge],
-        end=start[edge] + right[:, None] * tangent[edge],
+        start=start[edge] + ends[:, :1] * tangent[edge],
+        end=start[edge] + ends[:, 1:] * tangent[edge],
         conductor=conductor[edge],
         facing=conductor[pieces[:, 1]],
         gap=gap,
