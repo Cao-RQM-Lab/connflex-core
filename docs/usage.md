@@ -450,6 +450,7 @@ result.pull_in  # fraction at which stability was lost, or None
 result.limit  # None, "contact", "unstable", or "no equilibrium"
 result.displacement  # one value per degree of freedom in result.dofs, from rest
 result.stable  # whether a small push is met by a restoring force
+result.margin  # share of beam stiffness left where the field softens most: 1 to 0
 result.softest  # squared angular frequency of the softest motion under bias
 result.stiffness  # tangent stiffness: mechanical plus electrostatic
 result.force  # electrostatic forces at the equilibrium
@@ -457,6 +458,7 @@ result.potentials, result.charge  # per electrode
 result.model  # capacitance model at the equilibrium
 result.loose  # bodies that no beam holds, kept at rest
 result.ramp_scales, result.ramp_displacements, result.ramp_softest  # the way there
+result.ramp_margin  # margin on the way
 result.ramp_clearance  # narrowest gap on the way, as a fraction of its width at rest
 result.model.clearance, result.model.closest  # that fraction here, and its two electrodes
 
@@ -479,8 +481,13 @@ mechanical forces, as for `static`.
 The solve is a Newton iteration that evaluates the capacitance model at
 every displacement it visits, so forces and the tangent stiffness are those
 of the displaced structure and not a linearization about rest. `stable`
-tells whether the equilibrium holds against a small push, and `softest` is
-how far it is from losing that: it falls to zero at pull-in. A body that no
+tells whether the equilibrium holds against a small push, and `margin` is
+how far it is from losing that: the share of beam stiffness that the field
+has left in the direction it softens most, 1 without voltage and 0 at
+pull-in. `softest` is the squared angular frequency of the softest motion
+under bias. It also reaches zero at pull-in, but the motion that gives way
+is often a stiff one, such as a plate moving toward the handle, and the
+softest frequency can stay almost unchanged until just before. A body that no
 chain of beams joins to the anchor cannot be in equilibrium under a force;
 it stays at rest and is listed in `loose`.
 
@@ -497,8 +504,8 @@ between two bodies to `contact_fraction` of its width at rest, 0.1 unless
 set otherwise, since nothing in the model describes bodies that touch. The
 gap is that of a plate at its closest corner or the distance between
 silicon of two electrodes, and `result.model.closest` names the two
-electrodes on either side. With more `steps` the `ramp_` arrays trace displacement
-and softest frequency against voltage. With sidewall method `"plates"` on
+electrodes on either side. With more `steps` the `ramp_` arrays trace displacement,
+margin, and softest frequency against voltage. With sidewall method `"plates"` on
 teeth that stand tip to tip, the iteration fails at any voltage and `scale`
 ends near zero; that is the cusp of the plates method and not pull-in. Formulas are in
 [static equilibrium](theory.md#static-equilibrium).

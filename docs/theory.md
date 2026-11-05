@@ -1936,6 +1936,24 @@ $$
 
 is the squared angular frequency of the softest motion under these
 potentials, as in (38). The equilibrium is stable while it is positive.
+Against the beam stiffness instead,
+
+$$
+\bigl( \mathbf{K}^\text{full} + \mathbf{K}_e(\mathbf{q}) \bigr)\, \boldsymbol{\psi}
+= \mu\, \mathbf{K}^\text{full} \boldsymbol{\psi}, \qquad
+\mu_\text{min} = \min_{\boldsymbol{\psi}} \frac{\boldsymbol{\psi}^\top \bigl( \mathbf{K}^\text{full} + \mathbf{K}_e \bigr) \boldsymbol{\psi}}{\boldsymbol{\psi}^\top \mathbf{K}^\text{full} \boldsymbol{\psi}}, \tag{119}
+$$
+
+the smallest eigenvalue is the share of beam stiffness left in the
+direction the field softens most: 1 without potentials, 0 at pull-in, and
+of the same sign as $\lambda_\text{min}$. The two answer different
+questions. The motion that the field softens most can be stiff to begin
+with, such as a plate moving toward the handle, and its frequency stays
+far above that of the softest motion until close to pull-in, while
+$\mu_\text{min}$ falls steadily. A square plate on four beams over the
+handle at 95 percent of its pull-in voltage has $\mu_\text{min} = 0.44$,
+while its softest motion, a travel in the plane that the field does not
+touch, keeps the frequency it has without voltage.
 For a plate of area $A$ on a spring $k$ over a gap $g_0$, (115) reads
 $k\, z = -\varepsilon A V^2 / \bigl( 2 (g_0 + z)^2 \bigr)$ and (118) is
 $k > \varepsilon A V^2 / (g_0 + z)^3$.
@@ -1948,7 +1966,7 @@ step starts the iteration of the next, so the solution that is followed is
 the one that grows out of rest. Pull-in is where it ends:
 
 $$
-s^* = \sup \bigl\{ s : \mathbf{q}(s) \text{ solves (115) at } \mathbf{v}(s),\ \text{continues from } \mathbf{q}(0),\ \lambda_\text{min}\bigl(\mathbf{q}(s)\bigr) > 0 \bigr\}. \tag{119}
+s^* = \sup \bigl\{ s : \mathbf{q}(s) \text{ solves (115) at } \mathbf{v}(s),\ \text{continues from } \mathbf{q}(0),\ \lambda_\text{min}\bigl(\mathbf{q}(s)\bigr) > 0 \bigr\}. \tag{120}
 $$
 
 It ends in one of two ways. At a fold $\lambda_\text{min}$ falls to zero and
@@ -1960,7 +1978,7 @@ closed forms are
 
 $$
 V^* = \sqrt{\frac{8\, k\, g_0^3}{27\, \varepsilon A}} \ \text{ at } z = -\frac{g_0}{3}, \qquad
-V^*_\perp = \sqrt{\frac{k_\perp\, g^3}{N \varepsilon\, t_\text{device}\, \ell}}. \tag{120}
+V^*_\perp = \sqrt{\frac{k_\perp\, g^3}{N \varepsilon\, t_\text{device}\, \ell}}. \tag{121}
 $$
 
 A step that finds no equilibrium, or finds one that is not stable, is
@@ -1980,7 +1998,7 @@ $$
 \chi(\mathbf{q}) = \min \Bigl\{
 \min_{\text{plates}} \frac{g_0 + h_0 - |h_x|\, e_x - |h_y|\, e_y}{g_0},\;
 \min_{(a, b)} \frac{\operatorname{dist}\bigl( E_a(\mathbf{q}), E_b(\mathbf{q}) \bigr)}{\operatorname{dist}(E_a, E_b)}
-\Bigr\}. \tag{121}
+\Bigr\}. \tag{122}
 $$
 
 The first runs over plates between two bodies, with the rise $h_0$ and
@@ -2005,7 +2023,7 @@ floating nets fixes their potentials at every displacement:
 $$
 \mathbf{C}^\text{net}_{ff}\, \mathbf{v}_f + \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d = \mathbf{Q}_f
 \quad \Longrightarrow \quad
-\mathbf{v}_f(\mathbf{q}) = \mathbf{C}_{ff}^{\text{net}\,-1} \bigl( \mathbf{Q}_f - \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d \bigr). \tag{122}
+\mathbf{v}_f(\mathbf{q}) = \mathbf{C}_{ff}^{\text{net}\,-1} \bigl( \mathbf{Q}_f - \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d \bigr). \tag{123}
 $$
 
 The force keeps the form (115), now with these potentials. Its change with
@@ -2015,10 +2033,10 @@ $\Gamma_{\nu k} = \sum_\mu \bigl( \partial C^\text{net}_{\nu\mu} / \partial q_k 
 
 $$
 \mathbf{K}_t = \mathbf{K}^\text{full} + \mathbf{K}_e
-+ \boldsymbol{\Gamma}_f^\top\, \mathbf{C}_{ff}^{\text{net}\,-1}\, \boldsymbol{\Gamma}_f \tag{123}
++ \boldsymbol{\Gamma}_f^\top\, \mathbf{C}_{ff}^{\text{net}\,-1}\, \boldsymbol{\Gamma}_f \tag{124}
 $$
 
-replaces the tangent stiffness in (116) and (118). The added part is never
+replaces the tangent stiffness in (116), (118), and (119). The added part is never
 negative: a body that moves toward a floating electrode lowers its
 potential, which weakens the pull. A plate that holds a fixed charge and
 has no other capacitance loses no stiffness at all, and never pulls in.
@@ -2041,7 +2059,7 @@ together with the potentials.
     without that being pull-in. Such a device needs the field method.
 
     The bounding box of a plate reaches at least as far as the plate, so
-    (121) reports contact of a tilted plate no later than it happens, and
+    (122) reports contact of a tilted plate no later than it happens, and
     earlier for a plate that does not fill its box. A tilted plate is also
     where the capacitance of (55), of second order in tilt, is least
     accurate: at a clearance of one half its integrand is 12 percent low
@@ -2069,7 +2087,7 @@ together with the potentials.
     A body that no chain of beams joins to the anchor has no stiffness, and
     nothing balances a force on it. Such a body, for instance an island
     left on a neck too thin to qualify as a beam, is kept at rest and
-    listed with the result. (115) to (118) are taken over the other bodies.
+    listed with the result. (115) to (119) are taken over the other bodies.
 
 ## Symbols and parameters
 

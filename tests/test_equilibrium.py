@@ -103,6 +103,7 @@ def test_plate_settles_where_its_spring_balances_the_pull(plate: Structure) -> N
     assert result.stiffness[2, 2] == pytest.approx(softened, rel=1e-8)
     assert result.stable
     assert result.softest > 0
+    assert result.margin == pytest.approx(softened / spring, rel=1e-8)
     assert result.model.displacement == pytest.approx(result.displacement)
     under = plate.electrode_at((0.0, 0.0), "handle").index
     assert result.potentials[under] == volts
@@ -137,6 +138,9 @@ def test_plate_is_followed_up_to_pull_in_at_the_closed_form_voltage(plate: Struc
     assert below.ramp_displacements[-1] == pytest.approx(below.displacement)
     assert np.all(np.diff(below.ramp_displacements[:, 2]) < 0)
     assert below.ramp_softest[-1] == below.softest
+    assert below.ramp_margin[0] == pytest.approx(1.0)
+    assert np.all(np.diff(below.ramp_margin) < 0)
+    assert below.ramp_margin[-1] == below.margin
 
     beyond = plate.equilibrium(
         model, {handle: 1.2 * pull_in}, options=StaticOptions(pull_in_resolution=1e-6)
@@ -146,6 +150,7 @@ def test_plate_is_followed_up_to_pull_in_at_the_closed_form_voltage(plate: Struc
     assert beyond.pull_in * 1.2 == pytest.approx(1.0, rel=1e-5)
     assert 0 < beyond.pull_in - beyond.scale <= 1e-6
     assert beyond.stable
+    assert 0 < beyond.margin < 1e-2
     assert np.max(beyond.potentials) == pytest.approx(beyond.scale * 1.2 * pull_in)
     assert beyond.displacement[2] == pytest.approx(-BOX / 3, rel=1e-2)
 

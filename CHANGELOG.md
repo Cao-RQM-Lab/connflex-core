@@ -74,7 +74,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   lost. An equilibrium that closes a gap between two bodies to
   `contact_fraction` of its width ends the rise as contact. `charges`
   names floating nets, which keep a fixed charge: their potentials follow
-  the bodies, and tangent stiffness gains the part that adds.
+  the bodies, and tangent stiffness gains the part that adds. `margin` is
+  the share of beam stiffness left where the field softens most, which
+  falls from 1 to 0 at pull-in.
 - `CapacitanceModel.clearance` and `closest`: the narrowest gap between two
   bodies at a displacement as a fraction of its width at rest, and the two
   electrodes across it. `Plate.extent` and `Plate.lowest` give the gap of a

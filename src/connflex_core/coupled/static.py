@@ -27,7 +27,7 @@ PATIENCE = 4
 
 @dataclass(frozen=True, eq=False)
 class Equilibrium:
-    """Where a structure rests under electrode potentials, equations (115) to (123).
+    """Where a structure rests under electrode potentials, equations (115) to (124).
 
     Attributes:
         scale: Fraction of the potentials asked for at which this equilibrium holds: 1
@@ -48,9 +48,12 @@ class Equilibrium:
         charge: Charge on every electrode, in coulombs.
         force: Electrostatic generalized forces at ``displacement``.
         stiffness: Tangent stiffness there: mechanical plus electrostatic, with the
-            part that charge held on floating nets adds, equation (123).
+            part that charge held on floating nets adds, equation (124).
         softest: Smallest eigenvalue of ``stiffness`` against the mass matrix, the
             squared angular frequency of the softest motion under these potentials.
+        margin: Smallest eigenvalue of ``stiffness`` against the mechanical stiffness:
+            the fraction of beam stiffness left in the direction the field softens
+            most, equation (119). 1 without potentials, 0 at pull-in.
         stable: Whether ``softest`` is positive.
         iterations: Newton iterations taken, over all steps.
         loose: Bodies that no chain of beams joins to the anchor. Nothing can balance a
@@ -60,6 +63,7 @@ class Equilibrium:
             on the way, ascending from zero to ``scale``.
         ramp_displacements: Displacement at each of them, one row each.
         ramp_softest: ``softest`` at each of them.
+        ramp_margin: ``margin`` at each of them.
         ramp_clearance: ``CapacitanceModel.clearance`` at each of them.
     """
 
@@ -73,6 +77,7 @@ class Equilibrium:
     force: Array
     stiffness: Array
     softest: float
+    margin: float
     stable: bool
     iterations: int
     loose: tuple[int, ...]
@@ -80,6 +85,7 @@ class Equilibrium:
     ramp_scales: Array
     ramp_displacements: Array
     ramp_softest: Array
+    ramp_margin: Array
     ramp_clearance: Array
 
 
@@ -97,14 +103,14 @@ def equilibrium(
 
     ``model`` is the capacitance model of ``structure`` at rest. ``potentials`` maps a
     net to its potential in volts. ``charges`` maps a floating net to the charge it
-    holds, in coulombs; its potential follows from equation (122). A net in neither is
+    holds, in coulombs; its potential follows from equation (123). A net in neither is
     at zero volts. ``loads`` maps a body index to six generalized forces at its center
     of mass, as for ``static``. Potentials and charges rise together from zero.
     Potentials rise from zero in ``steps`` and the equilibrium is followed by Newton
     iteration, equation (116), which evaluates the capacitance model at every iterate.
     Where no stable equilibrium is found the step is halved, and the result is the last
     stable equilibrium with the fraction of the potentials at which stability was lost,
-    equation (119). Stages assemble and equilibrium log through the ``connflex_core``
+    equation (120). Stages assemble and equilibrium log through the ``connflex_core``
     logger and report to ``progress``; equilibrium advances once per step.
     """
     options = options or StaticOptions()
@@ -163,17 +169,20 @@ def equilibrium(
 
         return at
 
-    def softness(here: CapacitanceModel, scale: float) -> float:
+    def softness(here: CapacitanceModel, scale: float) -> tuple[float, float]:
+        """Smallest eigenvalues of tangent stiffness against mass and against beams."""
         held, added = drive(scale)(here)
-        tangent = system.stiffness + here.stiffness(held) + added
-        return float(scipy.linalg.eigh(tangent[both], system.mass[both], eigvals_only=True)[0])
+        tangent = (system.stiffness + here.stiffness(held) + added)[both]
+        softest = scipy.linalg.eigh(tangent, system.mass[both], eigvals_only=True)[0]
+        margin = scipy.linalg.eigh(tangent, system.stiffness[both], eigvals_only=True)[0]
+        return float(softest), float(margin)
 
     start, iterations = _settle(model, system.stiffness, kept, drive(0.0), applied, options)
     if start is None:
         raise ValueError("no equilibrium under mechanical loads alone")
     here = start
     scale, pull_in, limit = 0.0, None, None
-    ramp = [(scale, here.displacement, softness(here, scale), here.clearance)]
+    ramp = [(scale, here.displacement, *softness(here, scale), here.clearance)]
     from_here = False
     with stage("equilibrium", progress, total=options.steps) as current:
         while scale < 1:
@@ -186,7 +195,7 @@ def equilibrium(
             else:
                 target = pull_in
             found, taken = _settle(here, system.stiffness, kept, drive(target), applied, options)
-            softest = softness(found, target) if found else 0.0
+            softest, margin = softness(found, target) if found else (0.0, 0.0)
             iterations += taken
             if found is not None and softest > 0 and found.clearance > options.contact_fraction:
                 if pull_in is None:
@@ -194,7 +203,7 @@ def equilibrium(
                 elif target == pull_in:
                     pull_in = limit = None
                 here, scale, from_here = found, target, False
-                ramp.append((scale, here.displacement, softest, here.clearance))
+                ramp.append((scale, here.displacement, softest, margin, here.clearance))
             else:
                 pull_in, from_here = target, True
                 limit = (
@@ -213,6 +222,7 @@ def equilibrium(
         force=here.force(reached),
         stiffness=system.stiffness + here.stiffness(reached) + added,
         softest=ramp[-1][2],
+        margin=ramp[-1][3],
         stable=ramp[-1][2] > 0,
         iterations=iterations,
         loose=tuple(sorted({body for body, _ in system.dofs if body not in joined})),
@@ -220,7 +230,8 @@ def equilibrium(
         ramp_scales=np.array([entry[0] for entry in ramp]),
         ramp_displacements=np.array([entry[1] for entry in ramp]),
         ramp_softest=np.array([entry[2] for entry in ramp]),
-        ramp_clearance=np.array([entry[3] for entry in ramp]),
+        ramp_margin=np.array([entry[3] for entry in ramp]),
+        ramp_clearance=np.array([entry[4] for entry in ramp]),
     )
 
 

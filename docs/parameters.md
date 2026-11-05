@@ -81,8 +81,8 @@ keyword overrides.
 | `tolerance` | $\tau_s$ | 1e-9 | Newton iteration for static equilibrium stops when the strain energy of its last step is below this fraction, squared, of the strain energy of the displacement, equation (117), or one step after it is below this fraction itself. |
 | `max_iterations` | | 30 | Most Newton iterations at one set of potentials. Reaching it counts as no equilibrium there. |
 | `steps` | | 1 | Equal steps in which potentials rise from zero to the values asked for. The equilibrium is followed from each to the next and all are returned, so more steps trace the curve of displacement against voltage. A step that finds no stable equilibrium is halved. |
-| `pull_in_resolution` | | 0.001 | Halving stops when the largest scale with a stable equilibrium and the smallest without are closer than this fraction of the potentials asked for, equation (119). |
-| `contact_fraction` | $\chi_c$ | 0.1 | An equilibrium at which a gap between two bodies has closed to this fraction of its width at rest, or further, counts as contact, equation (121), and ends the rise of the potentials. 0 accepts every equilibrium short of touching. |
+| `pull_in_resolution` | | 0.001 | Halving stops when the largest scale with a stable equilibrium and the smallest without are closer than this fraction of the potentials asked for, equation (120). |
+| `contact_fraction` | $\chi_c$ | 0.1 | An equilibrium at which a gap between two bodies has closed to this fraction of its width at rest, or further, counts as contact, equation (122), and ends the rise of the potentials. 0 accepts every equilibrium short of touching. |
 
 ## Validation
 
