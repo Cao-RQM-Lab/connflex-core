@@ -267,6 +267,7 @@ result = cf.sidewall_capacitance([finger, slot], params)
 result.capacitance  # n by n, farads per meter of thickness
 -result.capacitance[0, 1] * 25e-6  # farads between the two across a 25 um layer
 result.gradient  # n by n by bodies by 3: change with x, y, and rotation of each body
+result.hessian  # n by n by bodies by 3 by bodies by 3: second derivatives
 result.centers  # point each body rotates about
 result.charge  # charge on each element per volt on each conductor
 result.mesh.start, result.mesh.end, result.mesh.conductor  # boundary elements
@@ -291,8 +292,12 @@ of body `k` along x and y, per meter, and for its rotation about z through
 gives conductors that move together one index, and a body rotates about the
 centroid of its conductors unless `centers` says otherwise. With potentials
 `v`, `0.5 * v @ gradient[:, :, k, 0] @ v` is the force on body `k` along x
-per meter of thickness. The gradient is the exact derivative of the computed
-capacitance, so forces on all bodies sum to zero.
+per meter of thickness. `hessian[a, b, k, i, l, j]` is the second derivative
+for motion `i` of body `k` and motion `j` of body `l`; contracted with
+potentials, `-0.5 * v @ hessian[:, :, k, i, l, j] @ v` is the electrostatic
+stiffness between those two motions. Both are exact derivatives of the
+computed capacitance, so forces on all bodies sum to zero. The point a body
+rotates about travels with it.
 
 `element_size` is required. Outlines are cut into straight elements of at
 most that length, shorter toward convex corners by up to `corner_grading`.
@@ -372,5 +377,6 @@ assemble and solve. Prune and bodies advance once per polygon, beams once per
 candidate, mass once per body, and electrodes once per beam, rejected
 candidate, and via; the other stages are single operations. `plates` reports
 one stage, plates, that advances once per device electrode.
-`sidewall_capacitance` reports mesh, assemble, solve, and gradient; assemble
-advances once per boundary element and gradient once per body.
+`sidewall_capacitance` reports mesh, assemble, solve, derivatives, and
+curvature; assemble advances once per boundary element and derivatives once
+per pair of bodies.

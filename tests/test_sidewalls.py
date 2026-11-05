@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from shapely import MultiPolygon, Polygon, affinity, box
 
-from connflex_core import ElectrostaticParams, sidewall_capacitance
+from connflex_core import ElectrostaticParams, SidewallCapacitance, sidewall_capacitance
 from connflex_core.electrostatics.outlines import mesh_outlines
 
 EPS0 = 8.8541878188e-12
@@ -78,33 +78,64 @@ def test_refining_the_mesh_converges_from_below() -> None:
     assert fine - medium < 0.2 * (fine - uniform)
 
 
-def test_gradient_is_the_derivative_of_the_capacitance() -> None:
+def test_gradient_and_hessian_are_derivatives_of_the_capacitance() -> None:
     shapes = [box(0, 0, 10, 4), box(12.3, 1, 20, 9), Polygon([(3, 6.1), (9, 7), (8, 12), (2, 11)])]
     bodies = [0, 1, 0]
     centers = np.array([[4.0, 5.0], [15.0, 4.0]])
 
-    def solve(body: int = 0, dof: int = 0, step: float = 0.0) -> np.ndarray:
-        moved = []
+    def solve(body: int = 0, dof: int = 0, step: float = 0.0) -> SidewallCapacitance:
+        moved, pivots = [], centers.copy()
+        if dof < 2:
+            pivots[body, dof] += step  # a body turns about a point that travels with it
         for shape, owner in zip(shapes, bodies, strict=True):
             if owner == body and dof < 2:
                 shape = affinity.translate(shape, *np.eye(2)[dof] * step)
             elif owner == body:
                 shape = affinity.rotate(shape, step, origin=tuple(centers[body]), use_radians=True)
             moved.append(um(shape))
-        result = sidewall_capacitance(moved, params(0.83), bodies=bodies, centers=centers * UM)
-        return result.capacitance if step else result.gradient
+        return sidewall_capacitance(moved, params(0.83), bodies=bodies, centers=pivots * UM)
 
-    gradient = solve()
-    assert gradient.shape == (3, 3, 2, 3)
+    rest = solve()
+    assert rest.gradient.shape == (3, 3, 2, 3)
+    assert rest.hessian.shape == (3, 3, 2, 3, 2, 3)
     step = 1e-5
     for body in range(2):
         for dof in range(3):
-            difference = (solve(body, dof, step) - solve(body, dof, -step)) / (2 * step)
-            difference /= UM if dof < 2 else 1.0
-            scale = np.max(abs(gradient[:, :, body, dof]))
-            assert gradient[:, :, body, dof] == pytest.approx(
-                difference, rel=1e-6, abs=1e-7 * scale
-            )
+            ahead, behind = solve(body, dof, step), solve(body, dof, -step)
+            per = 2 * step * (UM if dof < 2 else 1.0)
+            slope = (ahead.capacitance - behind.capacitance) / per
+            expected = rest.gradient[:, :, body, dof]
+            assert expected == pytest.approx(slope, rel=1e-6, abs=1e-7 * np.max(abs(expected)))
+            bend = (ahead.gradient - behind.gradient) / per
+            for other in range(2):
+                for travel in range(3):
+                    expected = rest.hessian[:, :, other, travel, body, dof]
+                    found = bend[:, :, other, travel]
+                    assert expected == pytest.approx(
+                        found, rel=1e-5, abs=1e-6 * np.max(abs(expected))
+                    )
+
+
+def test_hessian_between_two_cylinders_matches_the_closed_form() -> None:
+    distance = 3.0
+    result = sidewall_capacitance(
+        [um(circle(1.0, 360)), um(circle(1.0, 360, x=distance))], params(1.0)
+    )
+    spread = np.arccosh(distance / 2)
+    root = np.sqrt(distance * distance / 4 - 1)
+    slope = -np.pi * EPS0 / (2 * spread**2 * root) / UM
+    bend = (
+        np.pi
+        * EPS0
+        / 4
+        * (2 / (spread**3 * root**2) + distance / 2 / (spread**2 * root**3))
+        / UM**2
+    )
+    curvature = result.hessian[0, 0]
+    assert curvature[1, 0, 1, 0] == pytest.approx(bend, rel=1e-3)
+    assert curvature[0, 0, 1, 0] == pytest.approx(-bend, rel=1e-3)
+    assert curvature[1, 1, 1, 1] == pytest.approx(slope / (distance * UM), rel=1e-3)
+    assert curvature[1, 0, 1, 1] == pytest.approx(0, abs=1e-9 * bend)
 
 
 def test_moving_every_body_together_changes_nothing() -> None:
@@ -113,11 +144,15 @@ def test_moving_every_body_together_changes_nothing() -> None:
     centroids = np.array([shape.centroid.coords[0] for shape in shapes])
     assert apart.centers == pytest.approx(centroids)
     pivot = np.tile([[1.0 * UM, 2.0 * UM]], (3, 1))
-    gradient = sidewall_capacitance(shapes, params(1.0), centers=pivot).gradient
+    together = sidewall_capacitance(shapes, params(1.0), centers=pivot)
+    gradient, curvature = together.gradient, together.hessian
     scale = abs(gradient).max(axis=(0, 1, 2))
     assert gradient == pytest.approx(gradient.transpose(1, 0, 2, 3), abs=1e-12 * np.max(scale))
     assert np.all(abs(gradient.sum(axis=2)).max(axis=(0, 1)) < 1e-9 * scale)
     assert np.all(abs(gradient.sum(axis=0)).max(axis=(0, 1)) < 1e-9 * scale)
+    bend = np.max(abs(curvature[..., :2, :, :2]))
+    assert curvature == pytest.approx(curvature.transpose(0, 1, 4, 5, 2, 3), abs=1e-9 * bend)
+    assert np.max(abs(curvature[..., :2].sum(axis=4)[..., :2, :])) < 1e-8 * bend
 
 
 def test_cavity_that_holds_no_conductor_is_not_meshed() -> None:

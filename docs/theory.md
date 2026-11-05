@@ -1215,6 +1215,118 @@ which holds pair by pair, because $T_{ij} + T_{ji} = 0$ and
 $W_{ij} + W_{ji} = L_i L_j$ is real: forces and torques on the bodies
 balance.
 
+### Second derivatives
+
+Electrostatic stiffness needs the second derivative of capacitance, for
+which (75) must be the rigid motion it approximates. Body $B$ travels by
+$a = a_x + \mathrm{i}\, a_y$ and turns by $a_\psi$ about a point that travels
+with it:
+
+$$
+z \mapsto c_B + a + e^{\mathrm{i} a_\psi} (z - c_B). \tag{83}
+$$
+
+Differentiating (76) once more, with $\partial \mathbf{M} / \partial q =
+-\mathbf{M}\, (\partial \mathbf{P} / \partial q)\, \mathbf{M}$, gives
+
+$$
+\frac{\partial^2 \mathbf{c}}{\partial p\, \partial q}
+= -\mathbf{X}^\top \frac{\partial^2 \mathbf{P}}{\partial p\, \partial q} \mathbf{X}
++ \mathbf{Y}_p^\top \mathbf{M} \mathbf{Y}_q + \mathbf{Y}_q^\top \mathbf{M} \mathbf{Y}_p, \qquad
+\mathbf{Y}_p = \frac{\partial \mathbf{P}}{\partial p} \mathbf{X}. \tag{84}
+$$
+
+The first term is the change of the pull between fixed charges. The other
+two are the pull that arises because the charges themselves move along the
+outlines when a body moves; they need $\mathbf{M} \mathbf{Y}_q$, one more
+pair of triangular solves per parameter with the factor already at hand.
+
+Take a pair with element $i$ on body $B$ and element $j$ on body $B'$, and
+the six parameters $(a_x, a_y, a_\psi)$ of $B$ and $(a_x', a_y', a_\psi')$
+of $B'$. With $r_k = z_i^k - c_B$ and $r_l' = z_j^l - c_{B'}$, the end-point
+differences $u_{kl}$ of (67) move under (83) with
+
+$$
+\frac{\partial u_{kl}}{\partial p} = v_p = \bigl( 1,\; \mathrm{i},\; \mathrm{i}\, r_k,\; -1,\; -\mathrm{i},\; -\mathrm{i}\, r_l' \bigr), \qquad
+\frac{\partial^2 u_{kl}}{\partial a_\psi^2} = -r_k, \qquad
+\frac{\partial^2 u_{kl}}{\partial a_\psi'^2} = r_l', \tag{85}
+$$
+
+all other second derivatives being zero, and the product $\tau_i \tau_j$
+turns by $e^{\mathrm{i} (a_\psi + a_\psi')}$. Let $\varrho_p$ be one for the
+two rotations and zero for the four translations. Differentiating the
+complex integral $I^\mathrm{c}_{ij}$ of (67) gives
+
+$$
+\begin{aligned}
+\frac{\partial I^\mathrm{c}_{ij}}{\partial p} &= \Phi_p - \mathrm{i}\, \varrho_p\, I^\mathrm{c}_{ij}, \qquad
+\Phi_p = -\frac{1}{\tau_i \tau_j} \sum_{k,l} \epsilon_{kl}\, H(u_{kl})\, v_p, \\
+\frac{\partial^2 I^\mathrm{c}_{ij}}{\partial p\, \partial q} &= -\frac{1}{\tau_i \tau_j} \sum_{k,l} \epsilon_{kl}
+\left[ \ln (u_{kl})\, v_p v_q + H(u_{kl}) \frac{\partial^2 u_{kl}}{\partial p\, \partial q} \right]
+- \mathrm{i}\, \varrho_p \Phi_q - \mathrm{i}\, \varrho_q \Phi_p - \varrho_p \varrho_q\, I^\mathrm{c}_{ij},
+\end{aligned} \tag{86}
+$$
+
+whose real parts are the derivatives of $I_{ij}$. The first line contains
+(78) and (79): $\Phi_{a_x} = T_{ij}$ and
+$\Phi_{a_\psi} - \mathrm{i} I^\mathrm{c}_{ij} = \mathrm{i}\, W_{ij}$.
+
+For separated pairs write (69) as $I^\mathrm{c}_{ij} = L_i L_j\, F$ with
+$F = \ln u_c - \sum_{m,k} e_{mk}\, t_{mk} / (2m)$, where
+$t_{mk} = \alpha^{2k} \beta^{2m-2k}$ and $e_{mk}$ is its coefficient in
+$S_m$. $F$ depends on the motion through $u_c$ and through the two angles,
+since $\alpha^2$ turns by $e^{2 \mathrm{i} a_\psi}$ and $\beta^2$ by
+$e^{2 \mathrm{i} a_\psi'}$. Its partial derivatives are sums over the same
+terms,
+
+$$
+\begin{aligned}
+F_u &= \frac{1}{u_c} \Bigl[ 1 + \sum e_{mk} t_{mk} \Bigr], &
+F_{uu} &= -\frac{1}{u_c^2} \Bigl[ 1 + \sum (2m+1)\, e_{mk} t_{mk} \Bigr], \\
+F_\psi &= -\mathrm{i} \sum \frac{k}{m}\, e_{mk} t_{mk}, &
+F_{\psi'} &= -\mathrm{i} \sum \frac{m-k}{m}\, e_{mk} t_{mk}, \\
+F_{u\psi} &= \frac{2 \mathrm{i}}{u_c} \sum k\, e_{mk} t_{mk}, &
+F_{u\psi'} &= \frac{2 \mathrm{i}}{u_c} \sum (m-k)\, e_{mk} t_{mk}, \\
+F_{\psi\psi} &= \sum \frac{2 k^2}{m}\, e_{mk} t_{mk}, &
+F_{\psi'\psi'} &= \sum \frac{2 (m-k)^2}{m}\, e_{mk} t_{mk}, \qquad
+F_{\psi\psi'} = \sum \frac{2 k (m-k)}{m}\, e_{mk} t_{mk}.
+\end{aligned} \tag{87}
+$$
+
+The difference of centers $u_c$ moves as in (85) with the element centers in
+place of the end points; call its first derivatives $w_p$. Writing
+$\omega_p$ for the angle that parameter $p$ is, if it is one,
+
+$$
+\frac{\partial F}{\partial p} = F_u\, w_p + F_{\omega_p}, \qquad
+\frac{\partial^2 F}{\partial p\, \partial q} = F_{uu}\, w_p w_q + F_u \frac{\partial^2 u_c}{\partial p\, \partial q}
++ F_{u \omega_p} w_q + F_{u \omega_q} w_p + F_{\omega_p \omega_q}, \tag{88}
+$$
+
+where a term with $\omega_p$ is absent when $p$ is a translation. The first
+of these contains (80).
+
+With these, the first term of (84) is a sum over pairs of elements on
+different bodies, as (81) is,
+
+$$
+-\Bigl[ \mathbf{X}^\top \frac{\partial^2 \mathbf{P}}{\partial p\, \partial q} \mathbf{X} \Bigr]_{ab}
+= \frac{1}{2 \pi \varepsilon} \sum_{B < B'} \sum_{i \in B} \sum_{j \in B'}
+\left( s_{ia}\, s_{jb} + s_{ib}\, s_{ja} \right) \frac{\partial^2 I_{ij}}{\partial p\, \partial q}, \tag{89}
+$$
+
+in which a pair contributes when $p$ and $q$ are each a parameter of one of
+its two bodies, and
+
+$$
+\bigl[ \mathbf{Y}_p \bigr]_{ia} = -\frac{1}{2 \pi \varepsilon\, L_i} \sum_j \frac{\partial I_{ij}}{\partial p}\, s_{ja}, \tag{90}
+$$
+
+summed over the elements $j$ that do not share a body with element $i$.
+Translating every body together leaves the gradient unchanged, so the
+second derivatives for travel along one axis sum to zero over the bodies of
+either parameter.
+
 !!! note "Implementation choices"
     Lengths are divided by twice the diagonal of the bounding box of all
     outlines before (64) is formed. Every distance is then below one, which
@@ -1238,8 +1350,13 @@ balance.
 
     The system is dense: memory grows as $N^2$ and time as $N^3$. A mesh
     with more elements than `max_elements` is an error rather than a solve
-    that does not finish. The gradient adds one pass over the pairs of
-    elements that lie on different bodies.
+    that does not finish. Gradient and second derivatives add one pass
+    over the pairs of elements that lie on different bodies, about as long
+    as forming $\mathbf{P}$.
+
+    The point a body turns about travels with the body, as a center of mass
+    does. A second derivative for travel and rotation taken about a point
+    fixed in space differs from this one by the gradient.
 
     A conductor couples to every other conductor in the plane, however far,
     because the plane field decays only as the logarithm of distance. Which
