@@ -444,6 +444,9 @@ model = structure.capacitance(params)
 drive = structure.electrode_at((1.2e-3, 0.4e-3), "device").net
 result = structure.equilibrium(model, {drive: 40.0})
 
+result.scale  # 1.0 when the potentials were reached, else the fraction that was
+result.pull_in  # fraction at which stability was lost, or None
+result.limit  # None, "unstable", or "no equilibrium"
 result.displacement  # one value per degree of freedom in result.dofs, from rest
 result.stable  # whether a small push is met by a restoring force
 result.softest  # squared angular frequency of the softest motion under bias
@@ -452,9 +455,10 @@ result.force  # electrostatic forces at the equilibrium
 result.potentials, result.charge  # per electrode
 result.model  # capacitance model at the equilibrium
 result.loose  # bodies that no beam holds, kept at rest
+result.ramp_scales, result.ramp_displacements, result.ramp_softest  # the way there
 
 result = structure.equilibrium(model, {drive: 40.0}, loads={1: [0, 0, -1e-6, 0, 0, 0]})
-result = structure.equilibrium(model, {drive: 40.0}, options=cf.StaticOptions(tolerance=1e-12))
+result = structure.equilibrium(model, {drive: 40.0}, options=cf.StaticOptions(steps=20))
 ```
 
 `structure.equilibrium` finds where the structure rests with potentials on
@@ -468,10 +472,22 @@ The solve is a Newton iteration that evaluates the capacitance model at
 every displacement it visits, so forces and the tangent stiffness are those
 of the displaced structure and not a linearization about rest. `stable`
 tells whether the equilibrium holds against a small push, and `softest` is
-how far it is from losing that: it falls to zero at pull-in. Potentials for
-which no equilibrium is found raise an error. A body that no chain of beams
-joins to the anchor cannot be in equilibrium under a force; it stays at
-rest and is listed in `loose`. Formulas are in
+how far it is from losing that: it falls to zero at pull-in. A body that no
+chain of beams joins to the anchor cannot be in equilibrium under a force;
+it stays at rest and is listed in `loose`.
+
+Potentials rise from zero in `steps` and the equilibrium is followed from
+one to the next. When the potentials asked for lie beyond pull-in, the
+result is the last stable equilibrium instead of an error: `scale` is the
+fraction of the potentials it holds at, `pull_in` the fraction just above
+at which stability was lost, within `pull_in_resolution`, so
+`pull_in * 40.0` is the pull-in voltage here. `limit` tells how it was
+lost: `"no equilibrium"` at a fold, as for a plate closing its gap, and
+`"unstable"` where an equilibrium remains but tips over, as for a comb
+snapping sideways. With more `steps` the `ramp_` arrays trace displacement
+and softest frequency against voltage. With sidewall method `"plates"` on
+teeth that stand tip to tip, the iteration fails at any voltage and `scale`
+ends near zero; that is the cusp of the plates method and not pull-in. Formulas are in
 [static equilibrium](theory.md#static-equilibrium).
 
 ## Progress and logging

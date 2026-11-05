@@ -1940,16 +1940,54 @@ For a plate of area $A$ on a spring $k$ over a gap $g_0$, (115) reads
 $k\, z = -\varepsilon A V^2 / \bigl( 2 (g_0 + z)^2 \bigr)$ and (118) is
 $k > \varepsilon A V^2 / (g_0 + z)^3$.
 
+### Pull-in
+
+Potentials are raised from zero in equal steps, $\mathbf{v}(s) = s\,
+\mathbf{v}$ with the scale $s$ going from 0 to 1, and the equilibrium of one
+step starts the iteration of the next, so the solution that is followed is
+the one that grows out of rest. Pull-in is where it ends:
+
+$$
+s^* = \sup \bigl\{ s : \mathbf{q}(s) \text{ solves (115) at } \mathbf{v}(s),\ \text{continues from } \mathbf{q}(0),\ \lambda_\text{min}\bigl(\mathbf{q}(s)\bigr) > 0 \bigr\}. \tag{119}
+$$
+
+It ends in one of two ways. At a fold $\lambda_\text{min}$ falls to zero and
+no equilibrium exists beyond: the plate above meets its fold at one third
+of the gap. At a loss of symmetry the equilibrium goes on but no longer
+holds against a push: a comb between two stators at one potential stays
+centered while the spring across its fingers is used up by (112). The two
+closed forms are
+
+$$
+V^* = \sqrt{\frac{8\, k\, g_0^3}{27\, \varepsilon A}} \ \text{ at } z = -\frac{g_0}{3}, \qquad
+V^*_\perp = \sqrt{\frac{k_\perp\, g^3}{N \varepsilon\, t_\text{device}\, \ell}}. \tag{120}
+$$
+
+A step that finds no equilibrium, or finds one that is not stable, is
+halved: the scale is bisected between the largest with a stable
+equilibrium and the smallest without, each attempt starting from the
+former, until the two are closer than the resolution asked for. The result
+is the last stable equilibrium, its scale, and the scale just above it at
+which stability was lost.
+
 !!! note "Implementation choices"
     A Newton step that would close a gap between a plate and the handle,
     or bring electrodes of two bodies into contact, is halved until it does
     not, up to twelve times. A halved step never ends the iteration.
 
-    No equilibrium within `max_iterations` is an error. One cause is
-    potentials beyond pull-in, where (115) has no solution near rest. The
-    other is the plates method on teeth that stand tip to tip: its force
-    jumps at the cusp of (97), the iteration steps back and forth across
-    it, and the field method is the one to use.
+    An iteration that has not ended after `max_iterations` counts as no
+    equilibrium at that scale, and so does one whose steps were halved or
+    did not shrink four times in a row, which saves most of the cost of an
+    attempt beyond pull-in. Beyond a fold that is the truth. It also
+    happens with the plates method on teeth that stand tip to tip: the
+    force jumps at the cusp of (97) and the iteration steps back and forth
+    across it at any potential, so the result stops at a scale near zero
+    without that being pull-in. Such a device needs the field method.
+
+    When bisection has closed in from below, the scale that failed is tried
+    once more from the nearest stable equilibrium. An iteration can fail
+    from a distant start where it succeeds from a near one, and a failure
+    is only taken for pull-in when it comes from within the resolution.
 
     Forces of the field method carry rounding of its dense solutions, which
     grows with the size of a cluster. A structure with a very soft motion

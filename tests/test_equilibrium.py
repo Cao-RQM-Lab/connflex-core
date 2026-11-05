@@ -121,6 +121,50 @@ def test_comb_travel_grows_with_voltage_squared(shuttle: Structure) -> None:
     assert np.max(abs(travel[1][1:])) < 1e-9 * travel[1][0]
 
 
+def test_plate_is_followed_up_to_pull_in_at_the_closed_form_voltage(plate: Structure) -> None:
+    spring, area = plate.modal().stiffness[2, 2], (SIDE * UM) ** 2
+    pull_in = np.sqrt(8 * spring * BOX**3 / (27 * EPS0 * area))
+    model = plate.capacitance(HANDLE_ALONE)
+    handle = net_at(plate, 0, 0, "handle")
+
+    below = plate.equilibrium(model, {handle: 0.9 * pull_in}, options=StaticOptions(steps=10))
+    assert (below.scale, below.pull_in, below.limit) == (1.0, None, None)
+    assert below.ramp_scales.tolist() == [k / 10 for k in range(11)]
+    for scale, place in zip(below.ramp_scales, below.ramp_displacements, strict=True):
+        volts = scale * 0.9 * pull_in
+        balance = spring * place[2] + 0.5 * EPS0 * area * volts**2 / (BOX + place[2]) ** 2
+        assert abs(balance) < 1e-8 * spring * BOX
+    assert below.ramp_displacements[-1] == pytest.approx(below.displacement)
+    assert np.all(np.diff(below.ramp_displacements[:, 2]) < 0)
+    assert below.ramp_softest[-1] == below.softest
+
+    beyond = plate.equilibrium(
+        model, {handle: 1.2 * pull_in}, options=StaticOptions(pull_in_resolution=1e-6)
+    )
+    assert beyond.limit in ("unstable", "no equilibrium")
+    assert beyond.pull_in is not None
+    assert beyond.pull_in * 1.2 == pytest.approx(1.0, rel=1e-5)
+    assert 0 < beyond.pull_in - beyond.scale <= 1e-6
+    assert beyond.stable
+    assert np.max(beyond.potentials) == pytest.approx(beyond.scale * 1.2 * pull_in)
+    assert beyond.displacement[2] == pytest.approx(-BOX / 3, rel=1e-2)
+
+
+def test_comb_loses_sideways_stability_at_the_closed_form_voltage(shuttle: Structure) -> None:
+    """Both stators at one potential pull the shuttle equally: it stays centered until
+    the spring across the fingers is used up."""
+    spring = shuttle.modal().stiffness[1, 1]
+    limit = np.sqrt(spring * (GAP * UM) ** 3 / (2 * GAPS * EPS0 * THICKNESS * OVERLAP * UM))
+    model = shuttle.capacitance(WALLS_ALONE)
+    stators = {net_at(shuttle, x, 0): 1.3 * limit for x in (-250, 250)}
+    result = shuttle.equilibrium(model, stators, options=StaticOptions(pull_in_resolution=1e-5))
+    assert result.limit == "unstable"
+    assert result.pull_in is not None
+    assert result.pull_in * 1.3 == pytest.approx(1.0, rel=1e-4)
+    assert result.stable
+    assert np.max(abs(result.displacement[:3])) < 1e-9 * GAP * UM
+
+
 def test_mechanical_load_adds_to_electrostatic_force(plate: Structure) -> None:
     model = plate.capacitance(HANDLE_ALONE)
     load = {1: [0.0, 0.0, 1e-6, 0.0, 0.0, 0.0]}
@@ -156,3 +200,7 @@ def test_inputs_that_name_nothing_are_rejected(plate: Structure, shuttle: Struct
         shuttle.equilibrium(model, {})
     with pytest.raises(ValueError, match="max_iterations"):
         StaticOptions(max_iterations=0)
+    with pytest.raises(ValueError, match="steps"):
+        StaticOptions(steps=0)
+    with pytest.raises(ValueError, match="pull_in_resolution"):
+        StaticOptions(pull_in_resolution=1.0)

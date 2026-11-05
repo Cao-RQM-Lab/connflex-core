@@ -127,15 +127,27 @@ class StaticOptions:
         tolerance: Newton iteration stops when the strain energy of its last step is
             below this fraction, squared, of the strain energy of the displacement, or
             one step after it is below this fraction itself.
-        max_iterations: Most Newton iterations.
+        max_iterations: Most Newton iterations at one set of potentials.
+        steps: Equal steps in which potentials rise from zero to the values asked for.
+            The equilibrium is followed from one to the next, and each is kept in the
+            result. A step that finds no stable equilibrium is halved.
+        pull_in_resolution: Halving stops, and pull-in is located, when a step is
+            smaller than this fraction of the potentials asked for.
     """
 
     tolerance: float = 1e-9
     max_iterations: int = 30
+    steps: int = 1
+    pull_in_resolution: float = 1e-3
 
     def __post_init__(self) -> None:
         require_positive("tolerance", self.tolerance)
         require_at_least("max_iterations", self.max_iterations, 1)
+        require_at_least("steps", self.steps, 1)
+        if not 0 < self.pull_in_resolution < 1:
+            raise ValueError(
+                f"pull_in_resolution must be between 0 and 1, got {self.pull_in_resolution}"
+            )
 
 
 @dataclass(frozen=True)

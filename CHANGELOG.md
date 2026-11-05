@@ -68,7 +68,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Structure.equilibrium`, `Equilibrium`, and `StaticOptions`: displacement at
   which beam forces balance electrostatic forces for potentials on nets, by
   Newton iteration on the capacitance model at displaced bodies, with
-  tangent stiffness and whether the equilibrium is stable.
+  tangent stiffness and whether the equilibrium is stable. Potentials rise
+  from zero in steps; beyond pull-in the result is the last stable
+  equilibrium with the fraction of the potentials at which stability was
+  lost.
 
 ### Removed
 

@@ -22,30 +22,46 @@ if TYPE_CHECKING:
 Array = NDArray[np.float64]
 
 HALVINGS = 12
+PATIENCE = 4
 
 
 @dataclass(frozen=True, eq=False)
 class Equilibrium:
-    """Where a structure rests under electrode potentials, equations (115) to (118).
+    """Where a structure rests under electrode potentials, equations (115) to (119).
 
     Attributes:
+        scale: Fraction of the potentials asked for at which this equilibrium holds: 1
+            when they were reached, else the largest fraction with a stable equilibrium.
+        pull_in: Fraction of the potentials asked for at which no stable equilibrium was
+            found any more, within ``pull_in_resolution`` above ``scale``. None when the
+            potentials were reached.
+        limit: Why potentials stopped rising: ``"unstable"`` when an equilibrium at
+            ``pull_in`` exists and does not hold against a push, ``"no equilibrium"``
+            when none was found. None when the potentials were reached.
         displacement: Displacement of every degree of freedom in ``dofs`` from rest, in
             meters and radians.
         dofs: (body index, degree of freedom) of each entry, as for the assembled
             mechanical matrices.
-        potentials: Potential of every electrode, in volts.
+        potentials: Potential of every electrode at ``scale``, in volts.
         charge: Charge on every electrode, in coulombs.
         force: Electrostatic generalized forces at ``displacement``.
         stiffness: Tangent stiffness there: mechanical plus electrostatic.
         softest: Smallest eigenvalue of ``stiffness`` against the mass matrix, the
             squared angular frequency of the softest motion under these potentials.
         stable: Whether ``softest`` is positive.
-        iterations: Newton iterations taken.
+        iterations: Newton iterations taken, over all steps.
         loose: Bodies that no chain of beams joins to the anchor. Nothing can balance a
             force on them, so they are kept at rest and left out of ``softest``.
         model: Capacitance model at ``displacement``.
+        ramp_scales: Fractions of the potentials at which a stable equilibrium was found
+            on the way, ascending from zero to ``scale``.
+        ramp_displacements: Displacement at each of them, one row each.
+        ramp_softest: ``softest`` at each of them.
     """
 
+    scale: float
+    pull_in: float | None
+    limit: str | None
     displacement: Array
     dofs: tuple[Dof, ...]
     potentials: Array
@@ -57,6 +73,9 @@ class Equilibrium:
     iterations: int
     loose: tuple[int, ...]
     model: CapacitanceModel
+    ramp_scales: Array
+    ramp_displacements: Array
+    ramp_softest: Array
 
 
 def equilibrium(
@@ -73,11 +92,12 @@ def equilibrium(
     ``model`` is the capacitance model of ``structure`` at rest. ``potentials`` maps a
     net to its potential in volts; a net it does not name is at zero. ``loads`` maps a
     body index to six generalized forces at its center of mass, as for ``static``.
-    Newton iteration starts at rest, equation (116), and evaluates the capacitance model
-    at every iterate. No equilibrium within ``max_iterations`` is an error: potentials
-    may be beyond pull-in, or the plates method may have a kink there. Stages assemble
-    and equilibrium log through the
-    ``connflex_core`` logger and report to ``progress``.
+    Potentials rise from zero in ``steps`` and the equilibrium is followed by Newton
+    iteration, equation (116), which evaluates the capacitance model at every iterate.
+    Where no stable equilibrium is found the step is halved, and the result is the last
+    stable equilibrium with the fraction of the potentials at which stability was lost,
+    equation (119). Stages assemble and equilibrium log through the ``connflex_core``
+    logger and report to ``progress``; equilibrium advances once per step.
     """
     options = options or StaticOptions()
     if model.rest.structure is not structure:
@@ -104,31 +124,62 @@ def equilibrium(
         applied[rows[body] : rows[body] + 6] = load
 
     held = volts[model.net]
-    with stage("equilibrium", progress) as current:
-        found = _settle(model, system.stiffness, kept, held, applied, options)
-        if found is None:
-            raise ValueError(
-                f"no equilibrium in {options.max_iterations} iterations: potentials may be "
-                f'beyond pull-in, or forces of sidewall method "plates" may jump where '
-                f"corners of two bodies line up"
-            )
-        here, iterations = found
-        current.count(iterations=iterations)
-        tangent = system.stiffness + here.stiffness(held)
-        both = np.ix_(kept, kept)
-        softest = float(scipy.linalg.eigh(tangent[both], system.mass[both], eigvals_only=True)[0])
+    both = np.ix_(kept, kept)
+
+    def softness(here: CapacitanceModel, scale: float) -> float:
+        tangent = system.stiffness + here.stiffness(scale * held)
+        return float(scipy.linalg.eigh(tangent[both], system.mass[both], eigvals_only=True)[0])
+
+    start, iterations = _settle(model, system.stiffness, kept, 0 * held, applied, options)
+    if start is None:
+        raise ValueError("no equilibrium under mechanical loads alone")
+    here = start
+    scale, pull_in, limit = 0.0, None, None
+    ramp = [(scale, here.displacement, softness(here, scale))]
+    from_here = False
+    with stage("equilibrium", progress, total=options.steps) as current:
+        while scale < 1:
+            if pull_in is None:
+                target = min((np.floor(scale * options.steps + 1e-9) + 1) / options.steps, 1.0)
+            elif pull_in - scale > options.pull_in_resolution:
+                target = (scale + pull_in) / 2
+            elif from_here:
+                break
+            else:
+                target = pull_in
+            found, taken = _settle(here, system.stiffness, kept, target * held, applied, options)
+            softest = softness(found, target) if found else 0.0
+            iterations += taken
+            if found is not None and softest > 0:
+                if pull_in is None:
+                    current.advance()
+                elif target == pull_in:
+                    pull_in = limit = None
+                here, scale, from_here = found, target, False
+                ramp.append((scale, here.displacement, softest))
+            else:
+                pull_in, limit = target, "no equilibrium" if found is None else "unstable"
+                from_here = True
+        current.count(iterations=iterations, steps=len(ramp) - 1)
+    reached = held * scale
     return Equilibrium(
+        scale=scale,
+        pull_in=pull_in,
+        limit=limit,
         displacement=here.displacement,
         dofs=system.dofs,
-        potentials=held,
-        charge=here.matrix @ held,
-        force=here.force(held),
-        stiffness=tangent,
-        softest=softest,
-        stable=softest > 0,
+        potentials=reached,
+        charge=here.matrix @ reached,
+        force=here.force(reached),
+        stiffness=system.stiffness + here.stiffness(reached),
+        softest=ramp[-1][2],
+        stable=ramp[-1][2] > 0,
         iterations=iterations,
         loose=tuple(sorted({body for body, _ in system.dofs if body not in joined})),
         model=here,
+        ramp_scales=np.array([entry[0] for entry in ramp]),
+        ramp_displacements=np.array([entry[1] for entry in ramp]),
+        ramp_softest=np.array([entry[2] for entry in ramp]),
     )
 
 
@@ -139,14 +190,17 @@ def _settle(
     held: Array,
     applied: Array,
     options: StaticOptions,
-) -> tuple[CapacitanceModel, int] | None:
-    """Newton iteration from the displacement of ``model``; None when it does not converge.
+) -> tuple[CapacitanceModel | None, int]:
+    """Newton iteration from the displacement of ``model``, with the iterations it took.
 
-    Only degrees of freedom marked in ``kept`` move.
+    Only degrees of freedom marked in ``kept`` move. The model is None when iteration
+    does not converge; it is given up after ``PATIENCE`` steps in a row that are halved
+    or are no smaller than the smallest so far.
     """
     here = model
     both = np.ix_(kept, kept)
     settling = False
+    smallest, idle = np.inf, 0
     for iteration in range(1, options.max_iterations + 1):
         place = here.displacement
         unbalance = spring @ place - here.force(held) - applied
@@ -155,7 +209,7 @@ def _settle(
         try:
             step[kept] = scipy.linalg.solve(tangent[both], -unbalance[kept], assume_a="sym")
         except scipy.linalg.LinAlgError:
-            return None
+            return None, iteration
         whole = True
         for _ in range(HALVINGS):
             try:
@@ -164,11 +218,15 @@ def _settle(
             except ValueError:
                 step, whole = step / 2, False
         else:
-            return None
+            return None, iteration
         here = there
         size = float(step @ spring @ step)
         strain = float(here.displacement @ spring @ here.displacement)
         if whole and (settling or size <= options.tolerance**2 * strain):
             return here, iteration
         settling = whole and size <= options.tolerance * strain
-    return None
+        idle = 0 if whole and size < smallest else idle + 1
+        smallest = min(smallest, size)
+        if idle == PATIENCE:
+            return None, iteration
+    return None, options.max_iterations
