@@ -1,7 +1,7 @@
 import logging
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pytest
 from shapely import box
@@ -156,6 +156,10 @@ def test_sidewall_capacitance_reports_its_stages() -> None:
         Run("derivatives", 1, 1, True),
         Run("curvature", None, 0, True),
     ]
+    recorder = Recorder()
+    limited = replace(field, max_elements=elements - 1, window_elements=elements // 4)
+    windows = sidewall_capacitance(squares, limited, progress=recorder).windows
+    assert recorder.runs == [Run("mesh", None, 0, True), Run("windows", windows, windows, True)]
     recorder = Recorder()
     plates = ElectrostaticParams(sidewall_method="plates", interaction_distance=5e-6)
     sidewall_capacitance(squares, plates, progress=recorder)

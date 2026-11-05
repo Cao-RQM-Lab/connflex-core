@@ -260,18 +260,21 @@ with it. It is fast for combs of any size and right for them and for plate
 actuators within a few percent in force and stiffness, low by the fringe
 field in capacitance, and wrong for toothed motors, whose force is all
 fringe field. `"field"` solves the field between the walls with boundary
-elements of `element_size`, fringe fields included, at a cost that grows
-steeply with the length of outline. Measured differences are in
+elements of `element_size`, fringe fields included, and takes far longer.
+Measured differences are in
 [what plates leave out](theory.md#what-plates-leave-out).
 
 Sidewalls are found in clusters. Device electrodes whose silicon lies
 within `interaction_distance` of each other, directly or through a chain of
 neighbors, form a cluster; electrodes in different clusters share no
-sidewall capacitance. With method `"field"` a cluster is one dense
-solution, and one that needs more boundary elements than `max_elements`
-raises an error. With `skip_large_clusters=True` it is left out instead and
-appears in `model.clusters` with `solved` false, so a model can be built
-for the rest. With method `"plates"` each cluster carries `walls`, the
+sidewall capacitance. With method `"field"` a cluster of at most
+`max_elements` boundary elements is one dense solution. A larger one is
+solved in windows: cores of at most `window_elements` elements, each solved
+together with the elements around it, out to an overlap that doubles until
+the charge on the core settles within `window_tolerance` or the overlap
+reaches `interaction_distance`. Each cluster reports its `windows` and its
+`asymmetry`, which is rounding for one dense solution and a measure of the
+error for windows. With method `"plates"` each cluster carries `walls`, the
 pieces of wall that were taken as plates, for a check against the layout.
 
 The model also holds how the matrix changes when bodies move, in the six
@@ -286,8 +289,8 @@ of mass lies lower.
 `to_dict` gives a tree for review. It lists every pair of electrodes with
 capacitance between them, split into oxide, released, and sidewall parts,
 with their nets and the change of the total with each body that moves it;
-the matrix between nets; the clusters with their size and whether each was
-solved; and `unassigned_area`, the device silicon of beams and bridges,
+the matrix between nets; the clusters with their size, windows, and
+asymmetry; and `unassigned_area`, the device silicon of beams and bridges,
 which belongs to no electrode and is not in the model.
 
 Either part can be left out, and then needs none of its parameters:
@@ -345,6 +348,7 @@ result.hessian  # n by n by bodies by 3 by bodies by 3: second derivatives
 result.centers  # point each body rotates about
 result.charge  # charge on each element per volt on each conductor
 result.mesh.start, result.mesh.end, result.mesh.conductor  # boundary elements
+result.windows, result.asymmetry  # dense solutions it took, and their mismatch
 
 result = cf.sidewall_capacitance(conductors, params, bodies=[0, 0, 1], centers=centers)
 
@@ -386,9 +390,10 @@ rotates about travels with it.
 Method `"field"` requires `element_size`. Outlines are cut into straight elements of at
 most that length, shorter toward convex corners by up to `corner_grading`.
 The computed capacitance never exceeds the exact one and rises toward it as
-`element_size` shrinks, so halving it shows how far a value has settled. The
-solve is dense, and a mesh above `max_elements` raises an error; pass fewer
-conductors or a larger `element_size`. Formulas are in
+`element_size` shrinks, so halving it shows how far a value has settled. A
+mesh of at most `max_elements` is one dense solution; a larger one is solved
+in windows, as for the capacitance model, and `asymmetry` then measures what
+the windows leave out. Formulas are in
 [sidewall capacitance](theory.md#sidewall-capacitance) and
 [sidewalls as facing plates](theory.md#sidewalls-as-facing-plates).
 
@@ -462,7 +467,10 @@ assemble and solve. Prune and bodies advance once per polygon, beams once per
 candidate, mass once per body, and electrodes once per beam, rejected
 candidate, and via; the other stages are single operations. `plates` reports
 one stage, plates, that advances once per device electrode.
-`sidewall_capacitance` reports mesh, assemble, solve, derivatives, and
-curvature; assemble advances once per boundary element and derivatives once
-per pair of bodies. `capacitance` reports plates, clusters, and sidewalls;
-sidewalls advances once per cluster.
+`sidewall_capacitance` with method `"field"` reports mesh, assemble, solve,
+derivatives, and curvature; assemble advances once per boundary element and
+derivatives once per pair of bodies. For a mesh solved in windows it reports
+mesh and windows, which advances once per window. With method `"plates"` it
+reports one stage, facing. `capacitance` reports plates, clusters, and
+sidewalls; sidewalls advances once per cluster, and once per window for a
+cluster solved in windows.

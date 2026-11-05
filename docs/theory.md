@@ -958,11 +958,12 @@ here is per unit thickness.
 
 Two methods find the capacitance matrix of the plane problem. The field
 method of this section solves the field between the conductors. It
-approaches the exact answer of the plane problem as its mesh is refined, at
-a cost that grows steeply with the length of outline. The plates method of
-the [next section](#sidewalls-as-facing-plates) takes every wall that faces
-another conductor as a parallel plate with it. It costs little even for
-thousands of fingers and leaves out all fringe field. Which one suits a
+approaches the exact answer of the plane problem as its mesh is refined,
+and a mesh too large for one solution is solved in
+[windows](#windows). The plates method of the
+[next section](#sidewalls-as-facing-plates) takes every wall that faces
+another conductor as a parallel plate with it. It costs far less and leaves
+out all fringe field. Which one suits a
 device is a judgment of its geometry, so `sidewall_method` has no default:
 the caller chooses.
 
@@ -1337,6 +1338,104 @@ Translating every body together leaves the gradient unchanged, so the
 second derivatives for travel along one axis sum to zero over the bodies of
 either parameter.
 
+### Windows
+
+One dense solution of (70) is out of reach for a comb of thousands of
+fingers. Charge on a sidewall, though, is set by its surroundings: across a
+narrow gap by the wall it faces, and hardly at all by conductors far off. A
+mesh with more elements than `max_elements` is therefore solved piece by
+piece.
+
+The elements are divided into cores, every element in exactly one, by
+halving the set at the median of the element centers along the longer side
+of their bounding box until no core holds more than $n_w$ elements. Let
+$K_k$ be the elements of core $k$ and $B_k$ the bounding box of their
+centers $\mathbf{r}_i$. Window $k$ holds the core and every element within
+the overlap $\delta_k$ of that box,
+
+$$
+W_k = \bigl\{ i : \mathbf{r}_i \in B_k \oplus [-\delta_k, \delta_k]^2 \bigr\} \supseteq K_k, \tag{91}
+$$
+
+and is solved as a problem (63) of its own: its elements alone, each at the
+potential of its conductor, neutral together, with a floating potential of
+its own. Let $\mathbf{E}_k$ and $\mathbf{M}_k$ be the matrices of (70) for
+the elements of $W_k$, and $\mathbf{E}_k^c$ equal to $\mathbf{E}_k$ with the
+rows of elements outside the core set to zero. The window supplies the
+charge on its core alone,
+
+$$
+\mathbf{c}^{(k)} = \mathbf{E}_k^{c\,\top} \mathbf{M}_k \mathbf{E}_k, \tag{92}
+$$
+
+whose entry $(a, b)$ is the charge on the core elements of conductor $a$ per
+volt on conductor $b$. Every element is in one core, so the sum over windows
+counts the charge on every element once:
+
+$$
+\hat{\mathbf{c}} = \sum_k \mathbf{c}^{(k)}, \qquad \hat{\mathbf{c}}\, \mathbf{1} = \mathbf{0}. \tag{93}
+$$
+
+Rows sum to zero because $\mathbf{M}_k \mathbf{1} = \mathbf{0}$ in every
+window. $\hat{\mathbf{c}}$ is not symmetric, since each window sees its own
+part of the field, and the capacitance matrix is
+
+$$
+c_{ab} = \frac{\hat{c}_{ab} + \hat{c}_{ba}}{2} \quad (a \ne b), \qquad
+c_{aa} = -\sum_{b \ne a} c_{ab}, \tag{94}
+$$
+
+which has the first two properties of (71). The asymmetry
+$\max |\hat{c}_{ab} - \hat{c}_{ba}| / \max |\hat{c}_{ab}|$ is zero when one
+window holds the whole mesh. Otherwise it measures what the windows leave
+out, and it is reported with the result.
+
+Elements keep their cores and windows as bodies move, so (92) depends on
+the motion through $\mathbf{P}_k$ alone, as (70) does. With
+$\mathbf{X}_k = \mathbf{M}_k \mathbf{E}_k$ and
+$\mathbf{Y}_k = \mathbf{M}_k \mathbf{E}_k^c$,
+
+$$
+\begin{aligned}
+\frac{\partial \mathbf{c}^{(k)}}{\partial p} &= -\mathbf{Y}_k^\top \frac{\partial \mathbf{P}_k}{\partial p}\, \mathbf{X}_k, \\
+\frac{\partial^2 \mathbf{c}^{(k)}}{\partial p\, \partial q} &= -\mathbf{Y}_k^\top \frac{\partial^2 \mathbf{P}_k}{\partial p\, \partial q}\, \mathbf{X}_k
++ \Bigl( \frac{\partial \mathbf{P}_k}{\partial p} \mathbf{Y}_k \Bigr)^{\!\top} \mathbf{M}_k\, \frac{\partial \mathbf{P}_k}{\partial q} \mathbf{X}_k
++ \Bigl( \frac{\partial \mathbf{P}_k}{\partial q} \mathbf{Y}_k \Bigr)^{\!\top} \mathbf{M}_k\, \frac{\partial \mathbf{P}_k}{\partial p} \mathbf{X}_k,
+\end{aligned} \tag{95}
+$$
+
+which are (76) and (84) with $\mathbf{Y}_k$ in place of $\mathbf{X}_k$ on
+the left, evaluated with the same pair derivatives (85) to (88). They pass
+through (93) and (94) as $\mathbf{c}^{(k)}$ does and are the exact
+derivatives of the matrix (94).
+
+The overlap is found for each window. It starts at $\delta_k = 4 h$ and
+doubles until the charge on the core has settled,
+
+$$
+\max_{a,b} \bigl| c^{(k)}_{ab}(\delta_k) - c^{(k)}_{ab}(\delta_k / 2) \bigr| < \tau\, \max_{a,b} \bigl| c^{(k)}_{ab}(\delta_k) \bigr|, \tag{96}
+$$
+
+with $\tau$ the window tolerance, or until $\delta_k$ reaches the interaction
+distance $d_i$ when one is given, or until the next window would hold more
+than `max_elements`. A window whose elements all lie on one conductor
+supplies nothing and is not solved; its overlap still doubles, since a
+second conductor may come into view.
+
+Measured against one dense solution of the same mesh, a comb of 30 fingers
+with gaps of 3 um, 4825 elements in 32 windows:
+
+| $d_i$ | Capacitance | Force along fingers | Stiffness across fingers | Asymmetry |
+| --- | --- | --- | --- | --- |
+| 30 um | $-2.6 \times 10^{-4}$ | $-6.6 \times 10^{-3}$ | $-4.1 \times 10^{-5}$ | $4.1 \times 10^{-4}$ |
+| 60 um | $+3.2 \times 10^{-4}$ | $-7.4 \times 10^{-4}$ | $+2.3 \times 10^{-6}$ | $5.2 \times 10^{-5}$ |
+
+Charge in the gaps settles within an overlap of two gaps. Force along the
+fingers converges slowest: it comes from the charge at finger tips, which
+face open space, where the plane field reaches far. $d_i$ belongs at a
+few times the widest trench that should count: a window whose overlap
+stops short of two trench widths leaves out part of the field across it.
+
 !!! note "Implementation choices"
     Lengths are divided by twice the diagonal of the bounding box of all
     outlines before (64) is formed. Every distance is then below one, which
@@ -1358,11 +1457,23 @@ either parameter.
     arithmetic over random pairs with length ratios up to 64, both forms
     agree with the exact integral to $10^{-12}\, L_i L_j$.
 
-    The system is dense: memory grows as $N^2$ and time as $N^3$. A mesh
-    with more elements than `max_elements` is an error rather than a solve
-    that does not finish. Gradient and second derivatives add one pass
-    over the pairs of elements that lie on different bodies, about as long
-    as forming $\mathbf{P}$.
+    One solution is dense: memory grows as $N^2$ and time as $N^3$, and
+    gradient and second derivatives add one pass over the pairs of elements
+    that lie on different bodies, about as long as forming $\mathbf{P}$. In
+    windows the cost grows with $N$ alone and memory with the size of one
+    window, so a cluster far too large to hold as one system is solved in
+    the time of its windows. Every window is scaled by its own bounding box.
+
+    A window is neutral and floats, as the whole problem does, because no
+    other condition at its cut edge is right in the plane: charge in a gap
+    depends only on the difference of the potentials across it, which a
+    floating window keeps, while charge on a wall that faces open space
+    depends on the potential far away, which a window can only guess. That
+    is the part $d_i$ and $\tau$ trade against time. When $d_i$ is given the
+    overlap stops there, the distance beyond which the plane field is not
+    trusted anyway.
+
+    A first window that already holds more than `max_elements` is an error.
 
     The point a body turns about travels with the body, as a center of mass
     does. A second derivative for travel and rotation taken about a point
@@ -1387,7 +1498,7 @@ $a$ and $b$ is
 
 $$
 -c_{ab} = \frac{\varepsilon}{2} \left[ \int_{\Gamma_{a \to b}} \frac{ds}{\gamma} + \int_{\Gamma_{b \to a}} \frac{ds}{\gamma} \right], \qquad
-\Gamma_{a \to b} = \bigl\{ \mathbf{r} \in \Gamma_a : b(\mathbf{r}) = b,\ \gamma(\mathbf{r}) < d_i \bigr\}, \tag{91}
+\Gamma_{a \to b} = \bigl\{ \mathbf{r} \in \Gamma_a : b(\mathbf{r}) = b,\ \gamma(\mathbf{r}) < d_i \bigr\}, \tag{97}
 $$
 
 for $a \ne b$. Each integral lays plates of width $ds$ and gap $\gamma$
@@ -1399,7 +1510,7 @@ hole, contributes nothing, and neither does a wall that meets nothing within
 $d_i$. The diagonal follows from
 
 $$
-c_{aa} = -\sum_{b \ne a} c_{ab}, \tag{92}
+c_{aa} = -\sum_{b \ne a} c_{ab}, \tag{98}
 $$
 
 so the matrix has the first two properties of (71), and $-c_{ab}$ is the
@@ -1413,7 +1524,7 @@ $\mathbf{n}_i$, and a point $\mathbf{r}$ has the coordinates
 
 $$
 u = (\mathbf{r} - \mathbf{r}_i^0) \cdot \boldsymbol{\tau}_i, \qquad
-v = (\mathbf{r} - \mathbf{r}_i^0) \cdot \mathbf{n}_i \tag{93}
+v = (\mathbf{r} - \mathbf{r}_i^0) \cdot \mathbf{n}_i \tag{99}
 $$
 
 in the frame of the edge: $u$ along the wall and $v$ out of the silicon. The
@@ -1422,14 +1533,14 @@ with end points $(u_j^0, v_j^0)$ and $(u_j^1, v_j^1)$ in this frame meets
 that line at the height
 
 $$
-v_j(u) = v_j^0 + m_j\, (u - u_j^0), \qquad m_j = \frac{v_j^1 - v_j^0}{u_j^1 - u_j^0}, \tag{94}
+v_j(u) = v_j^0 + m_j\, (u - u_j^0), \qquad m_j = \frac{v_j^1 - v_j^0}{u_j^1 - u_j^0}, \tag{100}
 $$
 
 for $u$ between $u_j^0$ and $u_j^1$. The gap at $u$ is the lowest height
 above the wall, and the edge that attains it is the edge faced:
 
 $$
-\gamma(u) = \min_j \bigl\{ v_j(u) : v_j(u) > 0 \bigr\}. \tag{95}
+\gamma(u) = \min_j \bigl\{ v_j(u) : v_j(u) > 0 \bigr\}. \tag{101}
 $$
 
 Outlines do not cross, so the heights of two edges never cross between
@@ -1437,7 +1548,7 @@ their end points, and the edge faced can change only at a mark: the
 projection $u_j^0$ or $u_j^1$ of an end point of some edge, a point where
 $v_j(u) = d_i$, or an end $0$ or $L_i$ of the wall itself. The marks cut the
 wall into intervals. On each, one edge is faced throughout or none lies
-within $d_i$, and (95) at the middle of the interval tells which. Neighboring
+within $d_i$, and (101) at the middle of the interval tells which. Neighboring
 intervals that face the same edge join into one piece $u_1 \le u \le u_2$,
 and pieces that face the conductor of edge $i$ itself are dropped. Nothing
 is sampled: a piece ends exactly where the geometry says, so capacitance is
@@ -1449,31 +1560,31 @@ hides what lies behind it, and that stretch of the wall counts for nothing.
 
 ### Integral over a piece
 
-On a piece the gap is the linear function (94) of one edge $j$. With the run
+On a piece the gap is the linear function (100) of one edge $j$. With the run
 $\Delta = u_2 - u_1$ and the gap at the middle
 $\bar{\gamma} = v_j \bigl( (u_1 + u_2) / 2 \bigr)$,
 
 $$
 \int_{u_1}^{u_2} \frac{du}{v_j(u)} = \frac{\Delta}{\bar{\gamma}}\, \frac{\operatorname{artanh} x}{x}, \qquad
-x = \frac{m_j\, \Delta}{2 \bar{\gamma}}. \tag{96}
+x = \frac{m_j\, \Delta}{2 \bar{\gamma}}. \tag{102}
 $$
 
 The first factor is the parallel plate of the mean gap. The second is
 $1 + x^2 / 3 + x^4 / 5 + \dots$: one for parallel walls, and larger the
 more one end of the piece closes. Walls that do not touch have $|x| < 1$.
-The integrals of (91) are the sums of (96) over the pieces of all edges of
+The integrals of (97) are the sums of (102) over the pieces of all edges of
 one conductor that face the other.
 
 ### Derivatives for rigid motion
 
 A piece depends on the end points of at most four edges: edge $i$, which
-sets the frame (93); the edge $j$ it faces, which sets (94); and the edges
+sets the frame (99); the edge $j$ it faces, which sets (100); and the edges
 whose end points or whose crossing of $d_i$ set $u_1$ and $u_2$. Each end
-point moves with its body by (83), so (96) is a closed form of the
+point moves with its body by (83), so (102) is a closed form of the
 parameters $(a_x, a_y, a_\psi)$ of up to four bodies. Its derivatives come
 from carrying, with every intermediate value $f$, the gradient $\nabla f$
 and Hessian $\nabla \nabla f$ in those parameters through the arithmetic of
-(93) to (96). A product and a function $\phi$ of one value follow
+(99) to (102). A product and a function $\phi$ of one value follow
 
 $$
 \begin{aligned}
@@ -1481,19 +1592,19 @@ $$
 \nabla \nabla (f_1 f_2) &= f_1 \nabla \nabla f_2 + f_2 \nabla \nabla f_1 + \nabla f_1 \nabla f_2^\top + \nabla f_2 \nabla f_1^\top, \\
 \nabla \phi(f) &= \phi'(f)\, \nabla f, &
 \nabla \nabla \phi(f) &= \phi'(f)\, \nabla \nabla f + \phi''(f)\, \nabla f\, \nabla f^\top,
-\end{aligned} \tag{97}
+\end{aligned} \tag{103}
 $$
 
-with $\phi$ the reciprocal in a quotient and the second factor in (96). The
+with $\phi$ the reciprocal in a quotient and the second factor in (102). The
 arithmetic starts at the end points, whose coordinates have by (83) the
 gradient $(1, \mathrm{i}, \mathrm{i}\, (z - c_B))$ and the one second
 derivative $-(z - c_B)$ for rotation twice. The result is the exact gradient
-and Hessian of (91), in the same layout as (81) and (84) of the field
+and Hessian of (97), in the same layout as (81) and (84) of the field
 method.
 
 When a third conductor stands between two walls, its corners set where the
 pieces of those walls end. Capacitance between $a$ and $b$ then changes
-with the motion of a body that carries neither, which (97) includes.
+with the motion of a body that carries neither, which (103) includes.
 
 ### What plates leave out
 
@@ -1518,14 +1629,14 @@ of tooth tops. Such a device needs the field method.
     Edges in view of a wall are found in a spatial index of all edges,
     queried with the rectangle that the wall sweeps along its normal over
     $d_i$. An edge that lies along the normal, with end points less than
-    $10^{-9} L_i$ apart in $u$, has no height (94) and is skipped. Marks
+    $10^{-9} L_i$ apart in $u$, has no height (100) and is skipped. Marks
     closer than $10^{-9} L_i$ count as one.
 
-    Below $|x| = 1/4$ the second factor of (96) is summed from its series,
+    Below $|x| = 1/4$ the second factor of (102) is summed from its series,
     so nothing cancels as $m_j \to 0$.
 
     Where a wall lies exactly along the normal of another, as the end face
-    of a finger does beside the wall its flank faces, (91) has a kink in
+    of a finger does beside the wall its flank faces, (97) has a kink in
     rotation: a turn one way brings the end face into view and a turn the
     other way does not. Derivatives are those with it out of view. The step
     in $\partial c / \partial a_\psi$ is
@@ -1568,7 +1679,7 @@ $\tfrac{1}{2} c\, (v_a - v_b)^2$, so with $\mathbf{e}_a$ the unit vector of
 electrode $a$ it adds
 
 $$
-c\, (\mathbf{e}_a - \mathbf{e}_b)(\mathbf{e}_a - \mathbf{e}_b)^\top \tag{98}
+c\, (\mathbf{e}_a - \mathbf{e}_b)(\mathbf{e}_a - \mathbf{e}_b)^\top \tag{104}
 $$
 
 to $\mathbf{C}$: $c$ to the two diagonal entries and $-c$ to the two
@@ -1584,30 +1695,32 @@ silicon is close. Let $d_i$ be the interaction distance and join device
 electrodes $a$ and $b$ when
 
 $$
-\operatorname{dist}(E_a, E_b) \le d_i. \tag{99}
+\operatorname{dist}(E_a, E_b) \le d_i. \tag{105}
 $$
 
 A cluster is a connected set of this relation with two or more electrodes:
 electrodes joined directly or through a chain of neighbors. Each cluster is
 one plane problem with its electrodes as conductors. With the field method
 it is one problem (62), all conductors coupled to one another whatever
-their distance, and $\mathbf{c}$ is that of (70). With the plates method
-$\mathbf{c}$ is that of (91) and (92), where the same $d_i$ is the widest
-gap across which two walls count. Its matrix times the thickness of the
-device layer fills the rows and columns of its electrodes,
+their distance, and $\mathbf{c}$ is that of (70), or that of (94) when the
+cluster needs more elements than `max_elements` and is solved in windows
+whose overlap stops at the same $d_i$. With the plates method $\mathbf{c}$
+is that of (97) and (98), where $d_i$ is the widest gap across which two
+walls count. Its matrix times the thickness of the device layer fills the
+rows and columns of its electrodes,
 
 $$
-\bigl[ \mathbf{C}^\text{sw} \bigr]_{ab} = t_\text{device}\, c_{ab} \quad \text{for } a, b \text{ in one cluster}, \tag{100}
+\bigl[ \mathbf{C}^\text{sw} \bigr]_{ab} = t_\text{device}\, c_{ab} \quad \text{for } a, b \text{ in one cluster}, \tag{106}
 $$
 
 and electrodes of different clusters share no sidewall capacitance. Then
 
 $$
 \mathbf{C} = \mathbf{C}^\text{ox} + \mathbf{C}^\text{rel} + \mathbf{C}^\text{sw}, \qquad
-\mathbf{C}^\top = \mathbf{C}, \qquad \mathbf{C}\, \mathbf{1} = \mathbf{0}. \tag{101}
+\mathbf{C}^\top = \mathbf{C}, \qquad \mathbf{C}\, \mathbf{1} = \mathbf{0}. \tag{107}
 $$
 
-Rows sum to zero because (98), (71), and (92) do: a potential common to all
+Rows sum to zero because (104), (71), and (98) do: a potential common to all
 electrodes moves no charge, nothing outside the structure holds charge, and
 $-C_{ab}$ is the capacitance between electrodes $a$ and $b$.
 
@@ -1616,7 +1729,7 @@ With $S_{a\nu} = 1$ when electrode $a$ belongs to net $\nu$ and zero
 otherwise, the capacitance matrix between nets is
 
 $$
-\mathbf{C}^\text{net} = \mathbf{S}^\top \mathbf{C}\, \mathbf{S}, \tag{102}
+\mathbf{C}^\text{net} = \mathbf{S}^\top \mathbf{C}\, \mathbf{S}, \tag{108}
 $$
 
 which adds the entries of $\mathbf{C}$ over the electrodes of each pair of
@@ -1627,7 +1740,7 @@ nets. Capacitance between two electrodes of one net drops out.
 $\mathbf{C}$ depends on the positions of the bodies. Let $\mathbf{q}$ stack
 the degrees of freedom (12) of every movable body, in the order of the
 assembled matrices (34) and (35). A plate between two bodies contributes
-its gradient and Hessian (58) in the pattern of (98). A cluster contributes
+its gradient and Hessian (58) in the pattern of (104). A cluster contributes
 through the in-plane motion of its bodies at the mid-plane of the device
 layer, $z_m = -t_\text{device} / 2$, where sidewall forces act. Body $B$
 with center of mass $\mathbf{c}_B$ turns about the vertical through
@@ -1639,17 +1752,17 @@ $$
 1 & 0 & 0 & 0 & d_z & 0 \\
 0 & 1 & 0 & -d_z & 0 & 0 \\
 0 & 0 & 0 & 0 & 0 & 1
-\end{bmatrix}, \qquad d_z = z_m - c_{B,z}, \tag{103}
+\end{bmatrix}, \qquad d_z = z_m - c_{B,z}, \tag{109}
 $$
 
 so that with the gradient and second derivative of the cluster, (81) and
-(84) for the field method or those of (97) for plates, taken about the
+(84) for the field method or those of (103) for plates, taken about the
 centers of mass,
 
 $$
 \frac{\partial \mathbf{C}^\text{sw}}{\partial \mathbf{q}_B} = t_\text{device}\, \frac{\partial \mathbf{c}}{\partial \mathbf{a}_B}\, \mathbf{J}_B, \qquad
 \frac{\partial^2 \mathbf{C}^\text{sw}}{\partial \mathbf{q}_B\, \partial \mathbf{q}_{B'}^\top}
-= t_\text{device}\, \mathbf{J}_B^\top \frac{\partial^2 \mathbf{c}}{\partial \mathbf{a}_B\, \partial \mathbf{a}_{B'}^\top}\, \mathbf{J}_{B'}. \tag{104}
+= t_\text{device}\, \mathbf{J}_B^\top \frac{\partial^2 \mathbf{c}}{\partial \mathbf{a}_B\, \partial \mathbf{a}_{B'}^\top}\, \mathbf{J}_{B'}. \tag{110}
 $$
 
 The lever $d_z$ is zero for a body of device silicon alone and large for
@@ -1663,17 +1776,17 @@ generalized forces and the electrostatic stiffness are
 
 $$
 f_k = \frac{1}{2}\, \mathbf{v}^\top \frac{\partial \mathbf{C}}{\partial q_k}\, \mathbf{v}, \qquad
-\bigl[ \mathbf{K}_e \bigr]_{kl} = -\frac{1}{2}\, \mathbf{v}^\top \frac{\partial^2 \mathbf{C}}{\partial q_k\, \partial q_l}\, \mathbf{v}. \tag{105}
+\bigl[ \mathbf{K}_e \bigr]_{kl} = -\frac{1}{2}\, \mathbf{v}^\top \frac{\partial^2 \mathbf{C}}{\partial q_k\, \partial q_l}\, \mathbf{v}. \tag{111}
 $$
 
 $\mathbf{K}_e$ adds to $\mathbf{K}^\text{full}$ of (35). It is symmetric,
 and a negative diagonal entry means that the field softens that motion. For
 a comb of $N$ gaps of width $g$ and overlap $\ell$ between a stator at $V$
-and a shuttle at zero, the ideal values that (105) approaches are
+and a shuttle at zero, the ideal values that (111) approaches are
 
 $$
 f_\parallel = \frac{N \varepsilon\, t_\text{device} V^2}{2 g}, \qquad
-\bigl[ \mathbf{K}_e \bigr]_{\perp\perp} = -\frac{N \varepsilon\, t_\text{device}\, \ell\, V^2}{g^3}, \tag{106}
+\bigl[ \mathbf{K}_e \bigr]_{\perp\perp} = -\frac{N \varepsilon\, t_\text{device}\, \ell\, V^2}{g^3}, \tag{112}
 $$
 
 along the fingers and across them. With the field method the computed
@@ -1693,13 +1806,13 @@ tips are farther than $d_i$ from the wall they point at.
     electrode. Where a beam met an electrode, the outline is closed by a
     short straight wall that carries charge like any other.
 
-    The map (103) is linear. Terms of second order in tilt are left out of
-    (104), as they are for plates, and so is any dependence of sidewall
+    The map (109) is linear. Terms of second order in tilt are left out of
+    (110), as they are for plates, and so is any dependence of sidewall
     capacitance on travel out of the plane: facing sidewalls overlap fully
     at rest, so that dependence is even and exerts no force there.
 
     The second derivative is kept as one block per plate and per cluster,
-    over the electrodes and degrees of freedom each involves, and (105) sums
+    over the electrodes and degrees of freedom each involves, and (111) sums
     the blocks. A dense array over all pairs of electrodes and all pairs of
     degrees of freedom would not fit for a large structure.
 
@@ -1707,11 +1820,10 @@ tips are farther than $d_i$ from the wall they point at.
     faces of beams and bridges, coupling between clusters, and the field
     that leaves the plane of a layer at the top and bottom of a sidewall.
 
-    With the field method a cluster is solved whole and dense. One that
-    needs more elements than `max_elements` is an error, since leaving it
-    out would give a matrix that looks complete and is not. With
-    `skip_large_clusters` it is left out on purpose and listed as not
-    solved. The plates method has no such limit.
+    With the field method a cluster of at most `max_elements` is one dense
+    solution and a larger one is solved in windows. No cluster is left out:
+    a matrix without it would look complete and not be. The number of
+    windows and the asymmetry of (94) are kept for every cluster.
 
     The method is one choice for the whole structure and has no default. No
     rule in the library could tell a comb, which plates describe well, from
@@ -1742,7 +1854,9 @@ and validation rules are on the [parameters page](parameters.md).
 | $\varepsilon_a$ | relative permittivity of the medium in released gaps and trenches | `ElectrostaticParams.ambient_permittivity` |
 | $h$ | longest boundary element | `ElectrostaticParams.element_size` |
 | $g$ | refinement of elements at convex corners | `ElectrostaticParams.corner_grading` |
-| $d_i$ | distance within which device electrodes are taken together for sidewalls; with the plates method also the widest gap between walls that count | `ElectrostaticParams.interaction_distance` |
+| $d_i$ | distance within which device electrodes are taken together for sidewalls; with the plates method also the widest gap between walls that count, with the field method the widest overlap of a window | `ElectrostaticParams.interaction_distance` |
+| $n_w$ | most elements in the core of a window | `ElectrostaticParams.window_elements` |
+| $\tau$ | change of the charge on a core below which the overlap of its window stops growing | `ElectrostaticParams.window_tolerance` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
 | $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |

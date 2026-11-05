@@ -132,7 +132,11 @@ class ElectrostaticParams:
             convex corner of a right angle or sharper. The length asked for grows with
             distance from the corner. One disables refinement.
         max_elements: Most boundary elements solved as one dense system. A larger mesh is
-            an error.
+            solved in windows, none of which grows past this number.
+        window_elements: Most boundary elements in the core of a window, the part of a
+            large mesh whose charge one dense solution supplies.
+        window_tolerance: Overlap of a window around its core doubles until the charge
+            on the core changes by less than this fraction.
         sidewall_method: How sidewall capacitance is found: ``"plates"`` takes facing
             walls as parallel plates, ``"field"`` solves the field between conductors.
             No default: which one suits a device is the caller's judgment of its
@@ -141,25 +145,24 @@ class ElectrostaticParams:
             of each other are solved together for sidewall capacitance, as are chains of
             such neighbors; electrodes farther apart share none. The capacitance model
             of a structure requires it when sidewalls are included. With method
-            ``"plates"`` it is also the widest gap across which two walls count.
+            ``"plates"`` it is also the widest gap across which two walls count, and
+            with method ``"field"`` the widest overlap of a window.
         include_plates: Whether the capacitance model of a structure holds plates between
             device and handle electrodes.
         include_sidewalls: Whether it holds sidewall capacitance between device
             electrodes.
-        skip_large_clusters: Leave a cluster of electrodes that needs more than
-            ``max_elements`` out of the capacitance model, marked as not solved, instead
-            of raising an error.
     """
 
     ambient_permittivity: float = 1.0
     element_size: float | None = None
     corner_grading: float = 16.0
     max_elements: int = 8000
+    window_elements: int = 500
+    window_tolerance: float = 1e-3
     sidewall_method: Literal["field", "plates"] | None = None
     interaction_distance: float | None = None
     include_plates: bool = True
     include_sidewalls: bool = True
-    skip_large_clusters: bool = False
 
     def __post_init__(self) -> None:
         require_at_least("ambient_permittivity", self.ambient_permittivity, 1)
@@ -167,6 +170,8 @@ class ElectrostaticParams:
             require_positive("element_size", self.element_size)
         require_at_least("corner_grading", self.corner_grading, 1)
         require_at_least("max_elements", self.max_elements, 1)
+        require_at_least("window_elements", self.window_elements, 1)
+        require_positive("window_tolerance", self.window_tolerance)
         if self.sidewall_method not in (None, *SIDEWALL_METHODS):
             raise ValueError(
                 f"sidewall_method must be one of {SIDEWALL_METHODS}, got {self.sidewall_method!r}"

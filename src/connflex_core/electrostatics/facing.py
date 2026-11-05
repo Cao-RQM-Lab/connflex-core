@@ -52,7 +52,7 @@ class FacingWalls:
 def facing_plates(
     regions: Sequence[MultiPolygon], body: Index, pivots: Array, reach: float
 ) -> tuple[Array, Array, Array, FacingWalls]:
-    """Capacitance per permittivity between facing walls, equations (91) to (97).
+    """Capacitance per permittivity between facing walls, equations (97) to (103).
 
     ``body`` gives the rigid body of each region and ``pivots`` the point each body
     turns about. A wall counts toward two conductors when the normal from one first
@@ -181,7 +181,7 @@ def _visible(
     normal: Array,
     reach: float,
 ) -> Index:
-    """Pieces of edges that face another conductor, equations (93) to (95).
+    """Pieces of edges that face another conductor, equations (99) to (101).
 
     Each row holds the edge, the edge it faces, and for each end of the piece its kind,
     the edge that sets it, and which end point of that edge. An edge that rises more
@@ -304,7 +304,7 @@ def _integrals(
     slots: int,
     reach: float,
 ) -> tuple[Jet, Array, Array, Array]:
-    """Integral of inverse gap over each piece with its derivatives, equations (96) and (97).
+    """Integral of inverse gap over each piece with its derivatives, equations (102) and (103).
 
     Parameters are travel along x and y and rotation about its pivot for each of
     ``slots`` bodies. Columns of ``slot`` give the body of the edge, of the edge it
@@ -367,7 +367,7 @@ def _moved(points: Array, pivot: Array, slot: Index, parameters: int) -> tuple[J
 
 
 def _shape(x: Array) -> Array:
-    """atanh(x) / x, the second factor of equation (96) for walls that are not parallel."""
+    """atanh(x) / x, the second factor of equation (102) for walls that are not parallel."""
     small = np.abs(x) < SERIES_BELOW
     safe = np.where(small, 0.5, x)
     series = sum(x ** (2 * k) / (2 * k + 1) for k in range(SERIES_TERMS))

@@ -3,26 +3,22 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from contextlib import AbstractContextManager
 from dataclasses import dataclass
 
 import numpy as np
-import scipy.linalg
 from numpy.typing import ArrayLike, NDArray
 from shapely import MultiPolygon, Polygon, STRtree
 
 from connflex_core.electrostatics import VACUUM_PERMITTIVITY
+from connflex_core.electrostatics.dense import Enter, charge_derivatives, solve_charges
 from connflex_core.electrostatics.facing import FacingWalls, facing_plates
-from connflex_core.electrostatics.kernel import pair_derivatives, pair_integrals
 from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
+from connflex_core.electrostatics.windows import cut_cores, solve_windows
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.params import ElectrostaticParams
-from connflex_core.progress import Progress, Stage, stage
+from connflex_core.progress import Progress, stage
 
 Array = NDArray[np.float64]
-
-PAIRS_PER_PASS = 250_000
-DERIVATIVE_PAIRS_PER_PASS = 40_000
 
 
 @dataclass(frozen=True, eq=False)
@@ -44,6 +40,12 @@ class SidewallCapacitance:
         mesh: Boundary elements on the outlines. Method ``"plates"`` has none and
             finds no charge.
         walls: Pieces of wall taken as plates. Method ``"field"`` has none.
+        windows: Number of dense solutions behind the result: 1 for a mesh solved whole,
+            more for one solved in windows, 0 with method ``"plates"``.
+        asymmetry: Largest difference between the charge on one conductor per volt on
+            another and the same with the two exchanged, against the largest entry,
+            before the two were averaged. Rounding alone for a mesh solved whole; for
+            windows a measure of what their overlap leaves out.
     """
 
     capacitance: Array
@@ -53,6 +55,8 @@ class SidewallCapacitance:
     charge: Array
     mesh: Mesh
     walls: FacingWalls
+    windows: int
+    asymmetry: float
 
 
 def sidewall_capacitance(
@@ -69,15 +73,16 @@ def sidewall_capacitance(
     not overlap or touch. ``params.sidewall_method`` chooses how. With ``"field"`` the
     two-dimensional field is solved: the set of conductors carries no net charge and
     potential far away floats, equations (61) to (71), and ``element_size`` is required.
+    A mesh above ``max_elements`` is solved in windows, equations (91) to (96).
     With ``"plates"`` every wall that faces another conductor within
-    ``interaction_distance`` is a parallel plate with it, equations (91) to (97).
+    ``interaction_distance`` is a parallel plate with it, equations (97) to (103).
 
     ``bodies`` gives the rigid body of each conductor as an index from zero; conductors
     of one body move together. By default every conductor is its own body. ``centers``
     gives the point each body rotates about, by default the centroid of its conductors.
     Gradient and Hessian are the exact derivatives of the computed capacitance for rigid
-    motion of the bodies, equations (75) to (90) or (97). Stages mesh, assemble, solve,
-    derivatives, and curvature, or the one stage facing for plates, log through the
+    motion of the bodies. Stages mesh, then assemble, solve, derivatives, and curvature
+    or the one stage windows, or the one stage facing for plates, log through the
     ``connflex_core`` logger and report to ``progress``.
     """
     if params.sidewall_method is None:
@@ -102,121 +107,93 @@ def sidewall_capacitance(
             charge=np.zeros((0, len(regions))),
             mesh=Mesh.empty(),
             walls=walls,
+            windows=0,
+            asymmetry=0.0,
         )
     if params.element_size is None:
         raise ValueError('element_size is required for sidewall_method "field"')
     regions, body, pivots = _arranged(conductors, bodies, centers)
     with stage("mesh", progress) as current:
         mesh = mesh_outlines(regions, params.element_size, params.corner_grading)
-        count = len(mesh.conductor)
-        current.count(elements=count)
-    if count > params.max_elements:
-        raise ValueError(
-            f"outlines need {count} boundary elements, more than max_elements = "
-            f"{params.max_elements}: raise element_size or max_elements, or pass fewer conductors"
-        )
-    return solve_mesh(
-        mesh, body, pivots, permittivity, lambda name, total=None: stage(name, progress, total)
+        current.count(elements=len(mesh.conductor))
+    return solve_field(
+        mesh, body, pivots, params, lambda name, total=None: stage(name, progress, total)
     )
 
 
-def solve_mesh(
+def solve_field(
     mesh: Mesh,
     body: NDArray[np.intp],
     pivots: Array,
-    permittivity: float,
-    enter: Callable[..., AbstractContextManager[Stage]],
+    params: ElectrostaticParams,
+    enter: Enter,
+    cores: list[NDArray[np.intp]] | None = None,
+    advance: Callable[[], None] | None = None,
 ) -> SidewallCapacitance:
     """Solve the field of a mesh whose conductors move with ``body`` about ``pivots``.
 
-    ``enter`` opens each stage: ``stage`` bound to a progress receiver, or ``quiet`` when
-    the solution is one step of a larger stage.
+    A mesh of at most ``max_elements`` is one dense solution, equation (70). A larger
+    one is solved in windows around ``cores``, by default those of ``cut_cores``,
+    equations (91) to (96). ``enter`` opens each stage: ``stage`` bound to a progress
+    receiver, or ``quiet`` when the solution is one step of a larger stage. With
+    ``advance`` no stage is opened for windows and it is called once per window.
     """
-    count, conductors, rigid = len(mesh.conductor), len(body), len(pivots)
-    corners = np.concatenate([mesh.start, mesh.end])
-    low, high = corners.min(axis=0), corners.max(axis=0)
-    scale = 2 * float(np.hypot(*(high - low)))
-    start, end = (
-        (points - (low + high) / 2) / scale @ (1, 1j) for points in (mesh.start, mesh.end)
+    if params.element_size is None:
+        raise ValueError('element_size is required for sidewall_method "field"')
+    windows = 1
+    if len(mesh.conductor) <= params.max_elements:
+        charges = solve_charges(mesh, len(body), enter)
+        raw = (
+            charges.capacitance,
+            *charge_derivatives(charges, body, pivots, enter),
+            charges.charge,
+        )
+    else:
+        cores = cut_cores(mesh, params.window_elements) if cores is None else cores
+        windows = len(cores)
+
+        def solve(step: Callable[[], None]) -> tuple[Array, Array, Array, Array]:
+            return solve_windows(
+                mesh,
+                body,
+                pivots,
+                cores,
+                params.element_size or 0.0,
+                params.interaction_distance,
+                params.window_tolerance,
+                params.max_elements,
+                step,
+            )
+
+        if advance is None:
+            with enter("windows", total=windows) as current:
+                raw = solve(current.advance)
+        else:
+            raw = solve(advance)
+    permittivity = VACUUM_PERMITTIVITY * params.ambient_permittivity
+    uneven = np.max(np.abs(raw[0] - raw[0].T)) / np.max(
+        np.abs(raw[0]), initial=np.finfo(float).tiny
     )
-    length = np.abs(end - start)
-
-    potential = np.empty((count, count))
-    rows = max(1, PAIRS_PER_PASS // count)
-    with enter("assemble", total=count) as current:
-        for first in range(0, count, rows):
-            block = slice(first, first + rows)
-            integral = pair_integrals(start[block, None], end[block, None], start, end)
-            potential[block] = -integral / (2 * np.pi * length[block, None] * length)
-            current.advance(len(length[block]))
-
-    with enter("solve"):
-        try:
-            factor = scipy.linalg.cho_factor(potential, lower=True, overwrite_a=True)
-        except scipy.linalg.LinAlgError as exc:
-            raise ValueError("outlines cross or elements coincide") from exc
-        on = (mesh.conductor[:, None] == np.arange(conductors)).astype(float)
-        solved = scipy.linalg.cho_solve(factor, np.column_stack([on, np.ones(count)]))
-        driven, uniform = solved[:, :-1], solved[:, -1]
-        charge = driven - np.outer(uniform, uniform @ on) / uniform.sum()
-        capacitance = on.T @ charge
-
-    density = charge / length[:, None]
-    carried = [np.flatnonzero(body[mesh.conductor] == k) for k in range(rigid)]
-    pivot = (pivots - (low + high) / 2) / scale @ (1, 1j)
-    shape = (conductors, conductors, 3 * rigid)
-    gradient = np.zeros(shape)
-    hessian = np.zeros((*shape, 3 * rigid))
-    swing = np.zeros((count, conductors, 3 * rigid))
-    pairs = [(k, other) for k in range(rigid) for other in range(k + 1, rigid)]
-    with enter("derivatives", total=len(pairs)) as current:
-        for k, other in pairs:
-            mine, theirs = carried[k], carried[other]
-            freedom = np.r_[3 * k : 3 * k + 3, 3 * other : 3 * other + 3]
-            rows = max(1, DERIVATIVE_PAIRS_PER_PASS // theirs.size)
-            for first in range(0, mine.size, rows):
-                part = mine[first : first + rows]
-                slopes, bends = pair_derivatives(
-                    start[part, None],
-                    end[part, None],
-                    start[theirs],
-                    end[theirs],
-                    pivot[k],
-                    pivot[other],
-                )
-                for p, slope in enumerate(slopes):
-                    onto = slope @ density[theirs]
-                    gradient[:, :, freedom[p]] += density[part].T @ onto
-                    swing[part, :, freedom[p]] += onto / length[part, None]
-                    swing[theirs, :, freedom[p]] += slope.T @ density[part] / length[theirs, None]
-                    for q in range(6):
-                        hessian[:, :, freedom[p], freedom[q]] += (
-                            density[part].T @ bends[p, q] @ density[theirs]
-                        )
-            current.advance()
-    gradient = (gradient + gradient.transpose(1, 0, 2)) / (2 * np.pi)
-    hessian = (hessian + hessian.transpose(1, 0, 2, 3)) / (2 * np.pi)
-
-    with enter("curvature"):
-        swing /= -2 * np.pi
-        flat = swing.reshape(count, -1)
-        settled = scipy.linalg.cho_solve(factor, flat)
-        settled -= np.outer(uniform, uniform @ flat) / uniform.sum()
-        through = (flat.T @ settled).reshape(*shape[1:], *shape[1:]).transpose(0, 2, 1, 3)
-        hessian += through + through.transpose(0, 1, 3, 2)
-
-    unit = np.tile([1 / scale, 1 / scale, 1.0], rigid)
-    gradient *= unit
-    hessian *= unit[:, None] * unit
     return SidewallCapacitance(
-        capacitance=permittivity * (capacitance + capacitance.T) / 2,
-        gradient=permittivity * gradient.reshape(conductors, conductors, rigid, 3),
-        hessian=permittivity * hessian.reshape(conductors, conductors, rigid, 3, rigid, 3),
+        capacitance=permittivity * _paired(raw[0]),
+        gradient=permittivity * _paired(raw[1]),
+        hessian=permittivity * _paired(raw[2]),
         centers=pivots,
-        charge=permittivity * charge,
+        charge=permittivity * raw[3],
         mesh=mesh,
         walls=FacingWalls.empty(),
+        windows=windows,
+        asymmetry=float(uneven),
     )
+
+
+def _paired(raw: Array) -> Array:
+    """Symmetric matrix with rows that sum to zero from one whose rows do, equation (94)."""
+    mean = (raw + raw.swapaxes(0, 1)) / 2
+    diagonal = np.arange(len(raw))
+    mean[diagonal, diagonal] = 0.0
+    mean[diagonal, diagonal] = -mean.sum(axis=1)
+    return mean
 
 
 def _arranged(

@@ -13,7 +13,7 @@ Array = NDArray[np.float64]
 
 @dataclass(frozen=True, eq=False)
 class Jet:
-    """Arrays of values with their first and second derivatives in d parameters, (97).
+    """Arrays of values with their first and second derivatives in d parameters, (103).
 
     Attributes:
         value: m values.

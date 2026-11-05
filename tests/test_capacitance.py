@@ -82,8 +82,8 @@ def test_matrix_sums_sidewalls_and_plates_between_electrodes(
     assert ideal < -model.sidewall[stator, shuttle] < 1.3 * ideal
     assert model.sidewall[stator, stator] == pytest.approx(-model.sidewall[stator, shuttle])
     assert not model.sidewall[[pad, handle]].any()
-    assert [(cluster.electrodes, cluster.solved) for cluster in model.clusters] == [
-        ((stator, shuttle), True)
+    assert [(cluster.electrodes, cluster.windows) for cluster in model.clusters] == [
+        ((stator, shuttle), 1)
     ]
 
     silicon = (40 * 140 + FINGERS * 60 * WIDTH) * UM**2
@@ -135,18 +135,29 @@ def test_each_part_can_be_left_out_and_needs_only_its_own_parameters(
     assert comb.capacitance(replace(settings, interaction_distance=1 * UM)).clusters == ()
 
 
-def test_cluster_above_the_element_limit_is_an_error_unless_skipped(
-    comb: Structure, settings: ElectrostaticParams, at: dict[str, int]
+def test_cluster_above_the_element_limit_is_solved_in_windows(
+    comb: Structure, settings: ElectrostaticParams, model: CapacitanceModel, at: dict[str, int]
 ) -> None:
-    small = replace(settings, max_elements=100)
-    with pytest.raises(ValueError, match="max_elements"):
-        comb.capacitance(small)
-    partial = comb.capacitance(replace(small, skip_large_clusters=True))
-    (cluster,) = partial.clusters
-    assert (cluster.electrodes, cluster.solved) == ((at["stator"], at["shuttle"]), False)
-    assert cluster.elements > 100
-    assert not partial.sidewall.any()
-    assert partial.released.any()
+    (whole,) = model.clusters
+    limited = replace(
+        settings, max_elements=whole.elements // 2, window_elements=whole.elements // 8
+    )
+    windowed = comb.capacitance(limited)
+    (cluster,) = windowed.clusters
+    assert (cluster.electrodes, cluster.elements) == (whole.electrodes, whole.elements)
+    assert cluster.windows >= 8
+    assert whole.asymmetry < 1e-9 < cluster.asymmetry < 2e-2
+    for found, expected in (
+        (windowed.sidewall, model.sidewall),
+        (windowed.gradient, model.gradient),
+    ):
+        assert found == pytest.approx(expected, abs=2e-2 * np.max(abs(expected)))
+    potentials = np.zeros(len(comb.electrodes))
+    potentials[at["stator"]] = 10.0
+    softening = model.stiffness(potentials)
+    assert windowed.stiffness(potentials) == pytest.approx(
+        softening, abs=2e-2 * np.max(abs(softening))
+    )
 
 
 def test_comb_drives_with_the_pull_of_each_gap_and_the_plate_pulls_down(
@@ -184,7 +195,7 @@ def test_plates_method_takes_every_comb_gap_as_a_parallel_plate(
         GAPS * EPS0 * THICKNESS * OVERLAP / GAP, rel=1e-9
     )
     (cluster,) = model.clusters
-    assert (cluster.electrodes, cluster.elements, cluster.solved) == ((stator, shuttle), 16, True)
+    assert (cluster.electrodes, cluster.elements, cluster.windows) == ((stator, shuttle), 16, 0)
     assert cluster.walls.gap == pytest.approx(GAP * UM)
 
     potentials = np.zeros(len(comb.electrodes))
@@ -291,6 +302,11 @@ def test_report_lists_capacitance_by_pair_part_net_and_cluster(
     assert np.array(report["net_matrix"]) == pytest.approx(model.net_matrix)
     (cluster,) = model.clusters
     assert report["clusters"] == [
-        {"electrodes": list(cluster.electrodes), "elements": cluster.elements, "solved": True}
+        {
+            "electrodes": list(cluster.electrodes),
+            "elements": cluster.elements,
+            "windows": 1,
+            "asymmetry": cluster.asymmetry,
+        }
     ]
     assert report["unassigned_area"] == pytest.approx(2 * 200 * 10 * UM**2)

@@ -1,11 +1,16 @@
 import warnings
+from dataclasses import replace
+from typing import cast
 
 import numpy as np
 import pytest
-from shapely import MultiPolygon, Polygon, affinity, box
+from numpy.typing import NDArray
+from shapely import MultiPolygon, Polygon, affinity, box, union_all
 
 from connflex_core import ElectrostaticParams, SidewallCapacitance, sidewall_capacitance
-from connflex_core.electrostatics.outlines import mesh_outlines
+from connflex_core.electrostatics.dense import charge_derivatives, solve_charges
+from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
+from connflex_core.progress import quiet
 
 EPS0 = 8.8541878188e-12
 UM = 1e-6
@@ -158,6 +163,81 @@ def test_moving_every_body_together_changes_nothing() -> None:
     bend = np.max(abs(curvature[..., :2, :, :2]))
     assert curvature == pytest.approx(curvature.transpose(0, 1, 4, 5, 2, 3), abs=1e-9 * bend)
     assert np.max(abs(curvature[..., :2].sum(axis=4)[..., :2, :])) < 1e-8 * bend
+
+
+def test_mesh_above_the_element_limit_is_solved_in_windows() -> None:
+    """Two blocks whose fingers interleave with gaps of 3 um.
+
+    Force along the fingers is what windows find least well: it comes from finger tips,
+    which face open space.
+    """
+    pitch, fingers = 14.0, 6
+    left = [box(0, pitch * k, 60, pitch * k + 4) for k in range(fingers + 1)]
+    right = [box(20, pitch * k + 7, 80, pitch * k + 11) for k in range(fingers)]
+    top = pitch * fingers + 4
+    conductors = [
+        um(cast(Polygon, union_all([box(-30, 0, 0, top), *left]))),
+        um(cast(Polygon, union_all([box(80, 0, 110, top), *right]))),
+    ]
+    whole = sidewall_capacitance(conductors, params(3.0, grading=4.0))
+    count = len(whole.mesh.conductor)
+    limited = replace(
+        params(3.0, grading=4.0, limit=count // 2),
+        window_elements=count // 8,
+        interaction_distance=30 * UM,
+    )
+    windowed = sidewall_capacitance(conductors, limited)
+    assert whole.windows == 1
+    assert windowed.windows >= 8
+    assert whole.asymmetry < 1e-9 < windowed.asymmetry < 2e-2
+    for found, expected in (
+        (windowed.capacitance, whole.capacitance),
+        (windowed.gradient, whole.gradient),
+        (windowed.hessian, whole.hessian),
+    ):
+        assert found == pytest.approx(expected, abs=3e-2 * np.max(abs(expected)))
+        assert np.array_equal(found, found.swapaxes(0, 1))
+        assert np.max(abs(found.sum(axis=1))) < 1e-12 * np.max(abs(found))
+    assert windowed.charge.sum(axis=0) == pytest.approx(0.0, abs=1e-2 * windowed.capacitance[0, 0])
+
+
+def test_derivatives_of_charge_on_some_elements_are_exact() -> None:
+    """A window counts charge on its core alone; elements keep their places as bodies move."""
+    squares = [MultiPolygon([um(box(0, 0, 10, 10))]), MultiPolygon([um(box(12, -2, 20, 9))])]
+    mesh = mesh_outlines(squares, 2 * UM, 4.0)
+    core = (mesh.start[:, 0] + mesh.end[:, 0]) / 2 > 6 * UM
+    body = np.array([0, 1])
+    centers = np.array([[5.0, 5.0], [16.0, 3.0]]) * UM
+
+    def solve(dof: int = 0, step: float = 0.0) -> tuple[NDArray[np.float64], ...]:
+        pivots, moving = centers.copy(), mesh.conductor == 1
+        ends = [mesh.start.copy(), mesh.end.copy()]
+        for points in ends:
+            if dof < 2:
+                points[moving, dof] += step
+            else:
+                arm = points[moving] - centers[1]
+                turn = np.array([[np.cos(step), np.sin(step)], [-np.sin(step), np.cos(step)]])
+                points[moving] = centers[1] + arm @ turn
+        if dof < 2:
+            pivots[1, dof] += step
+        charges = solve_charges(Mesh(ends[0], ends[1], mesh.conductor), 2, quiet, core)
+        return charges.capacitance, *charge_derivatives(charges, body, pivots, quiet)
+
+    value, gradient, hessian = solve()
+    assert not np.allclose(value, value.T, rtol=1e-3)
+    for dof, step in ((0, 1e-4 * UM), (1, 1e-4 * UM), (2, 1e-5)):
+        ahead, behind = solve(dof, step), solve(dof, -step)
+        slope = (ahead[0] - behind[0]) / (2 * step)
+        assert gradient[:, :, 1, dof] == pytest.approx(
+            slope, rel=1e-6, abs=1e-7 * np.max(abs(slope))
+        )
+        bend = (ahead[1] - behind[1]) / (2 * step)
+        for other in range(2):
+            for travel in range(3):
+                expected = hessian[:, :, other, travel, 1, dof]
+                found = bend[:, :, other, travel]
+                assert expected == pytest.approx(found, rel=1e-5, abs=1e-6 * np.max(abs(found)))
 
 
 def test_cavity_that_holds_no_conductor_is_not_meshed() -> None:

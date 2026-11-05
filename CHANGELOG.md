@@ -39,8 +39,7 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   all electrodes at rest, summed from plates and from sidewalls of device
   electrodes solved in clusters, with its oxide, released, and sidewall
   parts and its reduction to nets. `ElectrostaticParams` gains
-  `interaction_distance`, `include_plates`, `include_sidewalls`, and
-  `skip_large_clusters`.
+  `interaction_distance`, `include_plates`, and `include_sidewalls`.
 - `CapacitanceModel.gradient`, `force`, and `stiffness`: change of the
   capacitance matrix in the degrees of freedom of every movable body, and
   the generalized forces and electrostatic stiffness for given electrode
@@ -54,6 +53,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and Hessian for rigid motion. Plates have no size limit and no fringe
   field. `SidewallCapacitance.walls` and `Cluster.walls` hold the pieces of
   wall taken as plates, as `FacingWalls`.
+- Field solution in windows: a mesh or cluster above `max_elements` is cut
+  into cores of at most `window_elements`, each solved densely with the
+  elements around it out to an overlap that doubles until the charge on the
+  core settles within `window_tolerance` or reaches `interaction_distance`.
+  Gradient and Hessian are exact for the windowed matrix. `windows` and
+  `asymmetry` on `SidewallCapacitance` and `Cluster` report the number of
+  solutions and their mismatch, so no cluster is too large to solve.
 
 ### Removed
 
