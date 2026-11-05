@@ -49,15 +49,19 @@ def solve_windows(
     tolerance: float,
     limit: int,
     advance: Callable[[], None],
-) -> tuple[Array, Array, Array, Array]:
+    windows: list[Index] | None = None,
+) -> tuple[Array, Array, Array, Array, list[Index]]:
     """Sum over windows of the charge that each solution puts on its core.
 
     A window holds a core and every element within an overlap of its bounding box,
     equations (91) to (96). The overlap starts at ``FIRST_OVERLAP`` times ``size`` and
     doubles until the charge on the core changes by less than ``tolerance``, the overlap
     reaches ``reach``, or the next window would hold more than ``limit`` elements.
+    With ``windows``, the elements of each window as an earlier call returned them, no
+    overlap is searched: a mesh whose bodies have moved keeps the windows it had.
     Returns capacitance, gradient, Hessian, and element charges per unit permittivity,
-    in the layout of ``SidewallCapacitance`` and before capacitance is made symmetric.
+    in the layout of ``SidewallCapacitance`` and before capacitance is made symmetric,
+    and the elements of each window, none for a window that was not solved.
     ``advance`` is called once per core.
     """
     count, conductors, rigid = len(mesh.conductor), len(body), len(pivots)
@@ -68,13 +72,27 @@ def solve_windows(
     hessian = np.zeros((conductors, conductors, rigid, 3, rigid, 3))
     charge = np.zeros((count, conductors))
     three = np.arange(3)
-    for core in cores:
+    chosen: list[Index] = []
+    for number, core in enumerate(cores):
         low, high = center[core].min(axis=0), center[core].max(axis=0)
         overlap = FIRST_OVERLAP * size if reach is None else min(FIRST_OVERLAP * size, reach)
         held: tuple[Index, Index, Charges] | None = None
         share = np.zeros((conductors, conductors))
         smallest = True
-        while True:
+        if windows is not None and len(windows[number]):
+            inside = windows[number]
+            present = np.unique(mesh.conductor[inside])
+            part = Mesh(
+                mesh.start[inside],
+                mesh.end[inside],
+                np.searchsorted(present, mesh.conductor[inside]),
+            )
+            held = (
+                inside,
+                present,
+                solve_charges(part, len(present), quiet, np.isin(inside, core)),
+            )
+        while windows is None:
             inside = np.sort(tree.query(shapely.box(*(low - overlap), *(high + overlap))))
             if len(inside) > limit:
                 if smallest:
@@ -114,5 +132,6 @@ def solve_windows(
             hessian[np.ix_(present, present, moving, three, moving, three)] += bend
             mine = np.isin(inside, core)
             charge[np.ix_(inside[mine], present)] = charges.charge[mine]
+        chosen.append(np.zeros(0, dtype=np.intp) if held is None else held[0])
         advance()
-    return capacitance, gradient, hessian, charge
+    return capacitance, gradient, hessian, charge, chosen

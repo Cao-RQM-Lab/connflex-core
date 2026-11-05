@@ -1801,6 +1801,47 @@ values exceed these by a few percent, the share of the fields at finger
 tips and outer walls. The plates method returns exactly these when finger
 tips are farther than $d_i$ from the wall they point at.
 
+### Displaced bodies
+
+Nothing above needs the bodies to be at rest. With every body at a
+displacement from rest, stacked in $\mathbf{q}$, the same construction gives
+a matrix $\mathbf{C}(\mathbf{q})$. A plate is evaluated by (55) at the
+displacements of its two bodies. Sidewall outlines of body $B$ are carried
+by the in-plane part (109) of its displacement,
+
+$$
+z \mapsto c_B + a + e^{\mathrm{i} a_\psi} (z - c_B), \qquad
+a = a_x + \mathrm{i}\, a_y, \qquad
+\begin{bmatrix} a_x \\ a_y \\ a_\psi \end{bmatrix} = \mathbf{J}_B\, \mathbf{q}_B, \tag{113}
+$$
+
+which is the motion (83) at finite size: travel, and rotation about the
+center of mass, which travels with the body. Each cluster is then solved on
+the carried outlines. Its gradient and second derivative there, taken about
+the carried centers $c_B + a$, are the derivatives of its matrix in
+$(a_x, a_y, a_\psi)$ at that displacement, because (83) composes: a further
+small motion of a carried body is again (83) about its carried center. With
+$\mathbf{J}_B$ constant, (110) holds at every $\mathbf{q}$, and so do (57)
+and (58) for plates. Forces are therefore conservative,
+
+$$
+f_k(\mathbf{q}) = \frac{\partial}{\partial q_k}\, \frac{1}{2}\, \mathbf{v}^\top \mathbf{C}(\mathbf{q})\, \mathbf{v}, \qquad
+\bigl[ \mathbf{K}_e(\mathbf{q}) \bigr]_{kl} = -\frac{\partial f_k}{\partial q_l}, \tag{114}
+$$
+
+exactly, for the function $\mathbf{C}(\mathbf{q})$ that the model computes.
+
+What was found at rest stays. Clusters are those of (105) at rest. With the
+field method the mesh is carried with the bodies and not made anew, and a
+cluster solved in windows keeps the elements of each window, so
+$\mathbf{C}(\mathbf{q})$ is smooth and (95) remains its exact derivative.
+The plates method finds its pieces anew on the carried outlines, since they
+are exact for any outlines; its kinks are those of (97). The limits are
+those of the parts: a plate is exact in rise, of second order in tilt, and
+of first order in in-plane travel, and the lever of (109) is that of a small
+tilt. Electrodes of different bodies that touch after the motion are an
+error.
+
 !!! note "Implementation choices"
     The outline of a device electrode is that of the union of its body
     polygon and its stubs after a closing by the margin $\epsilon$ of (4):

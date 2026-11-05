@@ -158,6 +158,12 @@ def test_cluster_above_the_element_limit_is_solved_in_windows(
     assert windowed.stiffness(potentials) == pytest.approx(
         softening, abs=2e-2 * np.max(abs(softening))
     )
+    place = [1e-6, 0.2e-6, 0.0, 0.0, 0.0, 0.0]
+    there, reference = windowed.at(place), model.at(place)
+    assert there.clusters[0].windows == cluster.windows
+    assert there.sidewall == pytest.approx(
+        reference.sidewall, abs=2e-2 * np.max(abs(reference.sidewall))
+    )
 
 
 def test_comb_drives_with_the_pull_of_each_gap_and_the_plate_pulls_down(
@@ -207,6 +213,51 @@ def test_plates_method_takes_every_comb_gap_as_a_parallel_plate(
     assert stiffness[1, 1] == pytest.approx(-side, rel=1e-9)
 
 
+def test_model_at_displaced_bodies_follows_the_plate_formulas(
+    comb: Structure, at: dict[str, int]
+) -> None:
+    """Shuttle moved along and across its fingers and toward the handle."""
+    rest = comb.capacitance(
+        ElectrostaticParams(sidewall_method="plates", interaction_distance=10 * UM)
+    )
+    stator, shuttle, handle = at["stator"], at["shuttle"], at["handle"]
+    assert not rest.displacement.any()
+    travel, side, rise = 5.0, 1.0, -0.5
+    moved = rest.at([travel * UM, side * UM, rise * UM, 0.0, 0.0, 0.0])
+    assert moved.displacement.tolist() == [travel * UM, side * UM, rise * UM, 0.0, 0.0, 0.0]
+    facing = GAPS / 2 * EPS0 * THICKNESS * (1 / (GAP - side) + 1 / (GAP + side))
+    assert -moved.sidewall[stator, shuttle] == pytest.approx(facing * (OVERLAP - travel), rel=1e-9)
+    assert moved.gradient[stator, stator, 0] == pytest.approx(-facing / UM, rel=1e-9)
+    silicon = (40 * 140 + FINGERS * 60 * WIDTH) * UM**2
+    assert -moved.released[shuttle, handle] == pytest.approx(EPS0 * silicon / (BOX + rise * UM))
+    assert moved.oxide == pytest.approx(rest.oxide)
+    with pytest.raises(ValueError, match="displacement"):
+        rest.at([0.0, 0.0])
+
+
+def test_derivatives_at_displaced_bodies_are_slopes_of_the_displaced_model(
+    comb: Structure, at: dict[str, int]
+) -> None:
+    rest = comb.capacitance(
+        ElectrostaticParams(sidewall_method="plates", interaction_distance=30 * UM)
+    )
+    place = np.array([2e-6, 0.4e-6, -0.3e-6, 2e-4, -1e-4, 3e-4])
+    here = rest.at(place)
+    potentials = np.zeros(len(comb.electrodes))
+    potentials[at["stator"]], potentials[at["handle"]] = 10.0, 5.0
+    stiffness = here.stiffness(potentials)
+    for dof in range(6):
+        step = np.zeros(6)
+        step[dof] = 1e-10 if dof < 3 else 1e-8
+        ahead, behind = rest.at(place + step), rest.at(place - step)
+        slope = (ahead.matrix - behind.matrix) / (2 * step[dof])
+        expected = here.gradient[:, :, dof]
+        assert expected == pytest.approx(slope, rel=1e-5, abs=1e-6 * np.max(abs(expected)))
+        softening = -(ahead.force(potentials) - behind.force(potentials)) / (2 * step[dof])
+        scale = np.sqrt(abs(np.diag(stiffness) * stiffness[dof, dof]))
+        assert np.all(abs(stiffness[:, dof] - softening) < 1e-4 * abs(softening) + 1e-5 * scale)
+
+
 def test_gradient_and_stiffness_follow_a_moved_structure(
     comb: Structure, settings: ElectrostaticParams, model: CapacitanceModel, at: dict[str, int]
 ) -> None:
@@ -230,6 +281,14 @@ def test_gradient_and_stiffness_follow_a_moved_structure(
         )
         there = replace(comb, electrodes=tuple(electrodes), bodies=(comb.bodies[0], shuttle))
         return there.capacitance(settings)
+
+    for dof, step in ((0, 1e-6), (5, 1e-3)):
+        place = np.zeros(6)
+        place[dof] = step
+        rebuilt = moved(min(dof, 2), step)
+        assert model.at(place).matrix == pytest.approx(
+            rebuilt.matrix, rel=1e-7, abs=1e-9 * np.max(abs(model.matrix))
+        )
 
     stiffness = model.stiffness(potentials)
     for dof, step in ((0, 2e-9), (1, 2e-9), (5, 2e-6)):

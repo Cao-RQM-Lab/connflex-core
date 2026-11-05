@@ -60,6 +60,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Gradient and Hessian are exact for the windowed matrix. `windows` and
   `asymmetry` on `SidewallCapacitance` and `Cluster` report the number of
   solutions and their mismatch, so no cluster is too large to solve.
+- `CapacitanceModel.at`: the capacitance model with bodies displaced from
+  rest, with matrices, gradient, forces, and stiffness at that displacement.
+  Plates are evaluated in closed form and sidewalls on moved outlines, with
+  the clusters, mesh, and windows found at rest. `CapacitanceModel.displacement`
+  records where a model was evaluated.
 
 ### Removed
 

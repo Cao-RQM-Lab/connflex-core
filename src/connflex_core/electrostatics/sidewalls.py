@@ -118,7 +118,7 @@ def sidewall_capacitance(
         current.count(elements=len(mesh.conductor))
     return solve_field(
         mesh, body, pivots, params, lambda name, total=None: stage(name, progress, total)
-    )
+    )[0]
 
 
 def solve_field(
@@ -129,18 +129,21 @@ def solve_field(
     enter: Enter,
     cores: list[NDArray[np.intp]] | None = None,
     advance: Callable[[], None] | None = None,
-) -> SidewallCapacitance:
+    windows: list[NDArray[np.intp]] | None = None,
+) -> tuple[SidewallCapacitance, list[NDArray[np.intp]]]:
     """Solve the field of a mesh whose conductors move with ``body`` about ``pivots``.
 
     A mesh of at most ``max_elements`` is one dense solution, equation (70). A larger
     one is solved in windows around ``cores``, by default those of ``cut_cores``,
     equations (91) to (96). ``enter`` opens each stage: ``stage`` bound to a progress
     receiver, or ``quiet`` when the solution is one step of a larger stage. With
-    ``advance`` no stage is opened for windows and it is called once per window.
+    ``advance`` no stage is opened for windows and it is called once per window. Also
+    returns the elements of each window, which passed back as ``windows`` keep a mesh
+    whose bodies have moved in the windows it had.
     """
     if params.element_size is None:
         raise ValueError('element_size is required for sidewall_method "field"')
-    windows = 1
+    chosen: list[NDArray[np.intp]] = []
     if len(mesh.conductor) <= params.max_elements:
         charges = solve_charges(mesh, len(body), enter)
         raw = (
@@ -150,10 +153,9 @@ def solve_field(
         )
     else:
         cores = cut_cores(mesh, params.window_elements) if cores is None else cores
-        windows = len(cores)
 
         def solve(step: Callable[[], None]) -> tuple[Array, Array, Array, Array]:
-            return solve_windows(
+            *found, kept = solve_windows(
                 mesh,
                 body,
                 pivots,
@@ -163,10 +165,13 @@ def solve_field(
                 params.window_tolerance,
                 params.max_elements,
                 step,
+                windows,
             )
+            chosen.extend(kept)
+            return found[0], found[1], found[2], found[3]
 
         if advance is None:
-            with enter("windows", total=windows) as current:
+            with enter("windows", total=len(cores)) as current:
                 raw = solve(current.advance)
         else:
             raw = solve(advance)
@@ -174,7 +179,7 @@ def solve_field(
     uneven = np.max(np.abs(raw[0] - raw[0].T)) / np.max(
         np.abs(raw[0]), initial=np.finfo(float).tiny
     )
-    return SidewallCapacitance(
+    result = SidewallCapacitance(
         capacitance=permittivity * _paired(raw[0]),
         gradient=permittivity * _paired(raw[1]),
         hessian=permittivity * _paired(raw[2]),
@@ -182,9 +187,10 @@ def solve_field(
         charge=permittivity * raw[3],
         mesh=mesh,
         walls=FacingWalls.empty(),
-        windows=windows,
+        windows=max(len(chosen), 1),
         asymmetry=float(uneven),
     )
+    return result, chosen
 
 
 def _paired(raw: Array) -> Array:

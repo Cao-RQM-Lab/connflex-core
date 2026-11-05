@@ -244,6 +244,9 @@ model.gradient  # n by n by len(dofs): change of the matrix with each
 force = model.force(potentials)  # one potential per electrode
 softening = model.stiffness(potentials)  # adds to the mechanical stiffness
 
+moved = model.at(displacement)  # the same model with bodies displaced from rest
+moved.matrix, moved.gradient, moved.force(potentials)  # all at that displacement
+
 model.to_dict()  # JSON-serializable report: pairs, nets, clusters, what was left out
 ```
 
@@ -285,6 +288,16 @@ diagonal entries soften the suspension. Potentials are per electrode;
 `np.asarray(per_net)[model.net]` spreads one value per net. Sidewall forces
 act at mid-height of the device layer, so they also tilt a body whose center
 of mass lies lower.
+
+`model.at(displacement)` evaluates the model with the bodies displaced: one
+value per degree of freedom in `model.dofs`, in meters and radians from
+rest. It returns a model of the same kind whose matrices, gradient, force,
+and stiffness are those at the displaced bodies, so forces away from rest
+are exact derivatives of the capacitance away from rest. Plates are
+re-evaluated in closed form and sidewalls are found again on the moved
+outlines, with the clusters, mesh, and windows of the model at rest; one
+call costs about as much as the sidewalls of the model at rest. Bodies that
+touch after the motion raise an error.
 
 `to_dict` gives a tree for review. It lists every pair of electrodes with
 capacitance between them, split into oxide, released, and sidewall parts,
