@@ -36,6 +36,7 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Python and passed to the function that uses it, so each analysis takes
   only its own parameters; an application that wants settings files parses
   them itself, for example `ExtractionParams(**table)`.
+- `Structure.material`: it duplicated `Structure.stack.device.material`.
 
 ## [0.1.0] - 2026-11-04
 

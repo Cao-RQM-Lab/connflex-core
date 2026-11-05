@@ -176,11 +176,10 @@ def extract(
         bodies=tuple(bodies),
         beams=tuple(beams),
         rejected=tuple(rejected),
-        material=stack.device.material,
+        stack=stack,
         nets=nets,
         electrodes=tuple(electrodes),
         links=tuple(links),
-        stack=stack,
         openings=openings,
     )
 

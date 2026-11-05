@@ -41,9 +41,10 @@ def assemble(structure: Structure) -> SystemMatrices:
         row = offset[body.index]
         mass[row : row + 6, row : row + 6] = body.inertial.matrix
     centers = {body.index: body.inertial.center for body in structure.bodies}
+    material = structure.stack.device.material
     for beam in structure.beams:
         a, b = beam.bodies
-        k = effective_stiffness(beam, structure.material, centers[a], centers[b])
+        k = effective_stiffness(beam, material, centers[a], centers[b])
         for i, body_i in enumerate((a, b)):
             for j, body_j in enumerate((a, b)):
                 if body_i in offset and body_j in offset:

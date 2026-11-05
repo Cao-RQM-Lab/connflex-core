@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import networkx as nx
@@ -13,7 +13,6 @@ from shapely.geometry import mapping
 
 from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Nets
-from connflex_core.materials import Material
 from connflex_core.mechanics.inertia import MassProperties
 from connflex_core.params import ElectrostaticParams, SolveOptions
 from connflex_core.progress import Progress
@@ -105,12 +104,11 @@ class Structure:
         bodies: All bodies, anchor first.
         beams: Accepted beams.
         rejected: Beam candidates that did not qualify, each with a reason.
-        material: Device-layer material, which sets beam stiffness.
+        stack: Layer stack of the extraction. Its device material sets beam stiffness.
         nets: Electrical nets of conductors that remain after pruning.
         electrodes: Nodes of the electrical model, device electrodes first, then handle
             electrodes, each ordered by body and then by descending area.
         links: Beams, bridges, and vias that conduct between electrodes.
-        stack: Layer stack of the extraction. None on a structure built by hand.
         openings: Release openings as disjoint polygons: release holes that were filled in
             device polygons, and polygons of the release layer. Device silicon is absent
             there, although ``Body.device`` and ``Electrode.region`` cover them.
@@ -119,12 +117,11 @@ class Structure:
     bodies: tuple[Body, ...]
     beams: tuple[Beam, ...]
     rejected: tuple[RejectedCandidate, ...]
-    material: Material
+    stack: Stack
     nets: Nets
-    electrodes: tuple[Electrode, ...] = ()
-    links: tuple[Link, ...] = ()
-    stack: Stack | None = None
-    openings: MultiPolygon = field(default_factory=MultiPolygon)
+    electrodes: tuple[Electrode, ...]
+    links: tuple[Link, ...]
+    openings: MultiPolygon
 
     @property
     def anchor(self) -> Body:

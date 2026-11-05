@@ -24,7 +24,7 @@ def single_beam(stack: Stack, params: Params, layout_um: LayoutUm) -> Structure:
 def closed_form_axial_and_torsion(structure: Structure) -> tuple[float, float]:
     (beam,) = structure.beams
     body = structure.bodies[1]
-    material = structure.material
+    material = structure.stack.device.material
     k_axial = material.youngs_modulus * beam.width * beam.thickness / beam.length
     j = effective_torsion_constant(beam.width, beam.thickness, beam.length, material.torsion_beta)
     assert material.shear_modulus is not None
@@ -70,7 +70,9 @@ def test_static_axial_load_deflects_by_the_axial_compliance(
     (beam,) = structure.beams
     force = 1e-6
     displacement = structure.static({1: [force, 0, 0, 0, 0, 0]})
-    k_axial = structure.material.youngs_modulus * beam.width * beam.thickness / beam.length
+    k_axial = (
+        structure.stack.device.material.youngs_modulus * beam.width * beam.thickness / beam.length
+    )
     stretch = force / k_axial
     assert displacement[0] == pytest.approx(stretch, rel=1e-9)
     assert np.all(np.abs(displacement[1:3]) < 1e-9 * stretch)

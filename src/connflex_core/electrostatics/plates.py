@@ -121,8 +121,6 @@ def find_plates(
     """
     params = params or ElectrostaticParams()
     stack = structure.stack
-    if stack is None:
-        raise ValueError("structure has no stack")
     relative = stack.box.material.relative_permittivity
     if relative is None:
         raise ValueError("box material has no relative_permittivity")
