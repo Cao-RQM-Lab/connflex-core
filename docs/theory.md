@@ -2962,8 +2962,12 @@ handle is a plane: travel along the cut does not move it, and the slab, which
 is centered on the wall, goes with the wall.
 
 Walls repeat, and so do cuts. A cut is rounded to a grid of $\Delta = \min(t,
-g_0) / 16$ and solved once for every rounded cut met; a cut that rounding
+g_0) / 4$ and solved once for every rounded cut met; a cut that rounding
 would close, silicon or a gap narrower than $\Delta$, keeps its own geometry.
+The expansion (160) carries the rounding to first order, so what the grid
+costs is of second order in $\Delta$; what it saves is bounded, since cuts of
+one layout differ in how many spans they cross and of which conductors far
+more than in how those spans round.
 Each body $b$ of a cut has the end of its silicon nearest the wall a distance
 $\delta_b$ from where rounding put it, measured from the wall, and rises by
 $z_b$. With $\mathbf{x} = (\delta_b, z_b)$ over the bodies of the cut,

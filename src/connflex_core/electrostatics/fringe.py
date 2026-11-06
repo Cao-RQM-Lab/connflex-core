@@ -18,7 +18,7 @@ from connflex_core.electrostatics.translates import KEY_GRID
 Array = NDArray[np.float64]
 Index = NDArray[np.intp]
 
-KEY_STEPS = 16
+KEY_STEPS = 4
 ITEMS_PER_PASS = 400
 
 
