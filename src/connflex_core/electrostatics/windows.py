@@ -19,19 +19,26 @@ Index = NDArray[np.intp]
 FIRST_OVERLAP = 4.0
 
 
-def cut_cores(mesh: Mesh, most: int, elements: Index | None = None) -> list[Index]:
+def cut_cores(
+    mesh: Mesh,
+    most: int,
+    elements: Index | None = None,
+    crowd: Callable[[Index], int] | None = None,
+) -> list[Index]:
     """Split elements of a mesh into compact groups of at most ``most``, equation (91).
 
     ``elements`` are the ones to split, all of the mesh by default. A group is halved at
     the median of its element centers along the longer side of their bounding box until
-    it is small enough.
+    it is small enough, and with ``crowd``, which counts the elements of the first window
+    around a group, until that window holds at most twice ``most``.
     """
     center = (mesh.start + mesh.end) / 2
     every = np.arange(len(mesh.conductor)) if elements is None else np.asarray(elements)
     cores, pending = [], [every]
     while pending:
         group = pending.pop()
-        if len(group) <= most:
+        crowded = crowd is not None and len(group) > 1 and crowd(group) > 2 * most
+        if len(group) <= most and not crowded:
             cores.append(group)
             continue
         points = center[group]

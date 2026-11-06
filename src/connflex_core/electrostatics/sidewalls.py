@@ -14,6 +14,7 @@ from connflex_core.electrostatics import VACUUM_PERMITTIVITY
 from connflex_core.electrostatics.dense import Enter, charge_derivatives, solve_charges
 from connflex_core.electrostatics.facing import FacingWalls, facing_plates, feature_sizes
 from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
+from connflex_core.electrostatics.periodic import Row, find_rows, solve_rows
 from connflex_core.electrostatics.windows import cut_cores, smallest_window, solve_windows
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.params import ElectrostaticParams
@@ -81,11 +82,14 @@ class FieldProblem:
         cores: Elements of each window core.
         pairs: k by 2 pairs of conductors whose capacitance it supplies.
         windows: Elements of each window as chosen at rest; None before that.
+        rows: Rows of identical cells whose interior is solved by the periodic kernel
+            instead of windows, equation (153).
     """
 
     cores: list[Index]
     pairs: Index
     windows: list[Index] | None = None
+    rows: tuple[Row, ...] = ()
 
 
 @dataclass(frozen=True, eq=False)
@@ -112,8 +116,8 @@ class SidewallPlan:
 
     @property
     def windows(self) -> int:
-        """Number of windows the field solutions take."""
-        return sum(len(problem.cores) for problem in self.problems)
+        """Number of windows and periodic cells the field solutions take."""
+        return sum(len(problem.cores) + len(problem.rows) for problem in self.problems)
 
 
 def sidewall_capacitance(
@@ -221,8 +225,27 @@ def plan_sidewalls(
     windowed = np.flatnonzero(np.isin(mesh.conductor, sorted(cores["windowed"])))
     if windowed.size:
         chosen = [k for k in field if method[k] == "windowed"]
+        rows: list[Row] = []
+        if params.periodic_min_cells is not None:
+            rows = [
+                row
+                for row in find_rows(regions, mesh, reach, params.periodic_min_cells)
+                if np.isin(mesh.conductor[row.elements], sorted(cores["windowed"])).all()
+            ]
+            if rows:
+                windowed = np.setdiff1d(windowed, np.concatenate([row.elements for row in rows]))
+        crowd = None
+        if rows:
+
+            def crowd(core: Index) -> int:
+                return smallest_window(mesh, core, size, reach)
+
         problems.append(
-            FieldProblem(cut_cores(mesh, params.window_elements, windowed), pairs[chosen])
+            FieldProblem(
+                cut_cores(mesh, params.window_elements, windowed, crowd) if windowed.size else [],
+                pairs[chosen],
+                rows=tuple(rows),
+            )
         )
     return SidewallPlan(pairs, feature, tuple(method), mesh, False, tuple(problems))
 
@@ -286,6 +309,18 @@ def solve_sidewalls(
                     problem.windows,
                     problem.pairs,
                 )
+                if problem.rows:
+                    solve_rows(
+                        problem.rows,
+                        mesh,
+                        plan.mesh,
+                        body,
+                        pivots,
+                        _reach(params),
+                        (found[0], found[1], found[2], found[3]),
+                    )
+                    for _ in problem.rows:
+                        step()
                 solved.append((found[0], found[1], found[2], found[3], problem.pairs))
                 problems.append(replace(problem, windows=kept))
     for raw, slope, bend, held, pairs in solved:

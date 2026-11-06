@@ -123,6 +123,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   kept solution follows from how well it predicted the next.
   `CapacitanceModel.at(..., exact=True)` solves anew, and an equilibrium
   solves its result anew.
+- `ElectrostaticParams.periodic_min_cells`: rows of identical cells in a
+  field problem solved in windows, found where outlines repeat their edges,
+  take their interior from one cell solved with the periodic kernel and the
+  derivatives in turn from one window around it; each cell follows its
+  bodies' turn through its lever arm. Off by default.
 
 ### Removed
 

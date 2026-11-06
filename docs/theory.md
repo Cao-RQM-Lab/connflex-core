@@ -1491,6 +1491,11 @@ stops short of two trench widths leaves out part of the field across it.
 
     A first window that already holds more than `max_elements` is an error.
 
+    Where rows of identical cells, below, have taken elements out of the
+    cores, the elements left are scattered, and a core is also halved while
+    its first window would hold more than twice $n_w$, so that no window
+    grows to span the rows between its pieces.
+
     The point a body turns about travels with the body, as a center of mass
     does. A second derivative for travel and rotation taken about a point
     fixed in space differs from this one by the gradient.
@@ -2694,6 +2699,118 @@ doubles per check, so it grows only as fast as evidence supports it.
     Clusters whose pairs are all taken as plates are cheap and evaluated
     exactly; so are plates between device and handle.
 
+## Rows of identical cells
+
+Combs repeat one motif many times, and a field problem solved in windows
+then solves nearly the same window over and over. A row repeated without
+end along a period $p\, \mathbf{e}$, with $\mathbf{e}$ a unit vector, needs
+one cell: summed over all copies, the kernel of (61) becomes
+
+$$
+G_p(w) = -\frac{1}{2\pi} \ln \Bigl| 2 \sin \frac{\pi w}{p} \Bigr|, \qquad
+w = \bar{e}\, (z - z'), \tag{151}
+$$
+
+with $z$ and $z'$ points as complex numbers and $\bar{e}$ the conjugate of
+$\mathbf{e}$ as one, which turns the period onto the real axis. It differs
+from the sum of (61) over the copies by a constant, which a row with no net
+charge per cell does not feel. The neutrality of (63) holds per cell. For
+the element integrals, $G_p$ splits into the nearest copies and a smooth
+remainder,
+
+$$
+\ln \Bigl| 2 \sin \frac{\pi w}{p} \Bigr| = \text{const} + \sum_{|k| \le K} \ln |w - k p| + R_K(w), \qquad
+R_K(w) = \ln \Bigl| \frac{\sin(\pi w / p)}{\pi w / p} \Bigr| - \sum_{k=1}^{K} \ln \Bigl| 1 - \frac{w^2}{k^2 p^2} \Bigr|, \tag{152}
+$$
+
+with $K = 2$. The copies enter through the closed form (67) and its
+derivatives, and $R_K$, analytic for $|\operatorname{Re} w| < (K+1)\,p$, by
+four-point Gauss-Legendre quadrature on each element of a pair, with its
+first and second derivatives from those of $\ln \sin$. Every copy of an
+element moves with it and turns about the copy of its pivot. The matrix of
+(64) for one cell is symmetric but not always definite, and is factored
+with pivoting.
+
+A row is found in the outlines. Where an outline repeats its edges,
+translated by a vector $\mathbf{t}$, over at least $n_p$ motifs, the corners
+of that run belong to a row of period $\mathbf{t}$, with the shortest motif
+kept where runs of several motifs cover the same edges. Runs of two or more
+conductors with one period whose extents along it overlap, and lie within
+$d_i$ of each other across it, form one row: along $\mathbf{t}$ it spans
+where every one of those conductors repeats, less $d_i$ at either end, and
+across it the band of their runs. Cells are slabs of width $|\mathbf{t}|$
+across that band, whose boundaries pass through the widest gap between
+element midpoints modulo $|\mathbf{t}|$, and an element belongs to the cell
+that holds its midpoint. The interior of the row is the longest run of
+cells, at least $n_p$, whose elements are translates of those of the first,
+
+$$
+\mathbf{r}_{e + m} = \mathbf{r}_e + k\, \mathbf{t} \quad \text{for every element } e \text{ of cell } 0 \text{ and its counterpart } e + m \text{ in cell } k, \tag{153}
+$$
+
+to a thousandth of the shortest element. Its elements leave the cores of
+the windows but stay in the mesh, so windows near the row see its field.
+
+The middle cell $m$ of the row is solved with (151) at the bodies where they
+are. It gives the capacitance $\mathbf{c}$ that one cell holds and its
+derivatives $\mathbf{g}$ and $\mathbf{H}$ in the travel $\boldsymbol{\tau}_B$
+and turn $\psi_B$ of each body about the cell center. With a body turned by
+$\psi_B$, cell $k$ sees that body shifted from where the middle cell sees it
+by $\boldsymbol{\delta}_{kB} = \bigl( \mathbf{R}(\psi_B) - \mathbf{I} \bigr)
+(\mathbf{c}_k - \mathbf{c}_m)$, with $\mathbf{c}_k$ the cell centers at
+rest, and holds
+
+$$
+\mathbf{c}_k \approx \mathbf{c} + \mathbf{g}\, \boldsymbol{\delta}_k + \tfrac{1}{2}\, \boldsymbol{\delta}_k^\top \mathbf{H}\, \boldsymbol{\delta}_k, \qquad
+\frac{\partial \mathbf{c}_k}{\partial \boldsymbol{\ell}} \approx \mathbf{g} + \mathbf{H}\, \boldsymbol{\delta}_k. \tag{154}
+$$
+
+The row holds the sum over its cells. A rigid motion of body $B$ about its
+pivot $\mathbf{P}_B$, travel $\mathbf{u}_B$ then turn $\psi_B$, moves the
+center of cell $k$ by $\mathbf{u}_B + (\mathbf{R}(\psi_B) - \mathbf{I})
+(\mathbf{c}'_k - \mathbf{P}_B)$ and turns it by $\psi_B$, with
+$\mathbf{c}'_k$ where that center is now. So with $\mathbf{a}_{kB} =
+\mathbf{c}'_k - \mathbf{P}_B$ and the local parameters
+$\boldsymbol{\ell} = (\boldsymbol{\tau}_B, \psi_B)$ of every body,
+
+$$
+\frac{\partial \boldsymbol{\tau}_{kB}}{\partial \mathbf{u}_B} = \mathbf{I}, \quad
+\frac{\partial \boldsymbol{\tau}_{kB}}{\partial \psi_B} = \hat{\mathbf{z}} \times \mathbf{a}_{kB}, \quad
+\frac{\partial^2 \boldsymbol{\tau}_{kB}}{\partial \psi_B^2} = -\mathbf{a}_{kB}, \qquad
+\nabla^2 \mathbf{c}_k = \mathbf{J}_k^\top \mathbf{H}\, \mathbf{J}_k - \sum_B \frac{\partial \mathbf{c}_k}{\partial \boldsymbol{\tau}_B} \cdot \mathbf{a}_{kB}\; \mathbf{e}_{\psi_B} \mathbf{e}_{\psi_B}^\top, \tag{155}
+$$
+
+with $\mathbf{J}_k$ the Jacobian of the local parameters in the body motions.
+
+One cell cannot carry the derivatives in turn. A body that turns rigidly
+about a cell center also shifts the copies of that cell along the row, each
+by its distance times the turn; no motion of a single periodic cell does
+that. For the derivatives in $\psi_B$, $\mathbf{g}$ and $\mathbf{H}$
+therefore take their entries from a window around the middle cell, of
+$d_i$ or two periods, whichever is larger, which counts charge on that
+cell and turns its bodies rigidly about the cell center. The periodic
+solution keeps the capacitance and the derivatives in travel.
+
+!!! note "Implementation choices"
+    A real row ends, and its cells near either end differ from those of an
+    endless row in a way that fades only as the inverse of the distance to
+    the end. On a comb of 40 cells against one dense solution of the whole,
+    rows put capacitance 0.26 percent high and on one of 80 cells 0.13
+    percent high, while the pull along the fingers, the side spring, and
+    the spring in turn agree to 0.05 percent or better; windows with an
+    overlap of 30 micrometers do no better on capacitance and are some ten
+    times further off in pull.
+
+    Rows are left to windows by default, `periodic_min_cells` unset, since
+    their error depends on how long a row is. Their gain is greatest where
+    windows solve hundreds of near copies of one window.
+
+    The cell mesh is the mesh of the outlines itself: an outline meshes
+    each edge from its length and the angles at its ends, so congruent
+    edges carry congruent elements. A row whose cells are not translates of
+    each other, for instance one along a long straight edge that its
+    elements do not divide evenly, is left to the windows.
+
 ## Symbols and parameters
 
 Every symbol below is a documented input. Full definitions, units, defaults,
@@ -2721,6 +2838,7 @@ and validation rules are on the [parameters page](parameters.md).
 | $n_w$ | most elements in the core of a window | `ElectrostaticParams.window_elements` |
 | $\tau$ | change of the charge on a core below which the overlap of its window stops growing | `ElectrostaticParams.window_tolerance` |
 | $\tau_c$ | error of the second-order expansion of a field solution within which displaced clusters reuse it | `ElectrostaticParams.surrogate_tolerance` |
+| $n_p$ | fewest identical cells of a row solved by the periodic kernel | `ElectrostaticParams.periodic_min_cells` |
 | $\tau_s$ | relative size of the last Newton step at which static equilibrium is accepted | `StaticOptions.tolerance` |
 | $Q$ | quality factor of every mode about an equilibrium | `SmallSignalOptions.quality_factor` |
 | $\tau_l$ | voltage or gap ratio of a drive above which the small-signal model warns | `SmallSignalOptions.linear_tolerance` |

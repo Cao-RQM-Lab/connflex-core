@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import scipy.linalg
@@ -41,8 +40,10 @@ class Charges:
         length: Lengths of the elements.
         scale: Unit of length, in meters.
         origin: Point in meters that ``start`` and ``end`` are measured from.
-        factor: Cholesky factor of the matrix of equation (64).
+        inverse: Solution of the matrix of equation (64) for given potentials.
         uniform: Solution of that matrix for one volt on every element.
+        period: Period of the mesh in units of ``scale`` as a complex number, None
+            when the mesh is not repeated.
     """
 
     capacitance: Array
@@ -54,18 +55,25 @@ class Charges:
     length: Array
     scale: float
     origin: Array
-    factor: tuple[Any, bool]
+    inverse: Callable[[Array], Array]
     uniform: Array
+    period: complex | None = None
 
 
 def solve_charges(
-    mesh: Mesh, conductors: int, enter: Enter, core: NDArray[np.bool_] | None = None
+    mesh: Mesh,
+    conductors: int,
+    enter: Enter,
+    core: NDArray[np.bool_] | None = None,
+    period: Array | None = None,
 ) -> Charges:
     """Solve the field of a mesh for one volt on each of its conductors in turn.
 
     ``core`` marks the elements whose charge counts toward ``capacitance``; by default
-    all do. ``enter`` opens the stages assemble and solve: ``stage`` bound to a progress
-    receiver, or ``quiet`` when the solution is one step of a larger stage.
+    all do. With ``period``, a vector in meters, the mesh is one cell of a row repeated
+    without end along it, equation (151). ``enter`` opens the stages assemble and solve:
+    ``stage`` bound to a progress receiver, or ``quiet`` when the solution is one step of
+    a larger stage.
     """
     count = len(mesh.conductor)
     corners = np.concatenate([mesh.start, mesh.end])
@@ -74,26 +82,47 @@ def solve_charges(
     scale = 2 * float(np.hypot(*(high - low)))
     start, end = ((points - origin) / scale @ (1, 1j) for points in (mesh.start, mesh.end))
     length = np.abs(end - start)
+    step = None if period is None else complex(*(np.asarray(period) / scale))
 
     potential = np.empty((count, count))
     rows = max(1, PAIRS_PER_PASS // count)
     with enter("assemble", total=count) as current:
         for first in range(0, count, rows):
             block = slice(first, first + rows)
-            integral = pair_integrals(start[block, None], end[block, None], start, end)
+            if step is None:
+                integral = pair_integrals(start[block, None], end[block, None], start, end)
+            else:
+                from connflex_core.electrostatics.periodic import periodic_integrals
+
+                integral = periodic_integrals(
+                    start[block, None], end[block, None], start, end, step
+                )
             potential[block] = -integral / (2 * np.pi * length[block, None] * length)
             current.advance(len(length[block]))
 
     with enter("solve"):
         try:
-            factor = scipy.linalg.cho_factor(potential, lower=True, overwrite_a=True)
+            if step is None:
+                cholesky = scipy.linalg.cho_factor(potential, lower=True, overwrite_a=True)
+
+                def inverse(right: Array) -> Array:
+                    solved: Array = scipy.linalg.cho_solve(cholesky, right)
+                    return solved
+
+            else:
+                pivoted = scipy.linalg.lu_factor(potential, overwrite_a=True)
+
+                def inverse(right: Array) -> Array:
+                    solved: Array = scipy.linalg.lu_solve(pivoted, right)
+                    return solved
+
         except scipy.linalg.LinAlgError as exc:
             raise ValueError("outlines cross or elements coincide") from exc
         on = (mesh.conductor[:, None] == np.arange(conductors)).astype(float)
-        uniform: Array = scipy.linalg.cho_solve(factor, np.ones(count))
+        uniform: Array = inverse(np.ones(count))
 
         def neutral(potentials: Array) -> Array:
-            driven: Array = scipy.linalg.cho_solve(factor, potentials)
+            driven: Array = inverse(potentials)
             shift: Array = np.outer(uniform, uniform @ potentials) / float(uniform.sum())
             return driven - shift
 
@@ -110,8 +139,9 @@ def solve_charges(
         length=length,
         scale=scale,
         origin=origin,
-        factor=factor,
+        inverse=inverse,
         uniform=uniform,
+        period=step,
     )
 
 
@@ -146,14 +176,15 @@ def charge_derivatives(
             rows = max(1, DERIVATIVE_PAIRS_PER_PASS // max(theirs.size, 1))
             for first in range(0, mine.size if theirs.size else 0, rows):
                 part = mine[first : first + rows]
-                slopes, bends = pair_derivatives(
-                    start[part, None],
-                    end[part, None],
-                    start[theirs],
-                    end[theirs],
-                    pivot[k],
-                    pivot[other],
-                )
+                ends = (start[part, None], end[part, None], start[theirs], end[theirs])
+                if charges.period is None:
+                    slopes, bends = pair_derivatives(*ends, pivot[k], pivot[other])
+                else:
+                    from connflex_core.electrostatics.periodic import periodic_derivatives
+
+                    slopes, bends = periodic_derivatives(
+                        *ends, pivot[k], pivot[other], charges.period
+                    )
                 for p, slope in enumerate(slopes):
                     onto, back = slope @ right[theirs], slope.T @ right[part]
                     gradient[:, :, freedom[p]] += left[part].T @ onto
@@ -181,7 +212,7 @@ def charge_derivatives(
 
     with enter("curvature"):
         flat = swing.reshape(count, -1) / (-2 * np.pi)
-        settled = scipy.linalg.cho_solve(charges.factor, flat)
+        settled = charges.inverse(flat)
         settled -= np.outer(charges.uniform, charges.uniform @ flat) / charges.uniform.sum()
         across = flat if whole else counter.reshape(count, -1) / (-2 * np.pi)
         through = (across.T @ settled).reshape(*shape[1:], *shape[1:]).transpose(0, 2, 1, 3)

@@ -320,6 +320,17 @@ within `window_tolerance` or the overlap reaches `interaction_distance`.
 Measured accuracy is in [accuracy and defaults](theory.md#accuracy-and-defaults)
 and what plates miss in [what plates leave out](theory.md#what-plates-leave-out).
 
+Combs repeat one cell many times, and windows then solve near copies of one
+window again and again. With `periodic_min_cells` set, a row of at least
+that many identical cells takes its interior from one cell solved as part
+of an endless row, and the derivatives in turn from one window around it;
+windows keep the ends of the row and everything irregular. Rows are found
+in the outlines, and a row whose cells do not match is left to the windows.
+Forces and springs come out closer to one solution of the whole than
+windows give, and capacitance carries the end effects that an endless row
+leaves out, a few tenths of a percent on rows of tens of cells. Formulas
+are in [rows of identical cells](theory.md#rows-of-identical-cells).
+
 Each cluster reports `interactions`, the feature size and method of every
 pair of its nets, `windows` and `asymmetry`, which is rounding for one
 dense system and a measure of the error for windows, and `walls`, the
