@@ -9,13 +9,17 @@ from numpy.typing import NDArray
 from shapely import box
 
 from connflex_core import (
+    Capacitor,
+    CurrentSource,
     ElectrostaticParams,
     Layout,
     Material,
     PiecewiseLinear,
+    Resistor,
     SmallSignalOptions,
     Source,
     Structure,
+    Switch,
     TransientOptions,
     extract,
 )
@@ -83,6 +87,100 @@ def test_source_charges_plate_through_its_resistance(plate: Structure) -> None:
         0.5 * full * (1 - np.exp(-2 * times / tau)), abs=1e-5 * full
     )
     assert np.max(abs(energy.imbalance)) < 1e-6 * full
+
+
+def test_current_source_charges_plate_and_capacitor_through_resistor_to_ground(
+    plate: Structure,
+) -> None:
+    """A microampere into the plate net, which a megohm and a lumped capacitor tie to
+    ground, rises to I R with the time constant of R and both capacitances."""
+    model = plate.capacitance(HANDLE_ALONE)
+    over = net_at(plate, 50, 50)
+    node = model.net_matrix[over, over]
+    pad = plate.electrode_at((-300 * UM, 0.0), "device")
+    resistance, current, lumped = 1e6, 1e-6, 2 * node
+    tau = resistance * (node + lumped)
+    ramp = PiecewiseLinear([0.0, 1e-6 * tau], [0.0, current])
+    times = np.linspace(0.0, 5 * tau, 51)
+    run = plate.transient(
+        model,
+        [CurrentSource(pad, ramp)],
+        times,
+        TransientOptions(quality_factor=10.0),
+        circuit=[Resistor(pad, None, resistance), Capacitor(pad, None, lumped)],
+    )
+    final = current * resistance
+    rising = final * (1 - np.exp(-times / tau))
+    assert run.potentials[:, pad.index] == pytest.approx(rising, abs=1e-5 * final)
+    assert run.current[1:, 0] == pytest.approx(current)
+    stored = 0.5 * (node + lumped) * rising**2
+    assert run.energy.electrostatic == pytest.approx(stored, rel=1e-4, abs=1e-6 * stored[-1])
+    assert np.max(abs(run.energy.imbalance)) < 1e-6 * stored[-1]
+
+
+def test_switches_leave_plate_floating_then_drain_it(plate: Structure) -> None:
+    """A source charges the plate net through a resistor until its switch opens; the net
+    keeps its charge until a switch to ground through twice that resistance closes."""
+    model = plate.capacitance(HANDLE_ALONE)
+    over = net_at(plate, 50, 50)
+    node = model.net_matrix[over, over]
+    pad = plate.electrode_at((-300 * UM, 0.0), "device")
+    resistance, volts = 1e6, 1.0
+    tau = resistance * node
+    opened, closed = 3 * tau, 5 * tau
+    charging = Source(
+        pad,
+        PiecewiseLinear([0.0, 1e-6 * tau], [0.0, volts]),
+        resistance=resistance,
+        switch=Switch([opened]),
+    )
+    drain = Resistor(pad, None, 2 * resistance, switch=Switch([closed], closed=False))
+    times = np.linspace(0.0, 10 * tau, 101)
+    run = plate.transient(
+        model, [charging], times, TransientOptions(quality_factor=10.0), circuit=[drain]
+    )
+    held = volts * (1 - np.exp(-opened / tau))
+    expected = np.where(
+        times <= opened,
+        volts * (1 - np.exp(-times / tau)),
+        np.where(times <= closed, held, held * np.exp(-(times - closed) / (2 * tau))),
+    )
+    assert run.potentials[:, pad.index] == pytest.approx(expected, abs=1e-5 * volts)
+    assert run.current[times > opened, 0] == pytest.approx(0.0, abs=1e-12)
+    drained = 1 - np.exp(-(times[-1] - closed) / tau)
+    assert run.energy.resistive[-1] == pytest.approx(
+        0.5 * node * (volts**2 * (1 - np.exp(-2 * opened / tau)) + held**2 * drained), rel=1e-4
+    )
+    assert np.max(abs(run.energy.imbalance)) < 1e-6 * node * volts**2
+
+
+def test_capacitor_divides_drive_onto_electrode_that_no_source_holds(plate: Structure) -> None:
+    """A lumped capacitor from the driven plate net to the handle, which nothing else
+    holds: the handle starts without charge and follows the drive by the ratio of the
+    capacitances it sees."""
+    model = plate.capacitance(HANDLE_ALONE)
+    pad = plate.electrode_at((-300 * UM, 0.0), "device")
+    handle = plate.electrode_at((50 * UM, 50 * UM), "handle")
+    nets = model.net_matrix
+    over, under = pad.net, handle.net
+    lumped, volts = 3 * nets[under, under], 1.0
+    ramp = PiecewiseLinear([0.0, 1e-6], [0.0, volts])
+    times = np.linspace(0.0, 2e-6, 9)
+    run = plate.transient(
+        model,
+        [Source(pad, ramp)],
+        times,
+        TransientOptions(quality_factor=10.0),
+        circuit=[Capacitor(pad, handle, lumped)],
+    )
+    share = (lumped - nets[over, under]) / (lumped + nets[under, under])
+    drive = np.array([ramp(time) for time in times])
+    assert run.potentials[:, handle.index] == pytest.approx(share * drive, rel=1e-5, abs=1e-9)
+    on_handle = model.net == under
+    assert run.charge[:, on_handle].sum(axis=1) == pytest.approx(
+        lumped * (drive - share * drive), rel=1e-5, abs=1e-9 * lumped
+    )
+    assert np.max(abs(run.energy.imbalance)) < 1e-6 * lumped * volts**2
 
 
 def test_step_rings_down_to_static_equilibrium(plate: Structure) -> None:
@@ -323,3 +421,26 @@ def test_waveforms_and_inputs_are_checked(plate: Structure, resistive: Structure
         plate.transient(model, [Source(pad, 1.0)], [1e-6, 0.0], options)
     with pytest.raises(ValueError, match="another structure"):
         resistive.transient(model, [], [0.0, 1e-6], options)
+
+    with pytest.raises(ValueError, match="ascending"):
+        Switch([2.0, 1.0])
+    with pytest.raises(ValueError, match="resistance"):
+        Source(pad, 1.0, switch=Switch([1e-6]))
+    with pytest.raises(ValueError, match="resistance"):
+        Resistor(pad, None, 0.0)
+    with pytest.raises(ValueError, match="capacitance"):
+        Capacitor(pad, None, -1.0)
+    handle = plate.electrode_at((50 * UM, 50 * UM), "handle")
+    with pytest.raises(TypeError, match="Resistor or Capacitor"):
+        plate.transient(model, [], [0.0, 1e-6], options, circuit=[Source(pad, 1.0)])  # type: ignore[list-item]
+    with pytest.raises(ValueError, match="one node"):
+        plate.transient(model, [], [0.0, 1e-6], options, circuit=[Resistor(pad, middle, 1e3)])
+    with pytest.raises(ValueError, match="floating"):
+        plate.transient(
+            model,
+            [Source(pad, 1.0)],
+            [0.0, 1e-6],
+            options,
+            circuit=[Capacitor(handle, None, 1e-12)],
+            charges={handle.net: 0.0},
+        )

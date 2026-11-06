@@ -7,15 +7,19 @@ from pathlib import Path
 import pytest
 
 from connflex_core import (
+    Capacitor,
+    CurrentSource,
     ElectrostaticParams,
     ExtractionParams,
     Layer,
     Material,
     PiecewiseLinear,
+    Resistor,
     SmallSignalOptions,
     SolveOptions,
     Source,
     StaticOptions,
+    Switch,
     TransientOptions,
     Wire,
 )
@@ -58,7 +62,15 @@ def test_small_signal_options_match_the_page() -> None:
 
 
 def test_transient_inputs_match_the_page() -> None:
-    for cls in (TransientOptions, Source, PiecewiseLinear):
+    for cls in (
+        TransientOptions,
+        Source,
+        CurrentSource,
+        Resistor,
+        Capacitor,
+        Switch,
+        PiecewiseLinear,
+    ):
         assert documented_rows(f"`{cls.__name__}`")[""] == field_names(cls)
 
 
@@ -74,7 +86,20 @@ def test_stack_and_material_match_the_page() -> None:
 
 @pytest.mark.parametrize(
     "cls",
-    [ExtractionParams, SolveOptions, ElectrostaticParams, StaticOptions, Wire, Layer, Material],
+    [
+        ExtractionParams,
+        SolveOptions,
+        ElectrostaticParams,
+        StaticOptions,
+        Wire,
+        Layer,
+        Material,
+        Source,
+        CurrentSource,
+        Resistor,
+        Capacitor,
+        Switch,
+    ],
 )
 def test_every_field_is_described_in_the_class_docstring(cls: type) -> None:
     doc = cls.__doc__ or ""

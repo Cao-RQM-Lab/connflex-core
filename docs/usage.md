@@ -767,8 +767,9 @@ under sources, with the same nets and nodes as the small-signal model. A
 electrode at its waveform; with `resistance` it feeds it through a resistor,
 which is how a driver's output resistance enters. Electrodes of a driven
 net behind beams or wires with resistance are reached through them.
-`charges` names nets that float with a fixed charge, and every other net is
-held at zero volts on every electrode. `loads` adds constant forces.
+`charges` names nets that float with a fixed charge, and every net that no
+source, element of the circuit, or charge reaches is held at zero volts on
+every electrode. `loads` adds constant forces.
 
 A waveform is a number, a `PiecewiseLinear` through points, or any
 continuous callable of time, such as `lambda t: 40.0 + np.sin(2 * np.pi * 1e5 * t)`.
@@ -803,6 +804,29 @@ phases = [phase_a, phase_b, phase_c]  # one electrode of each phase
 sources = [cf.Source(pad, turn(k * dwell)) for k, pad in enumerate(phases)]
 run = structure.transient(model, sources, np.linspace(0.0, 3 * dwell, 3001), options)
 ```
+
+### Circuit around the structure
+
+Electronics off the die enter as a few elements. A `CurrentSource` drives a
+current into an electrode from ground. `circuit` holds a `Resistor` or a
+`Capacitor` between two electrodes, or between one and ground with `None` as
+the other end. A `Switch` on a `Source` with resistance, or on a `Resistor`,
+connects and disconnects that branch at its times:
+
+```python
+hold = cf.Switch([20e-6])  # open at 20 us: the electrode keeps its charge
+drain = cf.Switch([30e-6], closed=False)  # close at 30 us
+sources = [cf.Source(drive, pulse, resistance=1e3, switch=hold), cf.CurrentSource(bias, 1e-9)]
+circuit = [
+    cf.Resistor(drive, None, 1e6, switch=drain),  # bleed to ground
+    cf.Capacitor(drive, sense, 2e-12),  # coupling capacitor between two pads
+]
+run = structure.transient(model, sources, times, options, circuit=circuit)
+```
+
+A net that a current source or an element of the circuit reaches joins the
+network as a source's net does. One that no resistance ties to a source or
+ground, such as a pad behind a capacitor alone, starts without charge.
 
 The energy ledger adds up exactly in the equations: stored energy gained,
 plus what damping and resistance took, equals what sources and loads

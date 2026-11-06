@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from connflex_core.coupled.small_signal import SmallSignal
     from connflex_core.coupled.static import Equilibrium
     from connflex_core.coupled.transient import Transient
-    from connflex_core.electrical.drivers import Source
+    from connflex_core.electrical.drivers import Capacitor, CurrentSource, Resistor, Source
     from connflex_core.electrostatics.capacitance import CapacitanceModel
     from connflex_core.electrostatics.plates import Plate
     from connflex_core.mechanics.modal import ModalResult
@@ -235,17 +235,19 @@ class Structure:
     def transient(
         self,
         model: CapacitanceModel,
-        sources: Sequence[Source],
+        sources: Sequence[Source | CurrentSource],
         times: ArrayLike,
         options: TransientOptions,
         *,
+        circuit: Sequence[Resistor | Capacitor] = (),
         charges: Mapping[int, float] | None = None,
         loads: Mapping[int, Sequence[float]] | None = None,
         start: Equilibrium | ArrayLike | None = None,
         progress: Progress | None = None,
     ) -> Transient:
-        """Motion, potentials, and charges over ``times`` under ``sources``, with the
-        capacitance model of this structure."""
+        """Motion, potentials, and charges over ``times`` under ``sources`` and with the
+        resistors and capacitors of ``circuit``, with the capacitance model of this
+        structure."""
         from connflex_core.coupled.transient import transient
 
         return transient(
@@ -254,6 +256,7 @@ class Structure:
             sources,
             times,
             options,
+            circuit=circuit,
             charges=charges,
             loads=loads,
             start=start,

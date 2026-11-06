@@ -116,6 +116,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   damps every mode. A run ends at its last time or when a gap closes to
   `contact_clearance`, reported in `contact`. `Energy` is the ledger of
   stored, damped, resistive, and supplied energy at each output time.
+- `CurrentSource`, `Resistor`, `Capacitor`, `Switch`, and
+  `Structure.transient(..., circuit=)`: current sources into electrodes,
+  resistors and capacitors between electrodes or to ground, and switches that
+  connect and disconnect a source with resistance or a resistor at given
+  times. Nets they reach join the network, and a node that no resistance ties
+  to a source or ground starts without charge. The energy ledger counts the
+  circuit's capacitors, resistors, and current sources.
 - `ElectrostaticParams.surrogate_tolerance` and `Cluster.anchors`: clusters
   solved by the field method reuse their nearest earlier solution at
   displaced bodies, expanded to second order in the motion of their bodies,

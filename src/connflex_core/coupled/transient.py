@@ -15,7 +15,7 @@ import scipy.optimize
 from numpy.typing import ArrayLike, NDArray
 
 from connflex_core.coupled.static import Equilibrium
-from connflex_core.electrical.drivers import Source
+from connflex_core.electrical.drivers import Capacitor, CurrentSource, Resistor, Source, Switch
 from connflex_core.electrical.network import electrode_indices, network_nodes
 from connflex_core.mechanics.assembly import Dof, assemble
 from connflex_core.params import TransientOptions
@@ -42,9 +42,11 @@ class Energy:
     Attributes:
         kinetic: Kinetic energy of the bodies.
         strain: Strain energy in the beams.
-        electrostatic: Energy in the field between electrodes.
+        electrostatic: Energy in the field between electrodes and in capacitors of the
+            circuit.
         damped: Energy that damping has taken since the start.
-        resistive: Energy that resistance of links and sources has taken since the start.
+        resistive: Energy that resistance of links, sources, and resistors of the circuit
+            has taken since the start.
         supplied: Energy that sources and loads have put in since the start.
     """
 
@@ -76,7 +78,7 @@ class Transient:
         potentials: Potential of every electrode at each time.
         charge: Charge on every electrode at each time.
         current: Current that each source drives into its electrode at each time, in
-            the order of the sources.
+            the order of the sources: for a current source, its waveform.
         clearance: Clearance of equation (126) at each time.
         energy: Energy ledger at each time.
         contact: Electrodes across the gap whose closing to ``contact_clearance`` ended
@@ -125,13 +127,18 @@ class _Run:
 
     model: CapacitanceModel
     sources: Sequence[Source]
+    currents: Sequence[CurrentSource]
+    inject: Array
+    order: list[tuple[bool, int]]
     tie: Array
     ideal: NDArray[np.intp]
     dynamic: NDArray[np.intp]
     unknown: NDArray[np.intp]
     floating: Array
-    conductance: Array
-    feed: Array
+    links: Array
+    resistors: list[tuple[Array, Switch | None]]
+    feeds: Array
+    lumped: Array
     kept: NDArray[np.bool_]
     mass: Array
     spring: Array
@@ -147,7 +154,33 @@ class _Run:
         self.dofs = len(self.kept)
         self.held = np.array([source.resistance == 0 for source in self.sources], dtype=bool)
         self.slowed = scipy.linalg.cho_solve(self.factor, self.damping)
+        self.switch_to(-np.inf)
+
+    def switch_to(self, time: float) -> None:
+        """Set the conductance of the network with switches as they are at ``time``."""
+        self.conductance = self.links + sum(
+            (stamp for stamp, switch in self.resistors if switch is None or switch.closed_at(time)),
+            np.zeros_like(self.links),
+        )
+        self.feed = self.feeds.copy()
+        for k, source in enumerate(self.sources):
+            if source.switch is not None and not source.switch.closed_at(time):
+                self.feed[k] = 0.0
         self.total = self.conductance + np.diag(self.feed)
+
+    def joined(self, here: CapacitanceModel) -> Array:
+        """Capacitance between nodes: of the structure and of the circuit, equation (142)."""
+        joined: Array = self.tie.T @ here.matrix @ self.tie + self.lumped
+        return joined
+
+    def pushed(self, time: float) -> Array:
+        """Current of each current source at ``time``."""
+        return np.array([_value(source.waveform, time) for source in self.currents], dtype=float)
+
+    def injected(self, pushed: Array) -> Array:
+        """Current that current sources of ``pushed`` drive into each node."""
+        injected: Array = self.inject @ pushed if len(pushed) else np.zeros(len(self.links))
+        return injected
 
     def at(self, place: Array) -> CapacitanceModel:
         key = place.tobytes()
@@ -174,7 +207,7 @@ class _Run:
         n, d = self.count, len(self.dynamic)
         place, speed, held = y[:n], y[n : 2 * n], y[2 * n : 2 * n + d]
         here = self.at(place)
-        joined = self.tie.T @ here.matrix @ self.tie
+        joined = self.joined(here)
         emf = self.emf(time)
         nodes = np.zeros(len(joined))
         nodes[self.ideal] = emf[self.held]
@@ -194,7 +227,9 @@ class _Run:
         driven = len(self.conductance)
         source_emf = np.zeros(driven)
         source_emf[: len(self.sources)] = emf
-        flowing = -self.total @ nodes[:driven] + self.feed * source_emf
+        forced = self.pushed(time)
+        injected = self.injected(forced)
+        flowing = -self.total @ nodes[:driven] + self.feed * source_emf + injected
         charging = flowing[self.dynamic]
 
         velocity = np.zeros(self.dofs)
@@ -208,21 +243,29 @@ class _Run:
             pushed -= drift[unknown] + joined[np.ix_(unknown, ideal)] @ rising[ideal]
             rising[unknown] = scipy.linalg.cho_solve(factor, pushed)
         held_current = (
-            drift[ideal] + joined[ideal] @ rising + (self.conductance @ nodes[:driven])[ideal]
+            drift[ideal]
+            + joined[ideal] @ rising
+            + (self.conductance @ nodes[:driven])[ideal]
+            - injected[ideal]
         )
-        current = np.zeros(len(self.sources))
-        current[self.held] = held_current
+        driving = np.zeros(len(self.sources))
+        driving[self.held] = held_current
         resistive = ~self.held
-        current[resistive] = (self.feed * (source_emf - nodes[:driven]))[: len(self.sources)][
+        driving[resistive] = (self.feed * (source_emf - nodes[:driven]))[: len(self.sources)][
             resistive
         ]
+        current = np.array(
+            [driving[k] if voltage else forced[k] for voltage, k in self.order], dtype=float
+        )
 
         damped = float(speed @ self.damping @ speed)
         across = nodes[:driven]
         lost = float(across @ self.conductance @ across) + float(
             self.feed @ (source_emf - across) ** 2
         )
-        supplied = float(emf @ current) + float(self.applied @ speed)
+        supplied = (
+            float(emf @ driving) + float(injected @ nodes[:driven]) + float(self.applied @ speed)
+        )
         rates = np.concatenate([speed, acceleration, charging, [damped, lost, supplied]])
         return _State(here, nodes, electrodes, factor, joined, rates, current)
 
@@ -259,10 +302,11 @@ class _Run:
 def transient(
     structure: Structure,
     model: CapacitanceModel,
-    sources: Sequence[Source],
+    sources: Sequence[Source | CurrentSource],
     times: ArrayLike,
     options: TransientOptions,
     *,
+    circuit: Sequence[Resistor | Capacitor] = (),
     charges: Mapping[int, float] | None = None,
     loads: Mapping[int, Sequence[float]] | None = None,
     start: Equilibrium | ArrayLike | None = None,
@@ -270,15 +314,18 @@ def transient(
 ) -> Transient:
     """Motion, potentials, and charges of ``structure`` over ``times`` under ``sources``.
 
-    ``model`` is the capacitance model of ``structure`` at rest. Each source drives one
-    electrode; electrodes of its net that links with resistance set apart from it are
-    reached through them. ``charges`` maps a floating net to the charge it keeps. A net
-    with neither is held at zero volts on every electrode. ``loads`` are constant forces
-    on bodies, as for ``static``. The run starts at ``times[0]`` from rest or from the
-    displacement of ``start``, at zero velocity, with the potentials that the sources
-    hold without current at that time, and ends at ``times[-1]`` or at contact. Stages
-    assemble and transient log through the ``connflex_core`` logger and report to
-    ``progress``, which advances once per output time.
+    ``model`` is the capacitance model of ``structure`` at rest. Each voltage or current
+    source drives one electrode; electrodes of its net that links with resistance set
+    apart from it are reached through them. ``circuit`` holds resistors and capacitors
+    between electrodes or to ground. ``charges`` maps a floating net to the charge it
+    keeps. A net that no source, element of the circuit, or charge reaches is held at
+    zero volts on every electrode. ``loads`` are constant forces on bodies, as for
+    ``static``. The run starts at ``times[0]`` from rest or from the displacement of
+    ``start``, at zero velocity, with the potentials that the sources hold without
+    current at that time, equation (147), and ends at ``times[-1]`` or at contact.
+    Integration restarts where a waveform or switch changes. Stages assemble and
+    transient log through the ``connflex_core`` logger and report to ``progress``,
+    which advances once per output time.
     """
     if model.rest.structure is not structure:
         raise ValueError("capacitance model was built from another structure")
@@ -293,11 +340,39 @@ def transient(
             raise ValueError(f"net {net} does not exist")
     listed: Sequence[object] = sources
     for source in listed:
-        if not isinstance(source, Source):
-            raise TypeError(f"a source is a Source, not {type(source).__name__} {source!r}")
+        if not isinstance(source, Source | CurrentSource):
+            raise TypeError(
+                f"a source is a Source or a CurrentSource, not {type(source).__name__} {source!r}"
+            )
+    parts: Sequence[object] = circuit
+    for part in parts:
+        if not isinstance(part, Resistor | Capacitor):
+            raise TypeError(
+                f"an element of the circuit is a Resistor or Capacitor, not "
+                f"{type(part).__name__} {part!r}"
+            )
+    voltage = [source for source in sources if isinstance(source, Source)]
+    currents = [source for source in sources if isinstance(source, CurrentSource)]
+    order, counts = [], [0, 0]
+    for source in sources:
+        kind = isinstance(source, Source)
+        order.append((kind, counts[kind]))
+        counts[kind] += 1
     places = electrode_indices(
-        structure, [source.electrode for source in sources], stored, "source"
+        structure, [source.electrode for source in voltage], stored, "source"
     )
+    feeding = electrode_indices(
+        structure, [source.electrode for source in currents], stored, "current source"
+    )
+    ends = [
+        electrode_indices(
+            structure,
+            [part.electrode] if part.other is None else [part.electrode, part.other],
+            stored,
+            "end of a circuit element",
+        )
+        for part in circuit
+    ]
     with stage("assemble", progress) as current:
         system = assemble(structure)
         current.count(dofs=len(system.dofs), beams=len(structure.beams))
@@ -315,16 +390,33 @@ def transient(
         applied[rows[body] : rows[body] + 6] = load
     origin = _origin(model, start, kept)
 
-    nodes, hidden, conductance = network_nodes(structure, stored, places, "source")
+    reached = [*feeding, *(end for pair in ends for end in pair)]
+    nodes, hidden, conductance = network_nodes(structure, stored, places, "source", reached)
     tie = np.zeros((len(structure.electrodes), len(nodes) + len(hidden)))
     for column, node in enumerate([*nodes, *hidden]):
         tie[list(node), column] = 1.0
-    held = np.array([source.resistance == 0 for source in sources], dtype=bool)
+    index = {electrode: k for k, node in enumerate(nodes) for electrode in node}
+    resistors, lumped = [], np.zeros((len(tie[0]), len(tie[0])))
+    for part, pair in zip(circuit, ends, strict=True):
+        at = [index[end] for end in pair]
+        if len(at) == 2 and at[0] == at[1]:
+            raise ValueError(
+                f"both ends of a circuit element, electrodes {pair[0]} and {pair[1]}, are one "
+                f"node: links without resistance join them"
+            )
+        if isinstance(part, Resistor):
+            resistors.append((_stamp(len(nodes), at, 1 / part.resistance), part.switch))
+        else:
+            lumped += _stamp(len(lumped), at, part.capacitance)
+    inject = np.zeros((len(nodes), len(currents)))
+    for k, electrode in enumerate(feeding):
+        inject[index[electrode], k] = 1.0
+    held = np.array([source.resistance == 0 for source in voltage], dtype=bool)
     ideal = np.flatnonzero(held).astype(np.intp)
     dynamic = np.setdiff1d(np.arange(len(nodes)), ideal).astype(np.intp)
     unknown = np.concatenate([dynamic, np.arange(len(nodes), len(nodes) + len(hidden))])
     feed = np.zeros(len(nodes))
-    for k, source in enumerate(sources):
+    for k, source in enumerate(voltage):
         if source.resistance:
             feed[k] = 1 / source.resistance
     floating = np.array(
@@ -339,14 +431,19 @@ def transient(
     damping = weighted @ np.diag(natural / options.quality_factor) @ weighted.T
     run = _Run(
         model=model,
-        sources=sources,
+        sources=voltage,
+        currents=currents,
+        inject=inject,
+        order=order,
         tie=tie,
         ideal=ideal,
         dynamic=dynamic,
         unknown=unknown.astype(np.intp),
         floating=floating,
-        conductance=conductance,
-        feed=feed,
+        links=conductance,
+        resistors=resistors,
+        feeds=feed,
+        lumped=lumped,
         kept=kept,
         mass=mass,
         spring=spring,
@@ -359,13 +456,13 @@ def transient(
         [start_place, np.zeros(run.count), _rest_charge(run, start_place, stamps[0]), np.zeros(3)]
     )
     scale = _scales(structure, run, system.dofs, natural, stamps, options.tolerance)
+    switches = [part.switch for part in [*voltage, *circuit] if isinstance(part, Source | Resistor)]
+    changes = [
+        *(getattr(source.waveform, "breakpoints", ()) for source in sources),
+        *(switch.breakpoints for switch in switches if switch is not None),
+    ]
     breaks = sorted(
-        {
-            float(point)
-            for source in sources
-            for point in getattr(source.waveform, "breakpoints", ())
-            if stamps[0] < point < stamps[-1]
-        }
+        {float(point) for points in changes for point in points if stamps[0] < point < stamps[-1]}
     )
     frames: list[tuple[float, Array]] = []
     contact: tuple[int, int] | None = None
@@ -377,6 +474,7 @@ def transient(
         edges = [float(stamps[0]), *breaks, float(stamps[-1])]
         for left, right in pairwise(edges):
             time = left
+            run.switch_to(left)
             limit = options.max_step or np.inf
             solver = _solver(run, time, y, right, options.tolerance, scale, limit)
             tries = 0
@@ -458,26 +556,51 @@ def _contact_time(
 
 def _rest_charge(run: _Run, place: Array, time: float) -> Array:
     """Charge on each node behind resistance with the sources held without current,
-    equation (147)."""
+    equation (147).
+
+    Nodes that resistance ties to a source or ground take the potentials that carry no
+    current. Nodes that resistance joins to neither share one potential per group and
+    hold no charge together, and floating nets keep their charge.
+    """
+    run.switch_to(time)
     here = run.at(place)
-    joined = run.tie.T @ here.matrix @ run.tie
+    joined = run.joined(here)
     nodes = np.zeros(len(joined))
     emf = run.emf(time)
     nodes[run.ideal] = emf[run.held]
-    driven = len(run.conductance)
-    dynamic = run.dynamic
-    if dynamic.size:
-        source_emf = np.zeros(driven)
-        source_emf[: len(run.sources)] = emf
-        right = run.feed[dynamic] * source_emf[dynamic] - run.total[np.ix_(dynamic, run.ideal)] @ (
-            nodes[run.ideal]
+    driven, dynamic = len(run.conductance), run.dynamic
+    source_emf = np.zeros(driven)
+    source_emf[: len(run.sources)] = emf
+    within = run.total[np.ix_(dynamic, dynamic)]
+    leaks = within.sum(axis=1) > 1e-9 * float(np.max(np.abs(np.diag(run.total)), initial=0.0))
+    graph: nx.Graph[int] = nx.Graph()
+    graph.add_nodes_from(range(len(dynamic)))
+    graph.add_edges_from((int(i), int(j)) for i, j in np.argwhere(np.triu(within != 0, 1)))
+    groups = [sorted(group) for group in nx.connected_components(graph)]
+    tied = np.array(sorted(k for g in groups if leaks[g].any() for k in g), dtype=np.intp)
+    if tied.size:
+        tied_nodes = dynamic[tied]
+        right = (
+            run.feed[tied_nodes] * source_emf[tied_nodes]
+            + run.injected(run.pushed(time))[tied_nodes]
+            - run.total[np.ix_(tied_nodes, run.ideal)] @ nodes[run.ideal]
         )
-        nodes[dynamic] = scipy.linalg.solve(run.total[np.ix_(dynamic, dynamic)], right)
+        nodes[tied_nodes] = scipy.linalg.solve(run.total[np.ix_(tied_nodes, tied_nodes)], right)
+    loose = [dynamic[g] for g in groups if not leaks[g].any()]
     hidden = np.arange(driven, len(joined))
-    if hidden.size:
-        nodes[hidden] = scipy.linalg.solve(
-            joined[np.ix_(hidden, hidden)],
-            run.floating - joined[np.ix_(hidden, np.arange(driven))] @ nodes[:driven],
+    if loose or hidden.size:
+        free = np.concatenate([*loose, hidden]).astype(np.intp)
+        share = np.zeros((len(free), len(loose) + len(hidden)))
+        row = 0
+        for column, group in enumerate(loose):
+            share[row : row + len(group), column] = 1.0
+            row += len(group)
+        share[row:, len(loose) :] = np.eye(len(hidden))
+        known = np.setdiff1d(np.arange(len(joined)), free)
+        target = np.concatenate([np.zeros(row), run.floating])
+        right = share.T @ (target - joined[np.ix_(free, known)] @ nodes[known])
+        nodes[free] = share @ scipy.linalg.solve(
+            share.T @ joined[np.ix_(free, free)] @ share, right
         )
     charge: Array = (joined @ nodes)[dynamic]
     return charge
@@ -502,8 +625,8 @@ def _scales(
             lengths.append(gap / max(np.sqrt(area), gap))
     place = np.array(lengths)
     probe = [*stamps, *(p for s in run.sources for p in getattr(s.waveform, "breakpoints", ()))]
-    volts = max(1.0, max((float(np.max(abs(run.emf(t)))) for t in probe), default=0.0))
-    joined = run.tie.T @ run.model.matrix @ run.tie
+    volts = max(1.0, *(float(np.max(abs(run.emf(t)), initial=0.0)) for t in probe))
+    joined = run.joined(run.model)
     held = np.abs(np.diag(joined))[run.dynamic] * volts
     energy = 0.5 * volts**2 * float(np.sum(np.abs(np.diag(joined)))) or 1e-30
     scale: Array = tolerance * np.concatenate(
@@ -543,6 +666,7 @@ def _assemble(
     }
     currents = []
     for time, y in frames:
+        run.switch_to(time)
         now = run.state(time, y)
         place = np.zeros(len(dofs))
         speed = np.zeros(len(dofs))
@@ -554,7 +678,7 @@ def _assemble(
         currents.append(now.current)
         extra["kinetic"].append(0.5 * float(y[n : 2 * n] @ run.mass @ y[n : 2 * n]))
         extra["strain"].append(0.5 * float(y[:n] @ run.spring @ y[:n]))
-        extra["field"].append(0.5 * float(now.electrodes @ now.here.matrix @ now.electrodes))
+        extra["field"].append(0.5 * float(now.potentials @ now.joined @ now.potentials))
         extra["damped"].append(float(y[-3]))
         extra["lost"].append(float(y[-2]))
         extra["supplied"].append(float(y[-1]))
@@ -566,7 +690,7 @@ def _assemble(
         velocity=np.array(columns["speed"]),
         potentials=np.array(columns["volts"]),
         charge=np.array(columns["charge"]),
-        current=np.array(currents).reshape(len(frames), len(run.sources)),
+        current=np.array(currents).reshape(len(frames), len(run.order)),
         clearance=np.array(extra["gap"]),
         energy=Energy(
             kinetic=np.array(extra["kinetic"]),
@@ -586,6 +710,17 @@ def _assemble(
         evaluations=run.evaluations,
         model=last,
     )
+
+
+def _stamp(size: int, ends: list[int], value: float) -> Array:
+    """Matrix of a branch of ``value`` between two nodes, or from one node to ground."""
+    stamp = np.zeros((size, size))
+    for k in ends:
+        stamp[k, k] += value
+    if len(ends) == 2:
+        stamp[ends[0], ends[1]] -= value
+        stamp[ends[1], ends[0]] -= value
+    return stamp
 
 
 def _value(waveform: float | Callable[[float], float], time: float) -> float:

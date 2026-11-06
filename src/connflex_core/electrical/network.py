@@ -41,16 +41,20 @@ def electrode_indices(
 
 
 def network_nodes(
-    structure: Structure, floating: Collection[int], ports: Sequence[int], role: str
+    structure: Structure,
+    floating: Collection[int],
+    ports: Sequence[int],
+    role: str,
+    reached: Sequence[int] = (),
 ) -> tuple[list[tuple[int, ...]], list[tuple[int, ...]], Array]:
-    """Nodes of nets with ports, ports first, nodes of floating nets, and conductance
-    between the first, equation (130).
+    """Nodes of nets with ports or ``reached`` electrodes, ports first, nodes of floating
+    nets, and conductance between the first, equation (130).
 
     Links without resistance join electrodes into one node, and every floating net is
     one node. Electrodes of other nets belong to no node.
     """
     net = np.array([electrode.net for electrode in structure.electrodes], dtype=np.intp)
-    sourced = {int(net[port]) for port in ports}
+    sourced = {int(net[electrode]) for electrode in [*ports, *reached]}
     shorts: nx.Graph[int] = nx.Graph()
     shorts.add_nodes_from(range(len(net)))
     for link in structure.links:

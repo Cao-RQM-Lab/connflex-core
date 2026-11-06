@@ -110,6 +110,47 @@ A voltage source that drives one electrode in a transient.
 | `electrode` | | **required** | Electrode it connects to, as `Structure.electrode_at` returns it for a point on the pad. An integer is refused. |
 | `waveform` | $e(t)$ | **required** | Volts against seconds: a number for a constant, a `PiecewiseLinear`, or any continuous callable of time. |
 | `resistance` | $R_k$ | 0 | Series resistance in ohms, equation (141). Zero holds the electrode at the waveform. |
+| `switch` | $s_k(t)$ | none | `Switch` that connects and disconnects the source, equation (141). A switched source needs resistance: an ideal one holds its node. |
+
+## `CurrentSource`
+
+A current source that drives one electrode from ground in a transient.
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `electrode` | | **required** | Electrode it drives current into. |
+| `waveform` | $j(t)$ | **required** | Amperes against seconds, in the forms a `Source` takes. |
+
+## `Resistor`
+
+A resistor outside the structure, passed to a transient in `circuit`.
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `electrode` | | **required** | Electrode at one end. |
+| `other` | | **required** | Electrode at the other end, or `None` for ground at zero volts. |
+| `resistance` | $R$ | **required** | Resistance in ohms, equation (130). |
+| `switch` | $s(t)$ | none | `Switch` that connects and disconnects it. Without one it always conducts. |
+
+## `Capacitor`
+
+A capacitor outside the structure, passed to a transient in `circuit`.
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `electrode` | | **required** | Electrode at one end. |
+| `other` | | **required** | Electrode at the other end, or `None` for ground at zero volts. |
+| `capacitance` | $C$ | **required** | Capacitance in farads, added to the capacitance between nodes, equation (142). |
+
+## `Switch`
+
+Times at which a source or resistor connects and disconnects. They are
+breakpoints of the integration.
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `times` | | **required** | Times in seconds, strictly ascending, at each of which the branch changes from closed to open or back. At one of these times it has changed. |
+| `closed` | | true | Whether the branch conducts before the first time. |
 
 ## `PiecewiseLinear`
 
@@ -146,6 +187,9 @@ when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
 `quality_factor > 0` and `linear_tolerance > 0` of `SmallSignalOptions`;
 `quality_factor > 0`, `tolerance > 0`, `max_step > 0` when given, and
 `0 < contact_clearance < 1` of `TransientOptions`; `resistance >= 0` of a
-`Source`; `PiecewiseLinear` times strictly ascending, as many as values; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
+`Source`, and `resistance > 0` when it has a `switch`; `resistance > 0` of a
+`Resistor` and `capacitance > 0` of a `Capacitor`; `Switch` and
+`PiecewiseLinear` times strictly ascending, as many values as times for the
+latter; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
 `"device"` or `"handle"`, and its `resistance >= 0`; every stack layer has a
 thickness.

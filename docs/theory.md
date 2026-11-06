@@ -2512,27 +2512,39 @@ $Q\, \omega'_n / \omega_n$, slightly below $Q$.
 
 ### Network
 
-Nodes are those of (130), with each source in place of a port: it drives
-the node of its electrode. An ideal source, without resistance, holds its
-node $h$ at its waveform $e_h(t)$. A source of resistance $R_k$ feeds its
-node $k$ through it, and its node is one of the nodes $d$ that carry
-charge as a state, with the inner nodes behind links with resistance. A
-floating net is one node $f$ that keeps its charge $\mathbf{Q}_f$, and a net
-with neither source nor charge is held at zero volts on every electrode.
-The current into a node $d$ is
+Nodes are those of (130), with each voltage source in place of a port: it
+drives the node of its electrode. The net of an electrode that a current
+source or an element of the circuit around the structure reaches joins the
+nodes as the net of a port does. An ideal source, without resistance, holds
+its node $h$ at its waveform $e_h(t)$. A source of resistance $R_k$ feeds its
+node $k$ through it, and its node is one of the nodes $d$ that carry charge
+as a state, with every other node of a driven net. A floating net is one
+node $f$ that keeps its charge $\mathbf{Q}_f$, and a net that nothing reaches
+is held at zero volts on every electrode: it is ground. Resistors of the
+circuit add to $\mathbf{G}$ of (130) as links do, a resistor to ground on the
+diagonal alone. A switch $s(t)$, one while closed and zero while open,
+multiplies the branch it is on, a source's or a resistor's, so
+$\mathbf{G}(t)$ and the feeds change at its times. The current into a node
+$d$ is
 
 $$
-i_d = -\sum_l G_{dl}\, v_l + \frac{e_d - v_d}{R_d}, \tag{141}
+i_d = -\sum_l G_{dl}(t)\, v_l + s_d(t)\, \frac{e_d - v_d}{R_d} + j_d(t), \tag{141}
 $$
 
-with $\mathbf{G}$ of (130), and the second term only at a node that a source
-with resistance feeds. With $U$ the nodes $d$ and $f$ together and
-$\mathbf{C}$ the node capacitance of (130) at $\mathbf{q}$, the charges fix
-the potentials:
+with the second term only at a node that a source with resistance feeds and
+$j_d$ the current that current sources drive into it. With $U$ the nodes $d$
+and $f$ together, $\mathbf{C}$ is the node capacitance of (130) at
+$\mathbf{q}$ with the capacitors $C_c$ of the circuit added, and the charges
+fix the potentials:
 
 $$
-\mathbf{C}_{UU}\, \mathbf{v}_U = \begin{bmatrix} \mathbf{Q}_d \\ \mathbf{Q}_f \end{bmatrix} - \mathbf{C}_{Uh}\, \mathbf{e}_h(t). \tag{142}
+\mathbf{C} = \mathbf{T}^\top \mathbf{C}^\text{el}(\mathbf{q})\, \mathbf{T} + \sum_c C_c\, (\mathbf{e}_k - \mathbf{e}_l)(\mathbf{e}_k - \mathbf{e}_l)^\top, \qquad
+\mathbf{C}_{UU}\, \mathbf{v}_U = \begin{bmatrix} \mathbf{Q}_d \\ \mathbf{Q}_f \end{bmatrix} - \mathbf{C}_{Uh}\, \mathbf{e}_h(t), \tag{142}
 $$
+
+where $\mathbf{C}^\text{el}$ is the matrix between electrodes, capacitor $c$
+lies between nodes $k$ and $l$, and $\mathbf{e}_l$ is zero for a capacitor
+to ground.
 
 Charge rather than potential is the state because charge is what
 resistance limits: a source that changes moves the potentials of other
@@ -2547,8 +2559,9 @@ are often far shorter than mechanical periods, so the system is stiff. It
 is integrated by the fifth-order Radau IIA method, which is L-stable,
 with error control and its Jacobian in closed form. From (129) at node
 level, $\boldsymbol{\Gamma}$ with rows over nodes, and with $\tilde{\mathbf{G}}$
-the conductance of (130) with $1 / R_k$ added on the diagonal at nodes fed
-through resistance and $\mathbf{E}_d$ the columns of the nodes $d$,
+the conductance $\mathbf{G}(t)$ of (141) with $s_k / R_k$ added on the
+diagonal at nodes fed through resistance and $\mathbf{E}_d$ the columns of
+the nodes $d$,
 
 $$
 \frac{\partial \mathbf{f}}{\partial \mathbf{q}} = -\mathbf{K}_e - \boldsymbol{\Gamma}_U^\top \mathbf{C}_{UU}^{-1} \boldsymbol{\Gamma}_U, \quad
@@ -2558,17 +2571,20 @@ $$
 $$
 
 with $\mathbf{K}_e$ of (116). The first is (128) extended to every node
-whose charge, not potential, is held over the instant. Integration restarts
-at the breakpoints of each waveform, where its slope changes.
+whose charge, not potential, is held over the instant. Current sources and
+capacitors of the circuit add nothing to it beyond $\tilde{\mathbf{G}}$ and
+$\mathbf{C}$. Integration restarts at the breakpoints of each waveform, where
+its slope changes, and at the times of each switch.
 
 ### Current of a source
 
-A source with resistance drives the current $(e_k - v_k) / R_k$. An ideal
-source drives what its node takes, the change of its charge and the current
-into its links:
+A source with resistance drives the current $s_k (e_k - v_k) / R_k$. An
+ideal source drives what its node takes, the change of its charge and the
+current into its links and resistors, less what current sources drive into
+it:
 
 $$
-i_h = \bigl( \dot{\mathbf{C}} \mathbf{v} + \mathbf{C} \dot{\mathbf{v}} + \mathbf{G} \mathbf{v} \bigr)_h, \qquad
+i_h = \bigl( \dot{\mathbf{C}} \mathbf{v} + \mathbf{C} \dot{\mathbf{v}} + \mathbf{G} \mathbf{v} \bigr)_h - j_h, \qquad
 \mathbf{C}_{UU}\, \dot{\mathbf{v}}_U = \begin{bmatrix} \dot{\mathbf{Q}}_d \\ \mathbf{0} \end{bmatrix} - \bigl( \dot{\mathbf{C}} \mathbf{v} \bigr)_U - \mathbf{C}_{Uh}\, \dot{\mathbf{e}}_h, \qquad
 \dot{\mathbf{C}} = \sum_k \frac{\partial \mathbf{C}}{\partial q_k}\, u_k, \tag{144}
 $$
@@ -2577,20 +2593,21 @@ which needs the slope $\dot{e}_h$ of its waveform.
 
 ### Energy
 
-The energy stored in the bodies, the beams, and the field, and the energy
-taken and supplied,
+The energy stored in the bodies, the beams, the field, and the capacitors
+of the circuit, and the energy taken and supplied,
 
 $$
 \begin{aligned}
 W &= \tfrac{1}{2} \mathbf{u}^\top \mathbf{M}^\text{full} \mathbf{u} + \tfrac{1}{2} \mathbf{q}^\top \mathbf{K}^\text{full} \mathbf{q} + \tfrac{1}{2} \mathbf{v}^\top \mathbf{C}\, \mathbf{v}, \\
 W_D &= \int \mathbf{u}^\top \mathbf{D}\, \mathbf{u}\, dt, \qquad
-W_R = \int \Bigl( \mathbf{v}^\top \mathbf{G}\, \mathbf{v} + \sum_k \frac{(e_k - v_k)^2}{R_k} \Bigr) dt, \qquad
-W_S = \int \Bigl( \sum_s e_s\, i_s + \mathbf{f}_0^\top \mathbf{u} \Bigr) dt,
+W_R = \int \Bigl( \mathbf{v}^\top \mathbf{G}(t)\, \mathbf{v} + \sum_k s_k\, \frac{(e_k - v_k)^2}{R_k} \Bigr) dt, \qquad
+W_S = \int \Bigl( \sum_s e_s\, i_s + \sum_d v_d\, j_d + \mathbf{f}_0^\top \mathbf{u} \Bigr) dt,
 \end{aligned} \tag{145}
 $$
 
 balance exactly, $W(t) - W(t_0) + W_D + W_R = W_S$, with the sum over every
-source $s$ in $W_S$ and the potentials of every electrode in $W$. The three
+voltage source $s$ in $W_S$, $\mathbf{C}$ of (142), and the potentials of
+every node in $W$. The three
 integrals are integrated as states beside (139), so what remains of the
 balance is the error of integration.
 
@@ -2607,17 +2624,22 @@ for translations, rotations of a body of area $A_B$, velocities, charges,
 and energies, with $g_0$ the gap of the buried oxide, $\omega_1$ the lowest
 frequency of (38), and $V_0$ the largest source value at the output times
 and breakpoints, at least one volt. The run starts at $\mathbf{q}_0$, rest
-or the displacement given, at zero velocity, with the potentials the
-sources hold without current at $t_0$:
+or the displacement given, at zero velocity, with the potentials that
+carry no current at $t_0$. Nodes $D$ that resistance ties, closed at $t_0$,
+to a source or to ground take
 
 $$
-\tilde{\mathbf{G}}_{dd}\, \mathbf{v}_d = \Bigl( \frac{e_d(t_0)}{R_d} \Bigr) - \tilde{\mathbf{G}}_{dh}\, \mathbf{e}_h(t_0), \qquad
-\mathbf{C}_{ff}\, \mathbf{v}_f = \mathbf{Q}_f - \mathbf{C}_{fs}\, \mathbf{v}_s, \qquad
+\tilde{\mathbf{G}}_{DD}\, \mathbf{v}_D = \Bigl( \frac{s_d\, e_d(t_0)}{R_d} + j_d(t_0) \Bigr) - \tilde{\mathbf{G}}_{Dh}\, \mathbf{e}_h(t_0), \qquad
+\sum_{d \in g} \bigl( \mathbf{C} \mathbf{v} \bigr)_d = 0, \qquad
+\bigl( \mathbf{C} \mathbf{v} \bigr)_f = Q_f, \qquad
 \mathbf{Q}_d = \bigl( \mathbf{C} \mathbf{v} \bigr)_d, \tag{147}
 $$
 
-where the first term on the right is zero at nodes without a source and
-$s$ are all nodes of driven nets.
+where the first term on the right is zero at nodes without a source. Nodes
+that resistance joins to neither form groups $g$ that resistance joins
+among themselves, each at one potential and with no charge in all: a pad
+behind a capacitor alone, or behind a switch open at $t_0$. Floating nets
+keep their charge, and the last two parts are solved together.
 
 ### Contact
 
@@ -2626,6 +2648,14 @@ moment is found on the continuous extension of the last step, and the
 result reports it last, with the electrodes across the closing gap.
 
 !!! note "Implementation choices"
+    A switch changes at its times, and an output at one of them shows the
+    branch changed. A switched source needs resistance: an ideal source
+    holds its node, and opening it would turn a held potential into a
+    charge in the middle of a run. A current source drives its node from
+    ground. Inductors and slew limits are not built: electrical time
+    constants are far shorter than mechanical ones, and a driver's slew is a
+    ramp in its waveform.
+
     A waveform must be continuous: a step is a ramp of the rise time it has.
     A drive that switches in no time would deliver its energy in no time
     through an ideal source, which (144) cannot follow, and no real driver

@@ -9,7 +9,14 @@ from connflex_core.adapters.klayout_ import from_klayout
 from connflex_core.coupled.small_signal import Linearity, LinearizationWarning, SmallSignal
 from connflex_core.coupled.static import Equilibrium, NoEquilibriumError
 from connflex_core.coupled.transient import Energy, Transient
-from connflex_core.electrical.drivers import PiecewiseLinear, Source
+from connflex_core.electrical.drivers import (
+    Capacitor,
+    CurrentSource,
+    PiecewiseLinear,
+    Resistor,
+    Source,
+    Switch,
+)
 from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Conductor, Connection, Nets, Via, Wire, find_nets
 from connflex_core.electrostatics.capacitance import CapacitanceModel, Cluster, HessianBlock
@@ -39,9 +46,11 @@ __all__ = [
     "Beam",
     "Body",
     "CapacitanceModel",
+    "Capacitor",
     "Cluster",
     "Conductor",
     "Connection",
+    "CurrentSource",
     "Electrode",
     "ElectrostaticParams",
     "Energy",
@@ -64,6 +73,7 @@ __all__ = [
     "Plate",
     "Progress",
     "RejectedCandidate",
+    "Resistor",
     "SidewallCapacitance",
     "SmallSignal",
     "SmallSignalOptions",
@@ -72,6 +82,7 @@ __all__ = [
     "Stack",
     "StaticOptions",
     "Structure",
+    "Switch",
     "Transient",
     "TransientOptions",
     "Via",
