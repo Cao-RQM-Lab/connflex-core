@@ -534,6 +534,13 @@ degrees of freedom. Static loads act at the named body's center of mass.
 Mode shapes mix translations in meters and rotations in radians, so compare
 components of the same kind when reading them.
 
+Beams are linear in every analysis, static equilibrium and transients
+included, however far the bodies travel. A beam held at both ends stiffens
+as soon as its deflection is no longer small against its width, and any
+beam once its deflection or turn is no longer small against its length;
+nothing warns when a result has gone that far. See
+[beams stay linear](theory.md#assemble-and-solve).
+
 ## Static equilibrium
 
 ```python

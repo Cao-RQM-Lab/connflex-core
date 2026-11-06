@@ -525,6 +525,19 @@ $$
 where $\omega_n$ is the resonant angular frequency and $\boldsymbol{\phi}_n$
 is the mechanical mode.
 
+!!! warning "Beams stay linear"
+    $\mathbf{K}^\text{full}$ is the stiffness of small deflection, and every
+    analysis takes it at any displacement: static equilibrium, small signal
+    about it, and transients. The field follows the displaced bodies
+    exactly; the beams do not. A beam held at both ends stretches as it
+    bends, and stiffens once its deflection is no longer small against its
+    width in the plane of bending; any beam stiffens or softens once its
+    deflection or the turn of its ends is no longer small against its length
+    or a radian, and the direction it pulls in turns with the bodies. None
+    of that is in the model, and nothing warns of it. Compare the travel of
+    a result with the range of its flexures before trusting it, most of all
+    for motors driven over many pitches.
+
 ## Electrodes and links
 
 The electrical model is a network whose nodes are electrodes and whose
