@@ -58,7 +58,8 @@ class Cluster:
         elements: Number of boundary elements on their outlines, 0 when no pair of its
             nets is solved by the field method.
         windows: Number of field solutions it took: 1 when solved whole, the number of
-            windows otherwise, 0 when every pair is taken as plates.
+            windows and rows of identical cells otherwise, counting a window that took
+            the solution of a translate, 0 when every pair is taken as plates.
         asymmetry: Asymmetry of its field solutions before they were made symmetric,
             as on ``SidewallCapacitance``: for windows a measure of their error.
         walls: Pieces of wall facing another electrode, with electrodes numbered by

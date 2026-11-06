@@ -13,6 +13,7 @@ from shapely import MultiPolygon, STRtree
 
 from connflex_core.electrostatics.kernel import pair_derivatives, pair_integrals
 from connflex_core.electrostatics.outlines import Mesh
+from connflex_core.electrostatics.translates import KEY_GRID, canonical, repivot
 
 Array = NDArray[np.float64]
 Complex = NDArray[np.complex128]
@@ -20,7 +21,6 @@ Index = NDArray[np.intp]
 
 LONGEST_MOTIF = 16
 GRID = 1e-10
-KEY_GRID = 1e-11
 
 IMAGES = 2
 _NODES, _WEIGHTS = np.polynomial.legendre.leggauss(4)
@@ -414,24 +414,17 @@ def solve_rows(
         for row in family:
             for k, center in enumerate(row.centers):
                 step = np.zeros(3 * rigid)
-                jacobian = np.eye(3 * rigid)
-                lever = np.zeros((rigid, 2))
+                arms = np.zeros((rigid, 2))
                 offset = complex(*center) - origin
                 for j, b in enumerate(moving):
                     shift = (np.exp(1j * turn[int(b)][0]) - 1) * offset
                     step[3 * j : 3 * j + 2] = shift.real, shift.imag
                     arm = _placed(turn, int(b), complex(*center)) - complex(*pivots[b])
-                    jacobian[3 * j, 3 * j + 2] = -arm.imag
-                    jacobian[3 * j + 1, 3 * j + 2] = arm.real
-                    lever[j] = arm.real, arm.imag
-                pulled = flat + curve @ step
+                    arms[j] = arm.real, arm.imag
                 total += held + flat @ step + 0.5 * (curve @ step) @ step
-                tilt += pulled @ jacobian
-                swing += np.einsum("pq,abpr,rs->abqs", jacobian, curve, jacobian)
-                for j in range(rigid):
-                    swing[:, :, 3 * j + 2, 3 * j + 2] -= (
-                        pulled[:, :, 3 * j] * lever[j, 0] + pulled[:, :, 3 * j + 1] * lever[j, 1]
-                    )
+                moved_slope, moved_bend = repivot(flat + curve @ step, curve, arms)
+                tilt += moved_slope
+                swing += moved_bend
                 charge[np.ix_(row.cells[k][order], present)] = cell_charge
         capacitance[np.ix_(present, present)] += total
         gradient[np.ix_(present, present, moving, three)] += tilt.reshape(size, size, rigid, 3)
@@ -523,40 +516,3 @@ def _cell(
     bend[:, :, :, 2] = window_bend[:, :, :, 2]
     bend[:, :, :, :, :, 2] = window_bend[:, :, :, :, :, 2]
     return (held, slope, bend, charge), order, present, moving
-
-
-def canonical(
-    mesh: Mesh, elements: Index, body: Index, reference: Array, spots: dict[int, complex]
-) -> tuple[Index, Index, Index, bytes]:
-    """An order of ``elements`` that translates share, their conductors and bodies by
-    first appearance in it, and a key of that geometry relative to ``reference``."""
-    spans = np.round(
-        np.hstack([mesh.start[elements] - reference, mesh.end[elements] - reference]) / KEY_GRID
-    ).astype(np.int64)
-    order = np.lexsort(spans.T[::-1])
-    owners = mesh.conductor[elements[order]]
-    _, first = np.unique(owners, return_index=True)
-    present = owners[np.sort(first)]
-    owned = body[present]
-    _, first_body = np.unique(owned, return_index=True)
-    moving = owned[np.sort(first_body)]
-    labels = {int(g): k for k, g in enumerate(present)}
-    turned = np.array(
-        [
-            (
-                np.round(
-                    (np.array([spots[int(b)].real, spots[int(b)].imag]) - reference) / KEY_GRID
-                ).astype(np.int64)
-                if int(b) in spots
-                else np.zeros(2, dtype=np.int64)
-            )
-            for b in moving
-        ]
-    )
-    key = (
-        spans[order].tobytes()
-        + np.array([labels[int(g)] for g in owners], dtype=np.int64).tobytes()
-        + np.array([list(moving).index(b) for b in owned], dtype=np.int64).tobytes()
-        + turned.tobytes()
-    )
-    return order, present, moving, key

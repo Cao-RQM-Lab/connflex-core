@@ -128,6 +128,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   take their interior from one cell solved with the periodic kernel and the
   derivatives in turn from one window around it; each cell follows its
   bodies' turn through its lever arm. Off by default.
+- Windows that are translates of one another, element for element with
+  their cores, conductors, and bodies, are solved once; each copy moves the
+  derivatives to the pivots of its own bodies. Window cores are cut on
+  coordinates rounded as for those keys, so translated groups are cut alike.
 
 ### Removed
 

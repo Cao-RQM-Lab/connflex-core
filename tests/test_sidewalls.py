@@ -1,6 +1,6 @@
 import warnings
 from dataclasses import replace
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -8,7 +8,8 @@ from numpy.typing import NDArray
 from shapely import MultiPolygon, Polygon, affinity, box, union_all
 
 from connflex_core import ElectrostaticParams, SidewallCapacitance, sidewall_capacitance
-from connflex_core.electrostatics.dense import charge_derivatives, solve_charges
+from connflex_core.electrostatics import windows
+from connflex_core.electrostatics.dense import Charges, charge_derivatives, solve_charges
 from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
 from connflex_core.progress import quiet
 
@@ -168,28 +169,34 @@ def test_moving_every_body_together_changes_nothing() -> None:
     assert np.max(abs(curvature[..., :2].sum(axis=4)[..., :2, :])) < 1e-8 * bend
 
 
-def test_mesh_above_the_element_limit_is_solved_in_windows() -> None:
-    """Two blocks whose fingers interleave with gaps of 3 um.
-
-    Force along the fingers is what windows find least well: it comes from finger tips,
-    which face open space.
-    """
-    pitch, fingers = 14.0, 6
+def interleaved(pitch: float = 14.0, fingers: int = 6) -> list[Polygon]:
+    """Two blocks whose fingers interleave with gaps of 3 um."""
     left = [box(0, pitch * k, 60, pitch * k + 4) for k in range(fingers + 1)]
     right = [box(20, pitch * k + 7, 80, pitch * k + 11) for k in range(fingers)]
     top = pitch * fingers + 4
-    conductors = [
+    return [
         um(cast(Polygon, union_all([box(-30, 0, 0, top), *left]))),
         um(cast(Polygon, union_all([box(80, 0, 110, top), *right]))),
     ]
-    whole = sidewall_capacitance(conductors, params(3.0, grading=4.0))
-    count = len(whole.mesh.conductor)
-    limited = replace(
+
+
+def in_windows(conductors: list[Polygon]) -> ElectrostaticParams:
+    """Windows of an eighth of the mesh, which may hold half of it."""
+    regions = [MultiPolygon([conductor]) for conductor in conductors]
+    count = len(mesh_outlines(regions, 3 * UM, 4.0).conductor)
+    return replace(
         params(3.0, grading=4.0, limit=count // 2),
         window_elements=count // 8,
         interaction_distance=30 * UM,
     )
-    windowed = sidewall_capacitance(conductors, limited)
+
+
+def test_mesh_above_the_element_limit_is_solved_in_windows() -> None:
+    """Force along the fingers is what windows find least well: it comes from finger
+    tips, which face open space."""
+    conductors = interleaved()
+    whole = sidewall_capacitance(conductors, params(3.0, grading=4.0))
+    windowed = sidewall_capacitance(conductors, in_windows(conductors))
     assert whole.windows == 1
     assert windowed.windows >= 8
     assert (whole.method[0, 1], windowed.method[0, 1]) == ("dense", "windowed")
@@ -203,6 +210,37 @@ def test_mesh_above_the_element_limit_is_solved_in_windows() -> None:
         assert np.array_equal(found, found.swapaxes(0, 1))
         assert np.max(abs(found.sum(axis=1))) < 1e-12 * np.max(abs(found))
     assert windowed.charge.sum(axis=0) == pytest.approx(0.0, abs=1e-2 * windowed.capacitance[0, 0])
+
+
+def test_window_that_is_a_translate_takes_the_solution_of_its_original(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A comb and its copy 400 um off are cut alike, so the copy's windows take the
+    solutions of the comb's. Its bodies turn about points that are not translates, and
+    its derivatives still match the copy solved alone."""
+    comb = interleaved()
+    copy = [affinity.translate(conductor, 400 * UM) for conductor in comb]
+    limited = in_windows(comb)
+    solved = []
+
+    def counted(*args: Any, **kwargs: Any) -> Charges:
+        solved.append(1)
+        return solve_charges(*args, **kwargs)
+
+    monkeypatch.setattr(windows, "solve_charges", counted)
+    pivots = np.array([[-15.0, 40.0], [95.0, 50.0]]) * UM
+    alone = sidewall_capacitance(copy, limited, centers=pivots)
+    once = len(solved)
+    both = sidewall_capacitance([*comb, *copy], limited, centers=np.vstack([pivots, pivots]))
+    assert len(solved) == 2 * once
+    assert both.windows == 2 * alone.windows
+    copied = np.arange(2, 4)
+    for found, expected in (
+        (both.capacitance[np.ix_(copied, copied)], alone.capacitance),
+        (both.gradient[np.ix_(copied, copied, copied)], alone.gradient),
+        (both.hessian[np.ix_(copied, copied, copied, range(3), copied)], alone.hessian),
+    ):
+        assert found == pytest.approx(expected, rel=1e-9, abs=1e-12 * np.max(abs(expected)))
 
 
 def test_derivatives_of_charge_on_some_elements_are_exact() -> None:

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
+from typing import NamedTuple
 
 import numpy as np
 import shapely
@@ -11,6 +13,7 @@ from shapely import STRtree
 
 from connflex_core.electrostatics.dense import Charges, charge_derivatives, solve_charges
 from connflex_core.electrostatics.outlines import Mesh
+from connflex_core.electrostatics.translates import KEY_GRID, canonical, repivot
 from connflex_core.progress import quiet
 
 Array = NDArray[np.float64]
@@ -30,7 +33,8 @@ def cut_cores(
     ``elements`` are the ones to split, all of the mesh by default. A group is halved at
     the median of its element centers along the longer side of their bounding box until
     it is small enough, and with ``crowd``, which counts the elements of the first window
-    around a group, until that window holds at most twice ``most``.
+    around a group, until that window holds at most twice ``most``. Centers are ordered
+    as rounded for keys of translates, so that groups that are translates are cut alike.
     """
     center = (mesh.start + mesh.end) / 2
     every = np.arange(len(mesh.conductor)) if elements is None else np.asarray(elements)
@@ -42,8 +46,9 @@ def cut_cores(
             cores.append(group)
             continue
         points = center[group]
-        axis = int(np.argmax(np.ptp(points, axis=0)))
-        order = group[np.argsort(points[:, axis], kind="stable")]
+        grid = np.round((points - points.min(axis=0)) / KEY_GRID).astype(np.int64)
+        axis = int(np.argmax(np.ptp(grid, axis=0)))
+        order = group[np.lexsort((grid[:, 1 - axis], grid[:, axis]))]
         pending += [order[len(group) // 2 :], order[: len(group) // 2]]
     return cores
 
@@ -55,6 +60,26 @@ def smallest_window(mesh: Mesh, core: Index, size: float, reach: float | None) -
     overlap = FIRST_OVERLAP * size if reach is None else min(FIRST_OVERLAP * size, reach)
     inside = np.all((center >= low - overlap) & (center <= high + overlap), axis=1)
     return int(inside.sum())
+
+
+class _Window(NamedTuple):
+    """Elements of a window in an order that translates share, its conductors and bodies
+    by first appearance in that order, and which elements are its core."""
+
+    elements: Index
+    present: Index
+    moving: Index
+    mine: NDArray[np.bool_]
+
+
+@dataclass
+class _Solved:
+    """Charge on the core of a window per volt on each of its conductors, in an order
+    that translates share, and its derivatives about the corner of the core."""
+
+    capacitance: Array
+    charge: Array
+    derivatives: tuple[Array, Array] | None = None
 
 
 def solve_windows(
@@ -80,7 +105,9 @@ def solve_windows(
     overlap is searched: a mesh whose bodies have moved keeps the windows it had. With
     ``pairs``, pairs of conductors as rows, a window is solved only when it holds both
     conductors of a pair and its core lies on one of them; otherwise when it holds two
-    conductors.
+    conductors. A window that is a translate of one solved before, with its core,
+    conductors, and bodies alike, takes that solution, its derivatives moved to its own
+    pivots by equation (155).
     Returns capacitance, gradient, Hessian, and element charges per unit permittivity,
     in the layout of ``SidewallCapacitance`` and before capacitance is made symmetric,
     and the elements of each window, none for a window that was not solved.
@@ -95,6 +122,8 @@ def solve_windows(
     charge = np.zeros((count, conductors))
     three = np.arange(3)
     chosen: list[Index] = []
+    known: dict[bytes, _Solved] = {}
+    rank = np.zeros(conductors, dtype=np.intp)
 
     def useful(present: Index, core: Index) -> bool:
         if pairs is None:
@@ -102,25 +131,31 @@ def solve_windows(
         on = np.isin(pairs, np.unique(mesh.conductor[core])).any(axis=1)
         return bool(np.any(np.isin(pairs, present).all(axis=1) & on))
 
+    def charges_of(elements: Index, present: Index, mine: NDArray[np.bool_]) -> Charges:
+        rank[present] = np.arange(len(present))
+        part = Mesh(mesh.start[elements], mesh.end[elements], rank[mesh.conductor[elements]])
+        return solve_charges(part, len(present), quiet, mine)
+
+    def solve(inside: Index, core: Index) -> tuple[_Window, _Solved, Charges | None]:
+        corner = center[core].min(axis=0)
+        order, present, moving, key = canonical(mesh, inside, body, corner, {})
+        elements = inside[order]
+        mine = np.isin(elements, core)
+        key += mine.tobytes()
+        charges = None
+        if key not in known:
+            charges = charges_of(elements, present, mine)
+            known[key] = _Solved(charges.capacitance, charges.charge[mine])
+        return _Window(elements, present, moving, mine), known[key], charges
+
     for number, core in enumerate(cores):
         low, high = center[core].min(axis=0), center[core].max(axis=0)
         overlap = FIRST_OVERLAP * size if reach is None else min(FIRST_OVERLAP * size, reach)
-        held: tuple[Index, Index, Charges] | None = None
+        held: tuple[_Window, _Solved, Charges | None] | None = None
         share = np.zeros((conductors, conductors))
         smallest = True
         if windows is not None and len(windows[number]):
-            inside = windows[number]
-            present = np.unique(mesh.conductor[inside])
-            part = Mesh(
-                mesh.start[inside],
-                mesh.end[inside],
-                np.searchsorted(present, mesh.conductor[inside]),
-            )
-            held = (
-                inside,
-                present,
-                solve_charges(part, len(present), quiet, np.isin(inside, core)),
-            )
+            held = solve(windows[number], core)
         while windows is None:
             inside = np.sort(tree.query(shapely.box(*(low - overlap), *(high + overlap))))
             if len(inside) > limit:
@@ -136,31 +171,37 @@ def solve_windows(
             before, share = share, np.zeros((conductors, conductors))
             settled = False
             if useful(present, core):
-                part = Mesh(
-                    mesh.start[inside],
-                    mesh.end[inside],
-                    np.searchsorted(present, mesh.conductor[inside]),
-                )
-                charges = solve_charges(part, len(present), quiet, np.isin(inside, core))
-                share[np.ix_(present, present)] = charges.capacitance
+                found = solve(inside, core)
+                ordered = found[0].present
+                share[np.ix_(ordered, ordered)] = found[1].capacitance
                 settled = held is not None and bool(
                     np.max(np.abs(share - before)) < tolerance * np.max(np.abs(share))
                 )
-                held = (inside, present, charges)
+                held = found
             if settled or len(inside) == count or (reach is not None and overlap >= reach):
                 break
             overlap = 2 * overlap if reach is None else min(2 * overlap, reach)
         if held is not None:
-            inside, present, charges = held
-            capacitance[np.ix_(present, present)] += charges.capacitance
-            moving = np.unique(body[present])
-            slope, bend = charge_derivatives(
-                charges, np.searchsorted(moving, body[present]), pivots[moving], quiet
+            (elements, present, moving, mine), solved, charges = held
+            corner, here, turning = center[core].min(axis=0), len(present), 3 * len(moving)
+            if solved.derivatives is None:
+                charges = charges or charges_of(elements, present, mine)
+                place = {int(b): j for j, b in enumerate(moving)}
+                kinds = np.array([place[int(b)] for b in body[present]], dtype=np.intp)
+                slope, bend = charge_derivatives(
+                    charges, kinds, np.tile(corner, (len(moving), 1)), quiet
+                )
+                solved.derivatives = (
+                    slope.reshape(here, here, turning),
+                    bend.reshape(here, here, turning, turning),
+                )
+            slope, bend = repivot(*solved.derivatives, corner - pivots[moving])
+            capacitance[np.ix_(present, present)] += solved.capacitance
+            gradient[np.ix_(present, present, moving)] += slope.reshape(here, here, -1, 3)
+            hessian[np.ix_(present, present, moving, three, moving, three)] += bend.reshape(
+                here, here, len(moving), 3, len(moving), 3
             )
-            gradient[np.ix_(present, present, moving)] += slope
-            hessian[np.ix_(present, present, moving, three, moving, three)] += bend
-            mine = np.isin(inside, core)
-            charge[np.ix_(inside[mine], present)] = charges.charge[mine]
-        chosen.append(np.zeros(0, dtype=np.intp) if held is None else held[0])
+            charge[np.ix_(elements[mine], present)] = solved.charge
+        chosen.append(np.zeros(0, dtype=np.intp) if held is None else held[0].elements)
         advance()
     return capacitance, gradient, hessian, charge, chosen

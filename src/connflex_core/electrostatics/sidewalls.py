@@ -53,7 +53,9 @@ class SidewallCapacitance:
         walls: Pieces of wall facing another conductor, which give feature sizes and
             the capacitance of pairs taken as plates.
         windows: Number of field solutions behind the result: 1 for a mesh solved whole,
-            the number of windows otherwise, 0 when every pair is taken as plates.
+            the number of windows and rows of identical cells otherwise, counting a
+            window that took the solution of a translate, 0 when every pair is taken as
+            plates.
         asymmetry: Largest difference between the charge on one conductor per volt on
             another and the same with the two exchanged, over pairs solved by the field
             method, against the largest such entry, before the two were averaged.

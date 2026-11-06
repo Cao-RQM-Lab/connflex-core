@@ -1496,6 +1496,17 @@ stops short of two trench widths leaves out part of the field across it.
     its first window would hold more than twice $n_w$, so that no window
     grows to span the rows between its pieces.
 
+    A window that is a translate of one solved before takes its solution:
+    element for element, with the same elements in its core and its
+    conductors and bodies in the same places, it holds the same field.
+    Every window finds its derivatives about the lowest corner of the box
+    $B_k$ of its core and moves them to the pivots of its bodies with the
+    lever arms of (155), so that the copies differ only by those arms.
+    Translates are found by the coordinates of the elements relative to
+    that corner, rounded to $10^{-11}$ m, and cores are cut on centers
+    rounded the same way, so that groups of elements that are translates
+    are cut into cores that are.
+
     The point a body turns about travels with the body, as a center of mass
     does. A second derivative for travel and rotation taken about a point
     fixed in space differs from this one by the gradient.

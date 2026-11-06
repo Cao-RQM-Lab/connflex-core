@@ -317,6 +317,7 @@ boundary elements are solved in windows instead: cores of at most
 `window_elements` elements, each solved together with the elements around
 it, out to an overlap that doubles until the charge on the core settles
 within `window_tolerance` or the overlap reaches `interaction_distance`.
+A window that is a translate of one already solved takes its solution.
 Measured accuracy is in [accuracy and defaults](theory.md#accuracy-and-defaults)
 and what plates miss in [what plates leave out](theory.md#what-plates-leave-out).
 
