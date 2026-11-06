@@ -23,6 +23,7 @@ from connflex_core.electrostatics.periodic import (
 )
 from connflex_core.electrostatics.windows import (
     WindowSets,
+    center_tree,
     cut_cores,
     smallest_window,
     solve_windows,
@@ -231,9 +232,10 @@ def plan_sidewalls(
     for k in field:
         conductors_of[method[k]].update(pairs[k].tolist())
     problems = []
+    tree = center_tree(mesh)
     dense = np.flatnonzero(np.isin(mesh.conductor, sorted(conductors_of["dense"])))
     if dense.size:
-        if smallest_window(mesh, dense, size, reach) <= params.max_elements:
+        if smallest_window(mesh, tree, dense, size, reach) <= params.max_elements:
             chosen = [k for k in field if method[k] == "dense"]
             problems.append(FieldProblem([dense], pairs[chosen]))
         else:
@@ -255,7 +257,7 @@ def plan_sidewalls(
         if rows:
 
             def crowd(core: Index) -> int:
-                return smallest_window(mesh, core, size, reach)
+                return smallest_window(mesh, tree, core, size, reach)
 
             groups = near_rows(rows, mesh, windowed, reach) if windowed.size else []
         cores = [

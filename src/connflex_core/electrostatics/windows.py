@@ -71,13 +71,20 @@ def cut_cores(
     return cores
 
 
-def smallest_window(mesh: Mesh, core: Index, size: float, reach: float | None) -> int:
-    """Number of elements in the first window that ``solve_windows`` tries around ``core``."""
-    center = (mesh.start + mesh.end) / 2
-    low, high = center[core].min(axis=0), center[core].max(axis=0)
+def center_tree(mesh: Mesh) -> STRtree:
+    """Index of element centers, for the elements within a box."""
+    return STRtree(np.asarray(shapely.points((mesh.start + mesh.end) / 2)))
+
+
+def smallest_window(
+    mesh: Mesh, tree: STRtree, core: Index, size: float, reach: float | None
+) -> int:
+    """Number of elements in the first window that ``solve_windows`` tries around
+    ``core``; ``tree`` indexes the centers of ``mesh`` as ``center_tree`` builds it."""
+    center = (mesh.start[core] + mesh.end[core]) / 2
+    low, high = center.min(axis=0), center.max(axis=0)
     overlap = FIRST_OVERLAP * size if reach is None else min(FIRST_OVERLAP * size, reach)
-    inside = np.all((center >= low - overlap) & (center <= high + overlap), axis=1)
-    return int(inside.sum())
+    return len(tree.query(shapely.box(*(low - overlap), *(high + overlap))))
 
 
 class _Window(NamedTuple):
@@ -136,7 +143,7 @@ def solve_windows(
     """
     count, conductors, rigid = len(mesh.conductor), len(body), len(pivots)
     center = (mesh.start + mesh.end) / 2
-    tree = STRtree(np.asarray(shapely.points(center)))
+    tree = center_tree(mesh)
     capacitance = np.zeros((conductors, conductors))
     gradient = np.zeros((conductors, conductors, rigid, 3))
     hessian = np.zeros((conductors, conductors, rigid, 3, rigid, 3))
