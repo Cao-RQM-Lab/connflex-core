@@ -582,6 +582,8 @@ cusp of the plates method and not pull-in. Formulas are in
 ## Small signal
 
 ```python
+from pathlib import Path
+
 bias = structure.equilibrium(model, {shuttle: 40.0})
 drive = structure.electrode_at((1.2e-3, 0.4e-3), "device")
 sense = structure.electrode_at((0.2e-3, 0.4e-3), "device")
@@ -598,6 +600,7 @@ admittance = signal.admittance(hertz)  # frequencies by ports by ports, complex 
 motion = signal.displacement(hertz, [0.1, 0.0])  # complex amplitude of every degree of freedom
 inductance, capacitance, resistance = signal.motional()  # mode by node
 check = signal.linearity([0.1, 0.0], 55e3)  # check.voltage, check.gap, check.peak
+Path("resonator.cir").write_text(signal.netlist("resonator"))
 ```
 
 `structure.small_signal` linearizes the structure about an equilibrium for
@@ -675,7 +678,16 @@ far the narrowest gap closes at the peak of the motion, against its width
 in the equilibrium. It warns with `cf.LinearizationWarning` when either
 exceeds `linear_tolerance`, and evaluates the capacitance model twice. Use
 `warnings.simplefilter("error", cf.LinearizationWarning)` to make that an
-error. Formulas are in [small signal](theory.md#small-signal).
+error.
+
+### Netlist
+
+`netlist` returns a SPICE subcircuit as text, with pins `port0`, `port1`,
+... in port order and node 0 as the potential of nets held without a port:
+capacitors and resistors between nodes and one series branch per mode,
+coupled to the nodes through controlled sources. Every mode is included
+unless `modes` lists some; a mode left out also takes its compliance below
+resonance with it. Formulas are in [small signal](theory.md#small-signal).
 
 ## Progress and logging
 

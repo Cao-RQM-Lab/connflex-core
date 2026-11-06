@@ -102,6 +102,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   closes the narrowest gap, as `Linearity`, and warns with
   `LinearizationWarning` beyond `linear_tolerance`.
 - `Equilibrium.floating`: nets that held a fixed charge.
+- `SmallSignal.netlist`: SPICE subcircuit of the small-signal model with one
+  pin per port, capacitors and resistors between nodes, and one series
+  branch per mode coupled to the nodes through controlled sources; all
+  modes unless `modes` lists some.
 
 ### Removed
 

@@ -2395,6 +2395,30 @@ stores most strain energy $\mathbf{p}^\top \mathbf{K}^\text{full}
 \mathbf{p}$. Either above $\tau_l$ draws a warning; both are reported, and
 what error a design tolerates is the caller's judgment.
 
+### Netlist
+
+A mode that couples to several nodes is one series loop that all of them
+drive and all of them feel. With $\sigma_n = \max_s |\eta_{ns}|$, a
+loop of $L_n = 1 / \sigma_n^2$, $R_n = \omega_n / (Q \sigma_n^2)$, and $C_n
+= \sigma_n^2 / \omega_n^2$ in series with sources of gains $\eta_{ns} /
+\sigma_n$ carries
+
+$$
+I_n = \frac{\sum_s (\eta_{ns} / \sigma_n)\, \delta v_s}{j \omega L_n + R_n + 1 / (j \omega C_n)}
+= \frac{j \omega\, \sigma_n\, \boldsymbol{\eta}_n^\top \delta \mathbf{v}_s}{\Delta_n(\omega)}, \qquad
+\delta i_s = \frac{\eta_{ns}}{\sigma_n}\, I_n, \tag{138}
+$$
+
+which is the term of mode $n$ in (134). In SPICE the sources in the loop
+are voltage-controlled voltage sources in series, each controlled by one
+node, and the current returns to each node through a current-controlled
+current source. Capacitors join signal nodes $k$ and $l$ with
+$-C'_{kl}$ and each node to ground with its row sum $\sum_l C'_{kl}$,
+which is its capacitance to held nets, and resistors join them with
+$-1 / G_{kl}$. Ground is the potential of nets held without a port. With
+one node, $\sigma_n = |\eta_{ns}|$ and the loop is (136) with gains of
+$\pm 1$.
+
 !!! note "Implementation choices"
     Ports are electrodes rather than nets because a source drives a net at
     a pad, and inner electrodes behind beams of resistance see it later.
@@ -2415,7 +2439,9 @@ what error a design tolerates is the caller's judgment.
     $\omega_n^2 < 0$, which no branch represents.
 
     Modes come from a dense eigensolution over the bodies that beams join
-    to the anchor, all of them; loose bodies stay at rest.
+    to the anchor, all of them; loose bodies stay at rest. A netlist may
+    take a subset, and a mode left out takes with it its compliance below
+    resonance, $\eta_{ns}^2 / \omega_n^2$ of capacitance at node $s$.
 
     A coupling smaller than $D \epsilon\, \bigl( \sum_n \eta_{ns}^2
     \bigr)^{1/2}$, with $D$ the degrees of freedom kept and $\epsilon$ the

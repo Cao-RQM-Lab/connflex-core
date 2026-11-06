@@ -1,5 +1,8 @@
+import shutil
+import subprocess
 import warnings
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -175,6 +178,62 @@ def test_admittance_matches_direct_solve_of_network(resistive: Structure) -> Non
     admittance = signal.admittance(hertz)
     assert admittance == pytest.approx(direct_admittance(resistive, rest, ports, hertz), rel=1e-6)
     assert admittance == pytest.approx(admittance.transpose(0, 2, 1), rel=1e-9)
+
+
+def element_values(text: str) -> dict[str, list[str]]:
+    return {line.split()[0]: line.split() for line in text.splitlines() if line[:1].isalpha()}
+
+
+def test_netlist_of_plate_is_capacitor_beside_series_branch(plate: Structure) -> None:
+    exact = plate_closed_form(plate)
+    _, signal = plate_signal(plate)
+    mode = int(np.argmax(abs(signal.transduction[:, 0])))
+    text = signal.netlist("plate", modes=[mode])
+    lines = [line for line in text.splitlines() if line and not line.startswith("*")]
+    assert lines[0] == ".subckt plate port0"
+    assert lines[-1] == ".ends plate"
+    elements = element_values(text)
+    assert set(elements) == {f"{kind}{mode}" for kind in ("Lm", "Rm", "Cm", "Vm")} | {
+        "Cg0",
+        f"Em{mode}_0",
+        f"Fm{mode}_0",
+    }
+    assert float(elements["Cg0"][3]) == pytest.approx(signal.capacitance[0, 0], rel=1e-10)
+    assert float(elements[f"Lm{mode}"][3]) == pytest.approx(
+        exact["mass"] / exact["slope"] ** 2, rel=1e-8
+    )
+    assert float(elements[f"Cm{mode}"][3]) == pytest.approx(
+        exact["slope"] ** 2 / exact["softened"], rel=1e-8
+    )
+    assert abs(float(elements[f"Em{mode}_0"][5])) == pytest.approx(1.0)
+    assert float(elements[f"Fm{mode}_0"][4]) == float(elements[f"Em{mode}_0"][5])
+
+
+@pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice is not installed")
+def test_netlist_reproduces_admittance_in_ngspice(resistive: Structure, tmp_path: Path) -> None:
+    rest, ports = biased_shuttle(resistive)
+    signal = resistive.small_signal(rest, ports, SmallSignalOptions(quality_factor=QUALITY))
+    low, high = 0.5 * signal.frequencies_hz[0], 2.0 * signal.frequencies_hz[0]
+    hertz = np.linspace(low, high, 7)
+    computed = signal.admittance(hertz)
+    for column in range(len(ports)):
+        sources = "\n".join(
+            f"V{p} port{p} 0 DC 0 AC {1 if p == column else 0}" for p in range(len(ports))
+        )
+        deck = (
+            f"* admittance column {column}\n{signal.netlist('device')}\n"
+            f"X1 {' '.join(f'port{p}' for p in range(len(ports)))} device\n{sources}\n"
+            f".control\nset wr_singlescale\noption numdgt=15\n"
+            f"ac lin 7 {float(low):.15g} {float(high):.15g}\n"
+            f"wrdata out.txt {' '.join(f'i(V{p})' for p in range(len(ports)))}\n"
+            f".endc\n.end\n"
+        )
+        (tmp_path / "deck.cir").write_text(deck)
+        subprocess.run(["ngspice", "-b", "deck.cir"], cwd=tmp_path, check=True, capture_output=True)
+        table = np.loadtxt(tmp_path / "out.txt")
+        assert table[:, 0] == pytest.approx(hertz, rel=1e-9)
+        drawn = -(table[:, 1::2] + 1j * table[:, 2::2])
+        assert drawn == pytest.approx(computed[:, :, column], rel=1e-6)
 
 
 def test_linearity_compares_drive_with_bias_and_motion_with_gap(plate: Structure) -> None:

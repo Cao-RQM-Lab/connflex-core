@@ -66,7 +66,7 @@ class _Network:
 @dataclass(frozen=True, eq=False)
 class SmallSignal:
     """Linear response about an equilibrium to small potentials at ports, equations (129)
-    to (137).
+    to (138).
 
     Attributes:
         ports: Electrode of each port, in the order given. A source holds each at the
@@ -174,6 +174,13 @@ class SmallSignal:
                     stacklevel=2,
                 )
         return Linearity(voltage=voltage, gap=gap, peak=peak)
+
+    def netlist(self, name: str = "device", modes: Sequence[int] | None = None) -> str:
+        """SPICE subcircuit with one pin per port, equation (138); all modes unless
+        ``modes`` names some."""
+        from connflex_core.electrical.netlist import spice_netlist
+
+        return spice_netlist(self, name, modes)
 
     def _response(self, omega: Array) -> Complex:
         natural = 2 * np.pi * self.frequencies_hz
