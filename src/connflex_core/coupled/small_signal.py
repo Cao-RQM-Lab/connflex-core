@@ -5,16 +5,15 @@ from __future__ import annotations
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from itertools import pairwise
 from typing import TYPE_CHECKING
 
-import networkx as nx
 import numpy as np
 import scipy.linalg
 from numpy.typing import ArrayLike, NDArray
 
 from connflex_core.coupled.static import Equilibrium
 from connflex_core.electrical.electrodes import Electrode
+from connflex_core.electrical.network import electrode_indices, network_nodes
 from connflex_core.mechanics.assembly import Dof, assemble
 from connflex_core.params import SmallSignalOptions
 from connflex_core.progress import Progress, stage
@@ -241,26 +240,14 @@ def small_signal(
     count = len(structure.electrodes)
     if not ports:
         raise ValueError("small signal needs at least one port")
-    given: Sequence[object] = ports
-    places = []
-    for port in given:
-        if not isinstance(port, Electrode):
-            raise TypeError(
-                f"a port is an Electrode, such as structure.electrode_at(point, layer), not "
-                f"{type(port).__name__} {port!r}: electrodes and nets are numbered apart"
-            )
-        if not (0 <= port.index < count and structure.electrodes[port.index] is port):
-            raise ValueError(f"electrode {port.index} is of another structure")
-        if port.net in equilibrium.floating:
-            raise ValueError(
-                f"electrode {port.index} is on floating net {port.net}, which no source holds"
-            )
-        places.append(port.index)
+    places = electrode_indices(structure, ports, equilibrium.floating, "port")
     with stage("assemble", progress) as current:
         system = assemble(structure)
         current.count(dofs=len(system.dofs), beams=len(structure.beams))
     with stage("small signal", progress) as current:
-        nodes, floating, conductance = _network_nodes(structure, equilibrium, places)
+        nodes, floating, conductance = network_nodes(
+            structure, equilibrium.floating, places, "port"
+        )
         tie = np.zeros((count, len(nodes) + len(floating)))
         for column, node in enumerate([*nodes, *floating]):
             tie[list(node), column] = 1.0
@@ -308,46 +295,6 @@ def small_signal(
             spring=system.stiffness,
         ),
     )
-
-
-def _network_nodes(
-    structure: Structure, equilibrium: Equilibrium, ports: Sequence[int]
-) -> tuple[list[tuple[int, ...]], list[tuple[int, ...]], Array]:
-    """Signal nodes with ports first, floating nodes, and conductance between signal
-    nodes, equation (130)."""
-    net = equilibrium.model.net
-    floating = set(equilibrium.floating)
-    sourced = {int(net[port]) for port in ports}
-    shorts: nx.Graph[int] = nx.Graph()
-    shorts.add_nodes_from(range(len(structure.electrodes)))
-    for link in structure.links:
-        if not link.resistance:
-            shorts.add_edge(*link.electrodes)
-    for each in floating:
-        members = np.flatnonzero(net == each).tolist()
-        shorts.add_edges_from(pairwise(members))
-    groups = {a: tuple(sorted(group)) for group in nx.connected_components(shorts) for a in group}
-    nodes: list[tuple[int, ...]] = []
-    for port in ports:
-        if groups[port] in nodes:
-            raise ValueError(
-                f"ports at electrodes {nodes[nodes.index(groups[port])][0]} and {port} are one "
-                f"node: links without resistance join them"
-            )
-        nodes.append(groups[port])
-    rest = sorted(
-        {groups[a] for a in range(len(net)) if net[a] in sourced and groups[a] not in nodes}
-    )
-    nodes.extend(rest)
-    hidden = sorted({groups[a] for a in range(len(net)) if net[a] in floating})
-    index = {a: k for k, node in enumerate(nodes) for a in node}
-    conductance = np.zeros((len(nodes), len(nodes)))
-    for link in structure.links:
-        a, b = link.electrodes
-        if link.resistance and a in index and index[a] != index[b]:
-            pair = [index[a], index[b]]
-            conductance[np.ix_(pair, pair)] += np.array([[1, -1], [-1, 1]]) / link.resistance
-    return nodes, hidden, conductance
 
 
 def _angular(frequencies: ArrayLike) -> Array:
