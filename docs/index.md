@@ -1,10 +1,14 @@
 # connflex-core
 
 Headless Python library that turns a GDS layout, or any set of polygons, of a
-silicon-on-insulator (SOI) MEMS process into a reduced-order mechanical model:
-rigid bodies joined by Euler-Bernoulli beams, their mass and stiffness
-matrices, and the resonant modes of the assembled system. It also derives the
-layout's electrical nets.
+silicon-on-insulator (SOI) MEMS process into a reduced-order electromechanical
+model: rigid bodies joined by Euler-Bernoulli beams, their mass and stiffness
+matrices, and the resonant modes of the assembled system; the layout's
+electrical nets and electrodes; and the capacitance between electrodes with
+its derivatives in the motion of every body. From these it solves static
+equilibrium under voltage, the small-signal model about it with a SPICE
+netlist, and transients under voltage and current sources with a circuit
+around the structure.
 
 | Step | Input | Output |
 | --- | --- | --- |
@@ -20,10 +24,13 @@ layout's electrical nets.
 | Plates to the handle | electrodes, oxide, release openings, stack | capacitance of each device electrode to the handle beneath it, with gradient and Hessian in body degrees of freedom |
 | Sidewall capacitance | conductor outlines in the layout plane | capacitance matrix between conductors per unit thickness |
 | Capacitance model | electrodes, plates, sidewall clusters | capacitance matrix between electrodes and between nets |
+| Fringe | walls of the device layer, its thickness, handle beneath | field above and below the device layer, added between device electrodes and to the handle |
 | Static equilibrium | beam stiffness, capacitance model, potentials on nets | displacement under voltage and its stability |
+| Small signal | equilibrium, ports, quality factor | modes under bias, admittance, motional branches, SPICE netlist |
+| Transient | capacitance model, voltage and current sources, circuit, quality factor | motion, potentials, charges, currents, and energy over time |
 
 Mechanical and electrostatic analyses each run on their own from one extracted
-structure. Static equilibrium under voltage takes both.
+structure. Static equilibrium, small signal, and transients take both.
 
 - [Installation](installation.md)
 - [Usage](usage.md)

@@ -6,10 +6,14 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Cao-RQM-Lab/connflex-core/blob/main/LICENSE)
 
 Headless Python library that turns a GDS layout, or any set of polygons, of a
-silicon-on-insulator (SOI) MEMS process into a reduced-order mechanical model:
-rigid bodies joined by Euler-Bernoulli beams, their mass and stiffness
-matrices, and the resonant modes of the assembled system. It also derives the
-layout's electrical nets. There is no GUI.
+silicon-on-insulator (SOI) MEMS process into a reduced-order electromechanical
+model: rigid bodies joined by Euler-Bernoulli beams, their mass and stiffness
+matrices, and the resonant modes of the assembled system; the layout's
+electrical nets and electrodes; and the capacitance between electrodes with
+its derivatives in the motion of every body. From these it solves static
+equilibrium under voltage, the small-signal model about it with a SPICE
+netlist, and transients under voltage and current sources with a circuit
+around the structure. There is no GUI.
 
 ## Installation
 

@@ -371,9 +371,14 @@ rest. It returns a model of the same kind whose matrices, gradient, force,
 and stiffness are those at the displaced bodies, so forces away from rest
 are exact derivatives of the capacitance away from rest. Plates are
 re-evaluated in closed form and sidewalls are found again on the moved
-outlines, with the clusters, methods, mesh, and windows of the model at
-rest; one call costs about as much as the sidewalls of the model at rest. Bodies that
-touch after the motion raise an error.
+outlines, with the clusters, methods, mesh, and window cores of the model
+at rest; one call costs about as much as the sidewalls of the model at
+rest. A window keeps its elements until travel brings walls into its
+overlap that it does not hold, and then takes those around its core where
+they are, and a row of identical cells stops counting cells that travel has
+carried near its ends, so teeth slid past each other by many pitches keep
+the accuracy they had at rest. Bodies that touch after the motion raise an
+error.
 
 Equilibria and transients evaluate many displacements close to each other.
 With `surrogate_tolerance` set, a cluster solved by the field method reuses

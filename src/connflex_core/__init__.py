@@ -1,4 +1,4 @@
-"""Reduced-order mechanical models and electrical nets from SOI layouts."""
+"""Reduced-order electromechanical models of SOI MEMS from layouts."""
 
 from importlib.metadata import version
 

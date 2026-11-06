@@ -5,13 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "connflex-core"
 dynamic = ["version"]
-description = "Reduced-order mechanical models and electrical nets from GDS layouts and polygons"
+description = "Reduced-order electromechanical models of SOI MEMS from GDS layouts and polygons"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Cao Reconfigurable Quantum Materials Lab at UC Berkeley" }]
-keywords = ["MEMS", "GDS", "SOI", "polygon", "mechanics", "modal analysis", "shapely"]
+keywords = ["MEMS", "GDS", "SOI", "polygon", "mechanics", "modal analysis", "electrostatics", "capacitance", "shapely"]
 classifiers = [
   "Intended Audience :: Science/Research",
   "Operating System :: OS Independent",

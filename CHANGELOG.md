@@ -5,6 +5,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-06
+
 ### Added
 
 - Electrodes and links: `Structure.electrodes` lists silicon of one conductor
@@ -202,5 +204,6 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `progress` callback with `start`, `advance`, and `finish` receives the same
   stages, advancing per item where a loop runs.
 
-[Unreleased]: https://github.com/Cao-RQM-Lab/connflex-core/compare/v0.1.0...main
+[Unreleased]: https://github.com/Cao-RQM-Lab/connflex-core/compare/v0.2.0...main
+[0.2.0]: https://github.com/Cao-RQM-Lab/connflex-core/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Cao-RQM-Lab/connflex-core/releases/tag/v0.1.0

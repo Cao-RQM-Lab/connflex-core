@@ -1,5 +1,5 @@
 site_name: connflex-core
-site_description: Headless extraction of reduced-order mechanical models and electrical nets from GDS layouts and polygons
+site_description: Headless extraction of reduced-order electromechanical models of SOI MEMS from GDS layouts and polygons
 site_url: https://cao-rqm-lab.github.io/connflex-core/
 repo_url: https://github.com/Cao-RQM-Lab/connflex-core
 repo_name: Cao-RQM-Lab/connflex-core

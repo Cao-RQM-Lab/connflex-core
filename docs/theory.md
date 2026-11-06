@@ -2053,9 +2053,10 @@ error.
     short straight wall that carries charge like any other.
 
     The map (114) is linear. Terms of second order in tilt are left out of
-    (115), as they are for plates, and so is any dependence of sidewall
-    capacitance on travel out of the plane: facing sidewalls overlap fully
-    at rest, so that dependence is even and exerts no force there.
+    (115), as they are for plates. Sidewall capacitance in the layout plane
+    does not depend on travel out of it: rise and tilt enter through the
+    fringe of (157) to (163), which gives the lift of fingers over the
+    handle and the vertical spring of a comb.
 
     The second derivative is kept as one block per plate and per cluster,
     over the electrodes and degrees of freedom each involves, and (116) sums
@@ -2063,8 +2064,9 @@ error.
     degrees of freedom would not fit for a large structure.
 
     Left out of $\mathbf{C}$: sidewalls of the handle layer, sidewalls and
-    faces of beams and bridges, coupling between clusters, and the field
-    that leaves the plane of a layer at the top and bottom of a sidewall.
+    faces of beams and bridges, and coupling between clusters; without
+    `include_fringe`, also the field that leaves the plane of the device
+    layer at the top and bottom of a sidewall.
 
     No cluster is left out, whatever its size: a matrix without it would
     look complete and not be. The feature size and method of every pair of
