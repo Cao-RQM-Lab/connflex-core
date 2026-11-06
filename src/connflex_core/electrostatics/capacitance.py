@@ -157,7 +157,7 @@ class CapacitanceModel:
         displacement: Displacement of every degree of freedom in ``dofs`` at which the
             model is evaluated, in meters and radians. Zero at rest.
         clearance: Smallest ratio of a gap between two bodies at ``displacement`` to the
-            same gap at rest, equation (127): over plates between two bodies, at the
+            same gap at rest, equation (126): over plates between two bodies, at the
             corner of the plate that comes closest, and over device electrodes of one
             cluster on different bodies, by the distance between their silicon. 1 at
             rest.

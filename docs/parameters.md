@@ -80,10 +80,7 @@ keyword overrides.
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
 | `tolerance` | $\tau_s$ | 1e-9 | Newton iteration for static equilibrium stops when the strain energy of its last step is below this fraction, squared, of the strain energy of the displacement, equation (122), or one step after it is below this fraction itself. |
-| `max_iterations` | | 30 | Most Newton iterations at one set of potentials. Reaching it counts as no equilibrium there. |
-| `steps` | | 1 | Equal steps in which potentials rise from zero to the values asked for. The equilibrium is followed from each to the next and all are returned, so more steps trace the curve of displacement against voltage. A step that finds no stable equilibrium is halved. |
-| `pull_in_resolution` | | 0.001 | Halving stops when the largest scale with a stable equilibrium and the smallest without are closer than this fraction of the potentials asked for, equation (125). |
-| `contact_fraction` | $\chi_c$ | 0.1 | An equilibrium at which a gap between two bodies has closed to this fraction of its width at rest, or further, counts as contact, equation (127), and ends the rise of the potentials. 0 accepts every equilibrium short of touching. |
+| `max_iterations` | | 30 | Most Newton iterations of one solve. Reaching it raises `NoEquilibriumError`. |
 
 ## `Wire`
 
@@ -105,8 +102,6 @@ the field: lengths, areas, thicknesses, densities, moduli, and resistivity are p
 `ambient_permittivity >= 1`; `element_size > 0` and `interaction_distance > 0`
 when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
 `window_tolerance > 0`; `dense_cutoff >= 0` and `plates_cutoff >= dense_cutoff`;
-`tolerance > 0`, `max_iterations >= 1`, `steps >= 1`, and
-`0 < pull_in_resolution < 1`, and `0 <= contact_fraction < 1` of
-`StaticOptions`; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
+`tolerance > 0` and `max_iterations >= 1` of `StaticOptions`; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
 `"device"` or `"handle"`, and its `resistance >= 0`; every stack layer has a
 thickness.

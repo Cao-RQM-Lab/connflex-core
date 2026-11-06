@@ -6,7 +6,7 @@ from connflex_core import adapters
 from connflex_core.adapters.gds import load_gds
 from connflex_core.adapters.gdsfactory_ import from_gdsfactory
 from connflex_core.adapters.klayout_ import from_klayout
-from connflex_core.coupled.static import Equilibrium
+from connflex_core.coupled.static import Equilibrium, NoEquilibriumError
 from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Conductor, Connection, Nets, Via, Wire, find_nets
 from connflex_core.electrostatics.capacitance import CapacitanceModel, Cluster, HessianBlock
@@ -51,6 +51,7 @@ __all__ = [
     "Material",
     "ModalResult",
     "Nets",
+    "NoEquilibriumError",
     "Plate",
     "Progress",
     "RejectedCandidate",

@@ -2055,7 +2055,7 @@ f_k(\mathbf{q}) = \frac{1}{2}\, \mathbf{v}^\top \frac{\partial \mathbf{C}}{\part
 $$
 
 The force grows as gaps close, so (120) is not linear and is solved by
-Newton iteration from rest, $\mathbf{q}_0 = \mathbf{0}$:
+Newton iteration from a start $\mathbf{q}_0$, rest unless another is given:
 
 $$
 \bigl( \mathbf{K}^\text{full} + \mathbf{K}_e(\mathbf{q}_i) \bigr)\, \Delta \mathbf{q}
@@ -2079,6 +2079,17 @@ has fallen below $\tau_s$ times the right side without the square. A step
 that small is followed by one of about its square, which meets (122), unless
 rounding in the forces keeps it larger, and then further steps would not
 shrink it either.
+
+Equation (120) has more than one solution in general. Below pull-in a plate
+on a spring has two, one that holds and one that tips over; a toothed rotor
+has a detent on either side of a balance point. Newton iteration converges
+to the solution near its start, so the start chooses among them. A device
+reaches its state by its potentials changing from earlier ones, and the
+equilibrium it sits in is the one that grows continuously out of the
+equilibrium it had. Each solve finds one equilibrium at one set of
+potentials; a sequence, such as potentials raised from zero or phases of a
+motor switched in turn, is a series of solves, each started from the
+equilibrium of the one before at nearby potentials.
 
 An equilibrium holds only if a small push meets a restoring force in every
 direction. The tangent stiffness $\mathbf{K}^\text{full} +
@@ -2117,45 +2128,36 @@ $k > \varepsilon A V^2 / (g_0 + z)^3$.
 
 ### Pull-in
 
-Potentials are raised from zero in equal steps, $\mathbf{v}(s) = s\,
-\mathbf{v}$ with the scale $s$ going from 0 to 1, and the equilibrium of one
-step starts the iteration of the next, so the solution that is followed is
-the one that grows out of rest. Pull-in is where it ends:
-
-$$
-s^* = \sup \bigl\{ s : \mathbf{q}(s) \text{ solves (120) at } \mathbf{v}(s),\ \text{continues from } \mathbf{q}(0),\ \lambda_\text{min}\bigl(\mathbf{q}(s)\bigr) > 0 \bigr\}. \tag{125}
-$$
-
-It ends in one of two ways. At a fold $\lambda_\text{min}$ falls to zero and
-no equilibrium exists beyond: the plate above meets its fold at one third
-of the gap. At a loss of symmetry the equilibrium goes on but no longer
-holds against a push: a comb between two stators at one potential stays
-centered while the spring across its fingers is used up by (117). The two
-closed forms are
+Raised from zero, the potentials carry the equilibrium that grows out of
+rest until it ends, in one of two ways. At a fold $\lambda_\text{min}$
+falls to zero and no equilibrium exists nearby beyond it: a plate on a
+spring meets its fold at one third of its gap. At a loss of symmetry the
+equilibrium goes on but no longer holds against a push: a comb between two
+stators at one potential stays centered while the spring across its fingers
+is used up by (117). The two closed forms are
 
 $$
 V^* = \sqrt{\frac{8\, k\, g_0^3}{27\, \varepsilon A}} \ \text{ at } z = -\frac{g_0}{3}, \qquad
-V^*_\perp = \sqrt{\frac{k_\perp\, g^3}{N \varepsilon\, t_\text{device}\, \ell}}. \tag{126}
+V^*_\perp = \sqrt{\frac{k_\perp\, g^3}{N \varepsilon\, t_\text{device}\, \ell}}. \tag{125}
 $$
 
-A step that finds no equilibrium, or finds one that is not stable, is
-halved: the scale is bisected between the largest with a stable
-equilibrium and the smallest without, each attempt starting from the
-former, until the two are closer than the resolution asked for. The result
-is the last stable equilibrium, its scale, and the scale just above it at
-which stability was lost.
+Near a fold $\mu_\text{min}$ falls toward zero, and beyond it Newton
+iteration finds no solution near its start. At a loss of symmetry the
+solution it finds has $\mu_\text{min} < 0$ and is reported as not stable.
+Locating pull-in is therefore a search over potentials by repeated solves,
+which a caller writes; the usage page shows one.
 
 ### Contact
 
 Nothing in the model describes two bodies that touch, so an equilibrium is
-accepted only while every gap between two bodies stays open. The clearance
+meaningful only while every gap between two bodies stays open. The clearance
 of a displacement is the smallest ratio of such a gap to its width at rest,
 
 $$
 \chi(\mathbf{q}) = \min \Bigl\{
 \min_{\text{plates}} \frac{g_0 + h_0 - |h_x|\, e_x - |h_y|\, e_y}{g_0},\;
 \min_{(a, b)} \frac{\operatorname{dist}\bigl( E_a(\mathbf{q}), E_b(\mathbf{q}) \bigr)}{\operatorname{dist}(E_a, E_b)}
-\Bigr\}. \tag{127}
+\Bigr\}. \tag{126}
 $$
 
 The first runs over plates between two bodies, with the rise $h_0$ and
@@ -2164,10 +2166,9 @@ box of the overlap about its reference point: its numerator is the gap (45)
 at the corner of that box that comes closest. The second runs over pairs of
 device electrodes of one cluster that move with different bodies and lie
 within $d_i$ of each other at rest, with the outlines carried by (118), and
-is the exact distance between their silicon. An equilibrium with
-$\chi \le \chi_c$, the contact fraction, ends the rise of the potentials as
-pull-in does, and the scale at which it happens is found by the same
-bisection.
+is the exact distance between their silicon. The model at every
+equilibrium carries $\chi$ and the two electrodes across that gap; how
+small a clearance to accept is the caller's judgment.
 
 ### Floating nets
 
@@ -2180,7 +2181,7 @@ floating nets fixes their potentials at every displacement:
 $$
 \mathbf{C}^\text{net}_{ff}\, \mathbf{v}_f + \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d = \mathbf{Q}_f
 \quad \Longrightarrow \quad
-\mathbf{v}_f(\mathbf{q}) = \mathbf{C}_{ff}^{\text{net}\,-1} \bigl( \mathbf{Q}_f - \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d \bigr). \tag{128}
+\mathbf{v}_f(\mathbf{q}) = \mathbf{C}_{ff}^{\text{net}\,-1} \bigl( \mathbf{Q}_f - \mathbf{C}^\text{net}_{fd}\, \mathbf{v}_d \bigr). \tag{127}
 $$
 
 The force keeps the form (120), now with these potentials. Its change with
@@ -2190,7 +2191,7 @@ $\Gamma_{\nu k} = \sum_\mu \bigl( \partial C^\text{net}_{\nu\mu} / \partial q_k 
 
 $$
 \mathbf{K}_t = \mathbf{K}^\text{full} + \mathbf{K}_e
-+ \boldsymbol{\Gamma}_f^\top\, \mathbf{C}_{ff}^{\text{net}\,-1}\, \boldsymbol{\Gamma}_f \tag{129}
++ \boldsymbol{\Gamma}_f^\top\, \mathbf{C}_{ff}^{\text{net}\,-1}\, \boldsymbol{\Gamma}_f \tag{128}
 $$
 
 replaces the tangent stiffness in (121), (123), and (124). The added part is never
@@ -2198,34 +2199,30 @@ negative: a body that moves toward a floating electrode lowers its
 potential, which weakens the pull. A plate that holds a fixed charge and
 has no other capacitance loses no stiffness at all, and never pulls in.
 $\mathbf{C}^\text{net}_{ff}$ must be positive definite, which it is when
-every floating net has capacitance to a driven one. Charges rise from zero
-together with the potentials.
+every floating net has capacitance to a driven one.
 
 !!! note "Implementation choices"
     A Newton step that would close a gap between a plate and the handle,
     or bring electrodes of two bodies into contact, is halved until it does
     not, up to twelve times. A halved step never ends the iteration.
 
-    An iteration that has not ended after `max_iterations` counts as no
-    equilibrium at that scale, and so does one whose steps were halved or
-    did not shrink four times in a row, which saves most of the cost of an
-    attempt beyond pull-in. Beyond a fold that is the truth. It also
-    happens with the plates method on teeth that stand tip to tip: the
-    force jumps at the cusp of (97) and the iteration steps back and forth
-    across it at any potential, so the result stops at a scale near zero
-    without that being pull-in. Such a device needs the field method.
+    An iteration that has not ended after `max_iterations`, or whose steps
+    were halved or did not shrink four times in a row, finds no
+    equilibrium. Beyond a fold that is the truth, and giving up early saves
+    most of the cost of the attempt. It also happens with the plates method
+    on teeth that stand tip to tip: the force jumps at the cusp of (97) and
+    the iteration steps back and forth across it at any potential. Such a
+    device needs the field method.
 
     The bounding box of a plate reaches at least as far as the plate, so
-    (127) reports contact of a tilted plate no later than it happens, and
+    (126) reports how far a tilted plate has closed no later than it does, and
     earlier for a plate that does not fill its box. A tilted plate is also
     where the capacitance of (55), of second order in tilt, is least
     accurate: at a clearance of one half its integrand is 12 percent low
     at the closest corner.
 
-    When bisection has closed in from below, the scale that failed is tried
-    once more from the nearest stable equilibrium. An iteration can fail
-    from a distant start where it succeeds from a near one, and a failure
-    is only taken for pull-in when it comes from within the resolution.
+    An iteration can fail from a distant start where it succeeds from a
+    near one, so a failure from far away says little about pull-in.
 
     Forces of the field method carry rounding of its dense solutions, which
     grows with the size of a cluster. A structure with a very soft motion
@@ -2273,7 +2270,6 @@ and validation rules are on the [parameters page](parameters.md).
 | $n_w$ | most elements in the core of a window | `ElectrostaticParams.window_elements` |
 | $\tau$ | change of the charge on a core below which the overlap of its window stops growing | `ElectrostaticParams.window_tolerance` |
 | $\tau_s$ | relative size of the last Newton step at which static equilibrium is accepted | `StaticOptions.tolerance` |
-| $\chi_c$ | fraction of its width at rest to which a gap may close before an equilibrium counts as contact | `StaticOptions.contact_fraction` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
 | $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |

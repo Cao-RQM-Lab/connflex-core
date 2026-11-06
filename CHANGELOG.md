@@ -76,18 +76,16 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Plates are evaluated in closed form and sidewalls on moved outlines, with
   the clusters, mesh, and windows found at rest. `CapacitanceModel.displacement`
   records where a model was evaluated.
-- `Structure.equilibrium`, `Equilibrium`, and `StaticOptions`: displacement at
-  which beam forces balance electrostatic forces for potentials on nets, by
-  Newton iteration on the capacitance model at displaced bodies, with
-  tangent stiffness and whether the equilibrium is stable. Potentials rise
-  from zero in steps; beyond pull-in the result is the last stable
-  equilibrium with the fraction of the potentials at which stability was
-  lost. An equilibrium that closes a gap between two bodies to
-  `contact_fraction` of its width ends the rise as contact. `charges`
-  names floating nets, which keep a fixed charge: their potentials follow
-  the bodies, and tangent stiffness gains the part that adds. `margin` is
-  the share of beam stiffness left where the field softens most, which
-  falls from 1 to 0 at pull-in.
+- `Structure.equilibrium`, `Equilibrium`, `StaticOptions`, and `NoEquilibriumError`:
+  displacement at which beam forces balance electrostatic forces at one set
+  of potentials on nets, by Newton iteration on the capacitance model at
+  displaced bodies, from rest or from `start`, an earlier equilibrium or a
+  displacement. The result carries tangent stiffness, whether the
+  equilibrium is stable, and `margin`, the share of beam stiffness left
+  where the field softens most. `charges` names floating nets, which keep a
+  fixed charge: their potentials follow the bodies, and tangent stiffness
+  gains the part that adds. Ramps, pull-in searches, and phase sequences
+  are left to the caller, as a series of solves each started from the last.
 - `CapacitanceModel.clearance` and `closest`: the narrowest gap between two
   bodies at a displacement as a fraction of its width at rest, and the two
   electrodes across it. `Plate.extent` and `Plate.lowest` give the gap of a

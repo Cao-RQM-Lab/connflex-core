@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import networkx as nx
 import numpy as np
 import scipy.linalg
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 from connflex_core.mechanics.assembly import Dof, assemble
 from connflex_core.params import StaticOptions
@@ -25,51 +25,39 @@ HALVINGS = 12
 PATIENCE = 4
 
 
+class NoEquilibriumError(ValueError):
+    """Newton iteration found no equilibrium from the start it was given."""
+
+
 @dataclass(frozen=True, eq=False)
 class Equilibrium:
-    """Where a structure rests under electrode potentials, equations (120) to (129).
+    """Where a structure rests under electrode potentials, equations (120) to (128).
 
     Attributes:
-        scale: Fraction of the potentials asked for at which this equilibrium holds: 1
-            when they were reached, else the largest fraction with a stable equilibrium.
-        pull_in: Fraction of the potentials asked for at which no stable equilibrium was
-            found any more, within ``pull_in_resolution`` above ``scale``. None when the
-            potentials were reached.
-        limit: Why potentials stopped rising: ``"contact"`` when the equilibrium at
-            ``pull_in`` closes a gap to ``contact_fraction`` of its width,
-            ``"unstable"`` when it does not hold against a push, ``"no equilibrium"``
-            when none was found. None when the potentials were reached.
         displacement: Displacement of every degree of freedom in ``dofs`` from rest, in
             meters and radians.
         dofs: (body index, degree of freedom) of each entry, as for the assembled
             mechanical matrices.
-        potentials: Potential of every electrode at ``scale``, in volts, those of
-            floating nets as their charge sets them.
+        potentials: Potential of every electrode, in volts, those of floating nets as
+            their charge sets them.
         charge: Charge on every electrode, in coulombs.
         force: Electrostatic generalized forces at ``displacement``.
         stiffness: Tangent stiffness there: mechanical plus electrostatic, with the
-            part that charge held on floating nets adds, equation (129).
+            part that charge held on floating nets adds, equation (128).
         softest: Smallest eigenvalue of ``stiffness`` against the mass matrix, the
             squared angular frequency of the softest motion under these potentials.
         margin: Smallest eigenvalue of ``stiffness`` against the mechanical stiffness:
             the fraction of beam stiffness left in the direction the field softens
-            most, equation (124). 1 without potentials, 0 at pull-in.
+            most, equation (124). 1 without potentials, 0 at pull-in, negative when the
+            equilibrium does not hold against a push.
         stable: Whether ``softest`` is positive.
-        iterations: Newton iterations taken, over all steps.
+        iterations: Newton iterations taken.
         loose: Bodies that no chain of beams joins to the anchor. Nothing can balance a
             force on them, so they are kept at rest and left out of ``softest``.
-        model: Capacitance model at ``displacement``.
-        ramp_scales: Fractions of the potentials at which a stable equilibrium was found
-            on the way, ascending from zero to ``scale``.
-        ramp_displacements: Displacement at each of them, one row each.
-        ramp_softest: ``softest`` at each of them.
-        ramp_margin: ``margin`` at each of them.
-        ramp_clearance: ``CapacitanceModel.clearance`` at each of them.
+        model: Capacitance model at ``displacement``, whose ``clearance`` tells how far
+            the narrowest gap between two bodies has closed.
     """
 
-    scale: float
-    pull_in: float | None
-    limit: str | None
     displacement: Array
     dofs: tuple[Dof, ...]
     potentials: Array
@@ -82,11 +70,6 @@ class Equilibrium:
     iterations: int
     loose: tuple[int, ...]
     model: CapacitanceModel
-    ramp_scales: Array
-    ramp_displacements: Array
-    ramp_softest: Array
-    ramp_margin: Array
-    ramp_clearance: Array
 
 
 def equilibrium(
@@ -96,22 +79,23 @@ def equilibrium(
     *,
     charges: Mapping[int, float] | None = None,
     loads: Mapping[int, Sequence[float]] | None = None,
+    start: Equilibrium | ArrayLike | None = None,
     options: StaticOptions | None = None,
     progress: Progress | None = None,
 ) -> Equilibrium:
-    """Displacement at which beam forces balance electrostatic forces.
+    """Displacement at which beam forces balance electrostatic forces, one operating point.
 
     ``model`` is the capacitance model of ``structure`` at rest. ``potentials`` maps a
     net to its potential in volts. ``charges`` maps a floating net to the charge it
-    holds, in coulombs; its potential follows from equation (128). A net in neither is
+    holds, in coulombs; its potential follows from equation (127). A net in neither is
     at zero volts. ``loads`` maps a body index to six generalized forces at its center
-    of mass, as for ``static``. Potentials and charges rise together from zero.
-    Potentials rise from zero in ``steps`` and the equilibrium is followed by Newton
-    iteration, equation (121), which evaluates the capacitance model at every iterate.
-    Where no stable equilibrium is found the step is halved, and the result is the last
-    stable equilibrium with the fraction of the potentials at which stability was lost,
-    equation (125). Stages assemble and equilibrium log through the ``connflex_core``
-    logger and report to ``progress``; equilibrium advances once per step.
+    of mass, as for ``static``. Newton iteration, equation (121), starts at rest, or at
+    ``start``: an earlier ``Equilibrium`` of this structure or a displacement of every
+    degree of freedom. It finds the equilibrium near its start, so which of several it
+    finds depends on where it starts; ``stable`` and ``margin`` tell whether that one
+    holds. No equilibrium within ``max_iterations`` raises ``NoEquilibriumError``. Stages
+    assemble and equilibrium log through the ``connflex_core`` logger and report to
+    ``progress``.
     """
     options = options or StaticOptions()
     if model.rest.structure is not structure:
@@ -143,96 +127,74 @@ def equilibrium(
         if len(load) != 6:
             raise ValueError(f"load on body {body} must have six components")
         applied[rows[body] : rows[body] + 6] = load
+    origin = _origin(model, start, kept)
 
-    both = np.ix_(kept, kept)
-
-    def drive(scale: float) -> Callable[[CapacitanceModel], tuple[Array, Array]]:
+    def drive(here: CapacitanceModel) -> tuple[Array, Array]:
         """Electrode potentials at a displacement, and stiffness that held charge adds."""
+        level = volts.copy()
+        added = np.zeros_like(system.stiffness)
+        if floating.size:
+            between = tie.T @ here.matrix @ tie
+            within = between[np.ix_(floating, floating)]
+            try:
+                factor = scipy.linalg.cho_factor(within)
+            except scipy.linalg.LinAlgError as exc:
+                raise ValueError(
+                    "a floating net has no capacitance to a net with a potential"
+                ) from exc
+            across = between[np.ix_(floating, driven)] @ level[driven]
+            level[floating] = scipy.linalg.cho_solve(factor, stored[floating] - across)
+            pull = (tie.T @ np.einsum("abk,b->ak", here.gradient, level[here.net]))[floating]
+            added = pull.T @ scipy.linalg.cho_solve(factor, pull)
+        return level[here.net], added
 
-        def at(here: CapacitanceModel) -> tuple[Array, Array]:
-            level = scale * volts
-            added = np.zeros_like(system.stiffness)
-            if floating.size:
-                between = tie.T @ here.matrix @ tie
-                within = between[np.ix_(floating, floating)]
-                try:
-                    factor = scipy.linalg.cho_factor(within)
-                except scipy.linalg.LinAlgError as exc:
-                    raise ValueError(
-                        "a floating net has no capacitance to a net with a potential"
-                    ) from exc
-                across = between[np.ix_(floating, driven)] @ level[driven]
-                level[floating] = scipy.linalg.cho_solve(factor, scale * stored[floating] - across)
-                pull = (tie.T @ np.einsum("abk,b->ak", here.gradient, level[here.net]))[floating]
-                added = pull.T @ scipy.linalg.cho_solve(factor, pull)
-            return level[here.net], added
-
-        return at
-
-    def softness(here: CapacitanceModel, scale: float) -> tuple[float, float]:
-        """Smallest eigenvalues of tangent stiffness against mass and against beams."""
-        held, added = drive(scale)(here)
-        tangent = (system.stiffness + here.stiffness(held) + added)[both]
-        softest = scipy.linalg.eigh(tangent, system.mass[both], eigvals_only=True)[0]
-        margin = scipy.linalg.eigh(tangent, system.stiffness[both], eigvals_only=True)[0]
-        return float(softest), float(margin)
-
-    start, iterations = _settle(model, system.stiffness, kept, drive(0.0), applied, options)
-    if start is None:
-        raise ValueError("no equilibrium under mechanical loads alone")
-    here = start
-    scale, pull_in, limit = 0.0, None, None
-    ramp = [(scale, here.displacement, *softness(here, scale), here.clearance)]
-    from_here = False
-    with stage("equilibrium", progress, total=options.steps) as current:
-        while scale < 1:
-            if pull_in is None:
-                target = min((np.floor(scale * options.steps + 1e-9) + 1) / options.steps, 1.0)
-            elif pull_in - scale > options.pull_in_resolution:
-                target = (scale + pull_in) / 2
-            elif from_here:
-                break
-            else:
-                target = pull_in
-            found, taken = _settle(here, system.stiffness, kept, drive(target), applied, options)
-            softest, margin = softness(found, target) if found else (0.0, 0.0)
-            iterations += taken
-            if found is not None and softest > 0 and found.clearance > options.contact_fraction:
-                if pull_in is None:
-                    current.advance()
-                elif target == pull_in:
-                    pull_in = limit = None
-                here, scale, from_here = found, target, False
-                ramp.append((scale, here.displacement, softest, margin, here.clearance))
-            else:
-                pull_in, from_here = target, True
-                limit = (
-                    "no equilibrium" if found is None else "unstable" if softest <= 0 else "contact"
-                )
-        current.count(iterations=iterations, steps=len(ramp) - 1)
-    reached, added = drive(scale)(here)
+    with stage("equilibrium", progress) as current:
+        here, iterations = _settle(origin, system.stiffness, kept, drive, applied, options)
+        current.count(iterations=iterations)
+        if here is None:
+            raise NoEquilibriumError(
+                f"no equilibrium found in {iterations} iterations from this start: the "
+                f"potentials may be beyond pull-in, or the start too far from an "
+                f"equilibrium; start from an equilibrium at nearer potentials"
+            )
+    reached, added = drive(here)
+    both = np.ix_(kept, kept)
+    tangent = system.stiffness + here.stiffness(reached) + added
+    softest = float(scipy.linalg.eigh(tangent[both], system.mass[both], eigvals_only=True)[0])
+    margin = float(scipy.linalg.eigh(tangent[both], system.stiffness[both], eigvals_only=True)[0])
     return Equilibrium(
-        scale=scale,
-        pull_in=pull_in,
-        limit=limit,
         displacement=here.displacement,
         dofs=system.dofs,
         potentials=reached,
         charge=here.matrix @ reached,
         force=here.force(reached),
-        stiffness=system.stiffness + here.stiffness(reached) + added,
-        softest=ramp[-1][2],
-        margin=ramp[-1][3],
-        stable=ramp[-1][2] > 0,
+        stiffness=tangent,
+        softest=softest,
+        margin=margin,
+        stable=softest > 0,
         iterations=iterations,
         loose=tuple(sorted({body for body, _ in system.dofs if body not in joined})),
         model=here,
-        ramp_scales=np.array([entry[0] for entry in ramp]),
-        ramp_displacements=np.array([entry[1] for entry in ramp]),
-        ramp_softest=np.array([entry[2] for entry in ramp]),
-        ramp_margin=np.array([entry[3] for entry in ramp]),
-        ramp_clearance=np.array([entry[4] for entry in ramp]),
     )
+
+
+def _origin(
+    model: CapacitanceModel, start: Equilibrium | ArrayLike | None, kept: NDArray[np.bool_]
+) -> CapacitanceModel:
+    """Capacitance model where Newton iteration starts."""
+    if start is None:
+        return model
+    if isinstance(start, Equilibrium):
+        rest, other = model.rest, start.model.rest
+        if other.structure is not rest.structure or other.params != rest.params:
+            raise ValueError("start is an equilibrium of another structure or model")
+        return start.model
+    place = np.asarray(start, dtype=float)
+    if place.shape != (len(model.dofs),):
+        raise ValueError(
+            f"start must hold one value for each of {len(model.dofs)} degrees of freedom"
+        )
+    return model.at(np.where(kept, place, 0.0))
 
 
 def _settle(

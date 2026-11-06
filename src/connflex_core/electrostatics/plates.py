@@ -66,7 +66,7 @@ class Plate:
         return float(self.permittivity * self.moments[0, 0] / self.gap)
 
     def lowest(self, device: ArrayLike | None = None, handle: ArrayLike | None = None) -> float:
-        """Smallest gap over the bounding box of the overlap, in meters, equation (127).
+        """Smallest gap over the bounding box of the overlap, in meters, equation (126).
 
         ``device`` and ``handle`` are as for ``evaluate``. Zero or less means that a
         corner of the box has reached the other plate.

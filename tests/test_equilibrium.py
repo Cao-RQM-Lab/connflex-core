@@ -12,6 +12,7 @@ from connflex_core import (
     Layer,
     Layout,
     Material,
+    NoEquilibriumError,
     Stack,
     StaticOptions,
     Structure,
@@ -126,74 +127,59 @@ def test_comb_travel_grows_with_voltage_squared(shuttle: Structure) -> None:
     assert np.max(abs(travel[1][1:])) < 1e-9 * travel[1][0]
 
 
-def test_plate_is_followed_up_to_pull_in_at_the_closed_form_voltage(plate: Structure) -> None:
+def test_start_chooses_which_of_two_plate_equilibria_is_found(plate: Structure) -> None:
+    """Below pull-in a plate on a spring has a stable and an unstable equilibrium;
+    Newton iteration finds the one its start lies near."""
     spring, area = plate.modal().stiffness[2, 2], (SIDE * UM) ** 2
     pull_in = np.sqrt(8 * spring * BOX**3 / (27 * EPS0 * area))
     model = plate.capacitance(HANDLE_ALONE)
     handle = net_at(plate, 0, 0, "handle")
 
-    below = plate.equilibrium(model, {handle: 0.9 * pull_in}, options=StaticOptions(steps=10))
-    assert (below.scale, below.pull_in, below.limit) == (1.0, None, None)
-    assert below.ramp_scales.tolist() == [k / 10 for k in range(11)]
-    for scale, place in zip(below.ramp_scales, below.ramp_displacements, strict=True):
-        volts = scale * 0.9 * pull_in
-        balance = spring * place[2] + 0.5 * EPS0 * area * volts**2 / (BOX + place[2]) ** 2
-        assert abs(balance) < 1e-8 * spring * BOX
-    assert below.ramp_displacements[-1] == pytest.approx(below.displacement)
-    assert np.all(np.diff(below.ramp_displacements[:, 2]) < 0)
-    assert below.ramp_softest[-1] == below.softest
-    assert below.ramp_margin[0] == pytest.approx(1.0)
-    assert np.all(np.diff(below.ramp_margin) < 0)
-    assert below.ramp_margin[-1] == below.margin
+    def roots(volts: float) -> tuple[float, float]:
+        def unbalance(rise: float) -> float:
+            return float(spring * rise + 0.5 * EPS0 * area * volts**2 / (BOX + rise) ** 2)
 
-    beyond = plate.equilibrium(
-        model, {handle: 1.2 * pull_in}, options=StaticOptions(pull_in_resolution=1e-6)
-    )
-    assert beyond.limit in ("unstable", "no equilibrium")
-    assert beyond.pull_in is not None
-    assert beyond.pull_in * 1.2 == pytest.approx(1.0, rel=1e-5)
-    assert 0 < beyond.pull_in - beyond.scale <= 1e-6
-    assert beyond.stable
-    assert 0 < beyond.margin < 1e-2
-    assert np.max(beyond.potentials) == pytest.approx(beyond.scale * 1.2 * pull_in)
-    assert beyond.displacement[2] == pytest.approx(-BOX / 3, rel=1e-2)
+        return (
+            scipy.optimize.brentq(unbalance, -BOX / 3, 0.0, xtol=1e-18),
+            scipy.optimize.brentq(unbalance, -0.999 * BOX, -BOX / 3, xtol=1e-18),
+        )
 
-
-def test_ramp_stops_where_a_gap_has_closed_to_the_contact_fraction(plate: Structure) -> None:
-    """A stop at four fifths of the gap comes before pull-in at two thirds."""
-    spring, area = plate.modal().stiffness[2, 2], (SIDE * UM) ** 2
-    touching = np.sqrt(2 * spring * 0.2 * BOX * (0.8 * BOX) ** 2 / (EPS0 * area))
-    model = plate.capacitance(HANDLE_ALONE)
-    handle = net_at(plate, 0, 0, "handle")
-    options = StaticOptions(contact_fraction=0.8, pull_in_resolution=1e-5)
-    result = plate.equilibrium(model, {handle: 1.1 * touching}, options=options)
-    assert result.limit == "contact"
-    assert result.pull_in is not None
-    assert result.pull_in * 1.1 == pytest.approx(1.0, rel=1e-4)
-    assert result.model.clearance == pytest.approx(0.8, rel=1e-3)
-    assert result.model.clearance > 0.8
+    volts = 0.9 * pull_in
+    held, tipping = roots(volts)
+    near = plate.equilibrium(model, {handle: volts})
+    assert near.displacement[2] == pytest.approx(held, rel=1e-8)
+    assert near.stable
+    assert near.margin == pytest.approx(1 - EPS0 * area * volts**2 / (spring * (BOX + held) ** 3))
+    assert near.model.clearance == pytest.approx((BOX + held) / BOX)
     over = plate.electrode_at((50 * UM, 50 * UM), "device").index
     under = plate.electrode_at((50 * UM, 50 * UM), "handle").index
-    assert result.model.closest == (over, under)
-    assert result.ramp_clearance[0] == 1.0
-    assert result.ramp_clearance[-1] == result.model.clearance
-    with pytest.raises(ValueError, match="contact_fraction"):
-        StaticOptions(contact_fraction=1.0)
+    assert near.model.closest == (over, under)
+
+    start = np.zeros(len(model.dofs))
+    start[2] = 1.02 * tipping
+    far = plate.equilibrium(model, {handle: volts}, start=start)
+    assert far.displacement[2] == pytest.approx(tipping, rel=1e-8)
+    assert not far.stable
+    assert far.margin < 0
+
+    higher = plate.equilibrium(model, {handle: 0.95 * pull_in}, start=near)
+    assert higher.displacement[2] == pytest.approx(roots(0.95 * pull_in)[0], rel=1e-8)
+    with pytest.raises(NoEquilibriumError):
+        plate.equilibrium(model, {handle: 1.2 * pull_in}, start=higher)
 
 
-def test_comb_loses_sideways_stability_at_the_closed_form_voltage(shuttle: Structure) -> None:
-    """Both stators at one potential pull the shuttle equally: it stays centered until
-    the spring across the fingers is used up."""
+def test_centered_comb_turns_unstable_at_the_closed_form_voltage(shuttle: Structure) -> None:
+    """Both stators at one potential pull the shuttle equally: it stays centered, and
+    the field uses up the spring across the fingers by the square of the voltage."""
     spring = shuttle.modal().stiffness[1, 1]
     limit = np.sqrt(spring * (GAP * UM) ** 3 / (2 * GAPS * EPS0 * THICKNESS * OVERLAP * UM))
     model = shuttle.capacitance(WALLS_ALONE)
-    stators = {net_at(shuttle, x, 0): 1.3 * limit for x in (-250, 250)}
-    result = shuttle.equilibrium(model, stators, options=StaticOptions(pull_in_resolution=1e-5))
-    assert result.limit == "unstable"
-    assert result.pull_in is not None
-    assert result.pull_in * 1.3 == pytest.approx(1.0, rel=1e-4)
-    assert result.stable
-    assert np.max(abs(result.displacement[:3])) < 1e-9 * GAP * UM
+    for fraction in (0.9, 1.1):
+        stators = {net_at(shuttle, x, 0): fraction * limit for x in (-250, 250)}
+        result = shuttle.equilibrium(model, stators)
+        assert np.max(abs(result.displacement[:3])) < 1e-9 * GAP * UM
+        assert result.margin == pytest.approx(1 - fraction**2, rel=1e-3)
+        assert result.stable == (fraction < 1)
 
 
 def test_floating_net_keeps_its_charge_as_the_plate_moves(plate: Structure) -> None:
@@ -244,9 +230,8 @@ def test_bond_between_stators_drives_both_from_one_potential(shuttle: Structure)
     assert -joined.net_matrix[nets[1], net_at(bonded, 0, 0)] == pytest.approx(
         -apart.net_matrix[pair[0], spine] - apart.net_matrix[pair[1], spine]
     )
-    options = StaticOptions(pull_in_resolution=1e-4)
-    one = bonded.equilibrium(joined, {nets[1]: 20.0}, options=options)
-    both = shuttle.equilibrium(apart, dict.fromkeys(pair, 20.0), options=options)
+    one = bonded.equilibrium(joined, {nets[1]: 20.0})
+    both = shuttle.equilibrium(apart, dict.fromkeys(pair, 20.0))
     assert one.displacement == pytest.approx(both.displacement, rel=1e-9, abs=1e-18)
     assert one.margin == pytest.approx(both.margin, rel=1e-9)
     assert one.potentials == pytest.approx(both.potentials)
@@ -287,7 +272,8 @@ def test_inputs_that_name_nothing_are_rejected(plate: Structure, shuttle: Struct
         shuttle.equilibrium(model, {})
     with pytest.raises(ValueError, match="max_iterations"):
         StaticOptions(max_iterations=0)
-    with pytest.raises(ValueError, match="steps"):
-        StaticOptions(steps=0)
-    with pytest.raises(ValueError, match="pull_in_resolution"):
-        StaticOptions(pull_in_resolution=1.0)
+    with pytest.raises(ValueError, match="start"):
+        plate.equilibrium(model, {}, start=[0.0, 0.0])
+    other = shuttle.equilibrium(shuttle.capacitance(WALLS_ALONE), {})
+    with pytest.raises(ValueError, match="another structure"):
+        plate.equilibrium(model, {}, start=other)

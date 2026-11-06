@@ -491,9 +491,6 @@ model = structure.capacitance(params)
 drive = structure.electrode_at((1.2e-3, 0.4e-3), "device").net
 result = structure.equilibrium(model, {drive: 40.0})
 
-result.scale  # 1.0 when the potentials were reached, else the fraction that was
-result.pull_in  # fraction at which stability was lost, or None
-result.limit  # None, "contact", "unstable", or "no equilibrium"
 result.displacement  # one value per degree of freedom in result.dofs, from rest
 result.stable  # whether a small push is met by a restoring force
 result.margin  # share of beam stiffness left where the field softens most: 1 to 0
@@ -502,59 +499,83 @@ result.stiffness  # tangent stiffness: mechanical plus electrostatic
 result.force  # electrostatic forces at the equilibrium
 result.potentials, result.charge  # per electrode
 result.model  # capacitance model at the equilibrium
+result.model.clearance, result.model.closest  # narrowest gap against its width at rest, and where
 result.loose  # bodies that no beam holds, kept at rest
-result.ramp_scales, result.ramp_displacements, result.ramp_softest  # the way there
-result.ramp_margin  # margin on the way
-result.ramp_clearance  # narrowest gap on the way, as a fraction of its width at rest
-result.model.clearance, result.model.closest  # that fraction here, and its two electrodes
 
 result = structure.equilibrium(model, {drive: 40.0}, loads={1: [0, 0, -1e-6, 0, 0, 0]})
-result = structure.equilibrium(model, {drive: 40.0}, options=cf.StaticOptions(steps=20))
 result = structure.equilibrium(model, {drive: 40.0}, charges={sense: 0.0})  # sense floats
+result = structure.equilibrium(model, {drive: 45.0}, start=result)  # from the last equilibrium
 ```
 
-`structure.equilibrium` finds where the structure rests with potentials on
-its nets. It needs both analyses: the structure for beam stiffness and a
-capacitance model of that structure for the forces. Potentials are in volts
-by net index, as `structure.nets` and `electrode.net` number them.
-`charges` names nets that float and the charge each holds, in coulombs:
-such a net is connected to nothing, its potential follows from its charge
-and moves as bodies move, and `result.potentials` reports where it ends up.
-A net in neither is at zero volts, so a net that floats in the device has
-to be named in `charges`, with 0.0 if it was never charged. `loads` adds
-mechanical forces, as for `static`.
+`structure.equilibrium` finds where the structure rests at one set of
+potentials on its nets. It needs both analyses: the structure for beam
+stiffness and a capacitance model of that structure for the forces.
+Potentials are in volts by net index, as `structure.nets` and
+`electrode.net` number them. `charges` names nets that float and the charge
+each holds, in coulombs: such a net is connected to nothing, its potential
+follows from its charge and moves as bodies move, and `result.potentials`
+reports where it ends up. A net in neither is at zero volts, so a net that
+floats in the device has to be named in `charges`, with 0.0 if it was never
+charged. `loads` adds mechanical forces, as for `static`.
 
 The solve is a Newton iteration that evaluates the capacitance model at
 every displacement it visits, so forces and the tangent stiffness are those
-of the displaced structure and not a linearization about rest. `stable`
-tells whether the equilibrium holds against a small push, and `margin` is
+of the displaced structure and not a linearization about rest. It starts at
+rest, or at `start`: an earlier result or a displacement of every degree of
+freedom. A structure under voltage often has more than one equilibrium, and
+the iteration finds the one near its start, so the start chooses. `stable`
+tells whether that equilibrium holds against a small push, and `margin` is
 how far it is from losing that: the share of beam stiffness that the field
-has left in the direction it softens most, 1 without voltage and 0 at
-pull-in. `softest` is the squared angular frequency of the softest motion
-under bias. It also reaches zero at pull-in, but the motion that gives way
-is often a stiff one, such as a plate moving toward the handle, and the
-softest frequency can stay almost unchanged until just before. A body that no
-chain of beams joins to the anchor cannot be in equilibrium under a force;
-it stays at rest and is listed in `loose`.
+has left in the direction it softens most, 1 without voltage, 0 at pull-in,
+and negative for an equilibrium that tips over. `softest` is the squared
+angular frequency of the softest motion under bias. It also reaches zero at
+pull-in, but the motion that gives way is often a stiff one, such as a
+plate moving toward the handle, and the softest frequency can stay almost
+unchanged until just before. `result.model.clearance` is the narrowest gap
+between two bodies as a fraction of its width at rest; nothing in the model
+describes bodies that touch, so how small a gap to accept is yours to
+decide. A body that no chain of beams joins to the anchor cannot be in
+equilibrium under a force; it stays at rest and is listed in `loose`. When
+the iteration finds nothing, `cf.NoEquilibriumError` is raised.
 
-Potentials rise from zero in `steps` and the equilibrium is followed from
-one to the next. When the potentials asked for lie beyond pull-in, the
-result is the last stable equilibrium instead of an error: `scale` is the
-fraction of the potentials it holds at, `pull_in` the fraction just above
-at which stability was lost, within `pull_in_resolution`, so
-`pull_in * 40.0` is the pull-in voltage here. `limit` tells how it was
-lost: `"no equilibrium"` at a fold, as for a plate closing its gap, and
-`"unstable"` where an equilibrium remains but tips over, as for a comb
-snapping sideways, and `"contact"` where an equilibrium closes a gap
-between two bodies to `contact_fraction` of its width at rest, 0.1 unless
-set otherwise, since nothing in the model describes bodies that touch. The
-gap is that of a plate at its closest corner or the distance between
-silicon of two electrodes, and `result.model.closest` names the two
-electrodes on either side. With more `steps` the `ramp_` arrays trace displacement,
-margin, and softest frequency against voltage. If `plates_cutoff` is lowered
-so far that teeth standing tip to tip are taken as plates, the iteration
-fails at any voltage and `scale` ends near zero; that is the cusp of the
-plates method and not pull-in. Formulas are in
+The library solves one operating point per call. Sequences are yours to
+write, and each solve should start from the equilibrium of the one before
+at nearby potentials: that follows the state a device reaches as its
+voltages change, where a single solve from rest at a high voltage may land
+in another equilibrium. A ramp, a pull-in search, and the phases of a
+stepper are a few lines each:
+
+```python
+# ramp: displacement against voltage
+state, curve = None, []
+for volts in np.linspace(5.0, 50.0, 10):
+    state = structure.equilibrium(model, {drive: volts}, start=state)
+    curve.append((volts, state.displacement, state.margin))
+
+# pull-in: bisect between the last stable equilibrium and the first voltage without one
+low, high, state = 0.0, 200.0, None
+while high - low > 0.01:
+    try:
+        trial = structure.equilibrium(model, {drive: (low + high) / 2}, start=state)
+    except cf.NoEquilibriumError:
+        trial = None
+    if trial is not None and trial.stable and trial.model.clearance > 0.1:
+        low, state = (low + high) / 2, trial
+    else:
+        high = (low + high) / 2
+
+# stepper: energize phases in turn, each step from where the last left the rotor
+state = None
+for phase in [phase_a, phase_b, phase_c] * 3:  # each a list of nets
+    state = structure.equilibrium(model, dict.fromkeys(phase, 60.0), start=state)
+```
+
+Each of these is quasi-static: it assumes the potentials change slowly
+against the motion of the bodies. A drive that switches in a fraction of a
+period sets bodies ringing, and where they settle then depends on inertia
+and damping. If `plates_cutoff` is lowered so far that teeth standing tip
+to tip are taken as plates, the iteration fails at any voltage; that is the
+cusp of the plates method and not pull-in. Formulas are in
 [static equilibrium](theory.md#static-equilibrium).
 
 ## Progress and logging

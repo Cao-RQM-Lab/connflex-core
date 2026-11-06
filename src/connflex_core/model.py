@@ -19,7 +19,7 @@ from connflex_core.progress import Progress
 from connflex_core.stack import Stack
 
 if TYPE_CHECKING:
-    from numpy.typing import NDArray
+    from numpy.typing import ArrayLike, NDArray
 
     from connflex_core.coupled.static import Equilibrium
     from connflex_core.electrostatics.capacitance import CapacitanceModel
@@ -189,11 +189,12 @@ class Structure:
         *,
         charges: Mapping[int, float] | None = None,
         loads: Mapping[int, Sequence[float]] | None = None,
+        start: Equilibrium | ArrayLike | None = None,
         options: StaticOptions | None = None,
         progress: Progress | None = None,
     ) -> Equilibrium:
-        """Displacement under potentials and charges on nets, with the capacitance model of
-        this structure."""
+        """Equilibrium under potentials and charges on nets, found from rest or from
+        ``start``, with the capacitance model of this structure."""
         from connflex_core.coupled.static import equilibrium
 
         return equilibrium(
@@ -202,6 +203,7 @@ class Structure:
             potentials,
             charges=charges,
             loads=loads,
+            start=start,
             options=options,
             progress=progress,
         )
