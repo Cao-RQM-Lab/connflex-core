@@ -147,6 +147,7 @@ class _Run:
     duration: float
     evaluations: int = 0
     cache: dict[bytes, CapacitanceModel] = field(default_factory=dict)
+    workers: int | None = None
 
     def __post_init__(self) -> None:
         self.factor = scipy.linalg.cho_factor(self.mass)
@@ -188,7 +189,7 @@ class _Run:
             full = np.zeros(self.dofs)
             full[self.kept] = place
             try:
-                self.cache[key] = self.model.at(full)
+                self.cache[key] = self.model.at(full, workers=self.workers)
             except ValueError as exc:
                 raise _ClosedError from exc
             self.evaluations += 1
@@ -310,6 +311,7 @@ def transient(
     charges: Mapping[int, float] | None = None,
     loads: Mapping[int, Sequence[float]] | None = None,
     start: Equilibrium | ArrayLike | None = None,
+    workers: int | None = None,
     progress: Progress | None = None,
 ) -> Transient:
     """Motion, potentials, and charges of ``structure`` over ``times`` under ``sources``.
@@ -323,9 +325,10 @@ def transient(
     ``static``. The run starts at ``times[0]`` from rest or from the displacement of
     ``start``, at zero velocity, with the potentials that the sources hold without
     current at that time, equation (147), and ends at ``times[-1]`` or at contact.
-    Integration restarts where a waveform or switch changes. Stages assemble and
-    transient log through the ``connflex_core`` logger and report to ``progress``,
-    which advances once per output time.
+    Integration restarts where a waveform or switch changes. ``workers`` threads
+    evaluate the model, as many as at rest by default. Stages assemble and transient
+    log through the ``connflex_core`` logger and report to ``progress``, which advances
+    once per output time.
     """
     if model.rest.structure is not structure:
         raise ValueError("capacitance model was built from another structure")
@@ -431,6 +434,7 @@ def transient(
     damping = weighted @ np.diag(natural / options.quality_factor) @ weighted.T
     run = _Run(
         model=model,
+        workers=workers,
         sources=voltage,
         currents=currents,
         inject=inject,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
+from functools import partial
 
 import numpy as np
 import shapely
@@ -14,6 +15,7 @@ from connflex_core.electrostatics.facing import facing_runs, outline_edges
 from connflex_core.electrostatics.jets import Jet
 from connflex_core.electrostatics.section import Cut, Section, solve_section
 from connflex_core.electrostatics.translates import KEY_GRID
+from connflex_core.workers import Workers
 
 Array = NDArray[np.float64]
 Index = NDArray[np.intp]
@@ -117,13 +119,15 @@ def find_fringe(
     pivots: Array,
     centers: Array,
     motion: Array,
+    workers: Workers | None = None,
 ) -> FringeCapacitance:
     """Fringe capacitance of device electrodes ``regions`` where they are, equations
     (157) to (163).
 
     ``body`` gives the body of each region. ``pivots`` holds where each body of the
     group turns about in the plane now, ``centers`` its center at rest, and ``motion``
-    its six parameters from rest, as for ``FringeCapacitance``.
+    its six parameters from rest, as for ``FringeCapacitance``. ``workers`` solve the
+    cross-sections not met before, one piece each.
     """
     if plan.last and np.array_equal(plan.last[0][0], motion):
         return plan.last[0][1]
@@ -173,11 +177,17 @@ def find_fringe(
         _beneath(plan, middle),
         devices,
     )
+    pending: dict[bytes, Cut] = {}
     for cutting in [*piece_cuts, *edge_cuts]:
         if cutting is not None and cutting.key not in plan.sections:
-            plan.sections[cutting.key] = solve_section(
-                cutting.cut, plan.thickness, plan.box, plan.reach, plan.grading
-            )
+            pending.setdefault(cutting.key, cutting.cut)
+    sections = (workers or Workers(1)).run(
+        [
+            partial(solve_section, cut, plan.thickness, plan.box, plan.reach, plan.grading)
+            for cut in pending.values()
+        ]
+    )
+    plan.sections.update(zip(pending, sections, strict=True))
 
     taken = np.flatnonzero([cutting is not None for cutting in piece_cuts])
     open_edge = np.array([cutting is not None for cutting in edge_cuts], dtype=bool)

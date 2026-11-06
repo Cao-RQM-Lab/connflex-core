@@ -31,6 +31,7 @@ from connflex_core.electrostatics.windows import (
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.params import ElectrostaticParams
 from connflex_core.progress import Progress, Stage, stage
+from connflex_core.workers import Workers
 
 Array = NDArray[np.float64]
 Index = NDArray[np.intp]
@@ -144,6 +145,7 @@ def sidewall_capacitance(
     *,
     bodies: Sequence[int] | None = None,
     centers: ArrayLike | None = None,
+    workers: int | None = None,
     progress: Progress | None = None,
 ) -> SidewallCapacitance:
     """Capacitance between sidewalls of conductors drawn in the layout plane.
@@ -160,9 +162,10 @@ def sidewall_capacitance(
     of one body move together. By default every conductor is its own body. ``centers``
     gives the point each body rotates about, by default the centroid of its conductors.
     Gradient and Hessian are the exact derivatives of the computed capacitance for rigid
-    motion of the bodies. Stage facing, and when the field is solved stage mesh and then
-    assemble, solve, derivatives, and curvature or the one stage windows, log through
-    the ``connflex_core`` logger and report to ``progress``.
+    motion of the bodies. ``workers`` threads solve windows and blocks of rows of one
+    dense system, every processor by default. Stage facing, and when the field is solved
+    stage mesh and then assemble, solve, derivatives, and curvature or the one stage
+    windows, log through the ``connflex_core`` logger and report to ``progress``.
     """
     regions, body, pivots = _arranged(conductors, bodies, centers)
     with stage("facing", progress) as current:
@@ -179,6 +182,7 @@ def sidewall_capacitance(
         facing,
         params,
         lambda name, total=None: stage(name, progress, total),
+        workers=Workers(workers),
     )[0]
 
 
@@ -278,15 +282,17 @@ def solve_sidewalls(
     params: ElectrostaticParams,
     enter: Enter,
     advance: Callable[[], None] | None = None,
+    workers: Workers | None = None,
 ) -> tuple[SidewallCapacitance, SidewallPlan]:
     """Capacitance of conductors that move with ``body`` about ``pivots`` by ``plan``.
 
     ``mesh`` is the mesh of the plan carried with the bodies and ``facing`` the result of
     ``facing_plates`` for the regions where they are. Each pair takes its capacitance
     from its own method, equation (107). ``enter`` opens each stage; with ``advance`` no
-    stage is opened for windows and it is called once per window. Also returns the plan
-    with the elements of each window, which passed back keep each window as long as it
-    holds what its core needs, equation (164).
+    stage is opened for windows and it is called once per window. ``workers`` run the
+    windows and the assembly of one dense system. Also returns the plan with the
+    elements of each window, which passed back keep each window as long as it holds
+    what its core needs, equation (164).
     """
     count, rigid = len(facing[0]), len(pivots)
     between = np.zeros((count, count))
@@ -299,7 +305,7 @@ def solve_sidewalls(
             for i, j in ((a, b), (b, a)):
                 between[i, j], slopes[i, j], bends[i, j] = (-part[i, j] for part in facing[:3])
     if plan.whole:
-        charges = solve_charges(mesh, count, enter)
+        charges = solve_charges(mesh, count, enter, workers=workers)
         solved = [
             (
                 charges.capacitance,
@@ -328,6 +334,7 @@ def solve_sidewalls(
                     step,
                     problem.windows,
                     problem.pairs,
+                    workers=workers,
                 )
                 if problem.rows:
                     kept_cells = interior_cells(problem.rows, mesh, plan.mesh, body, _reach(params))
@@ -346,6 +353,7 @@ def solve_sidewalls(
                             problem.loose,
                             problem.pairs,
                             keys,
+                            workers,
                         )
                         for summed, piece in zip(found, part, strict=True):
                             summed += piece

@@ -5,6 +5,14 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `workers=` on `Structure.capacitance`, `CapacitanceModel.at`,
+  `Structure.equilibrium`, `Structure.transient`, and `sidewall_capacitance`:
+  threads that solve windows, fringe cross-sections, and blocks of rows of
+  one dense system, every processor by default. Sums are taken in a fixed
+  order, so the count changes results only within rounding.
+
 ### Changed
 
 - Window planning counts the elements of a trial window through the index of

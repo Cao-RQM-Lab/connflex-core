@@ -1,4 +1,5 @@
 import logging
+import math
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -14,6 +15,7 @@ from connflex_core import (
     extract,
     sidewall_capacitance,
 )
+from connflex_core.electrostatics.dense import PAIRS_PER_PASS
 from connflex_core.progress import stage
 
 EXTRACT_STAGES = [
@@ -154,10 +156,11 @@ def test_sidewall_capacitance_reports_its_stages() -> None:
     )
     result = sidewall_capacitance(squares, field, progress=recorder)
     elements = len(result.mesh.conductor)
+    blocks = math.ceil(elements / max(1, PAIRS_PER_PASS // elements))
     assert recorder.runs == [
         Run("facing", None, 0, True),
         Run("mesh", None, 0, True),
-        Run("assemble", elements, elements, True),
+        Run("assemble", blocks, blocks, True),
         Run("solve", None, 0, True),
         Run("derivatives", 1, 1, True),
         Run("curvature", None, 0, True),

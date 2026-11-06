@@ -29,6 +29,7 @@ from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.mechanics.assembly import DOF_NAMES, Dof
 from connflex_core.params import ElectrostaticParams
 from connflex_core.progress import Progress, quiet, stage
+from connflex_core.workers import Workers
 
 if TYPE_CHECKING:
     from connflex_core.model import Structure
@@ -111,12 +112,14 @@ class RestGeometry:
         plates: Plates between device and handle electrodes.
         groups: Clusters of device electrodes at rest, and with ``include_fringe`` each
             device electrode alone over the handle that is in no cluster.
+        workers: Threads that run its windows, cross-sections, and assembly.
     """
 
     structure: Structure
     params: ElectrostaticParams
     plates: tuple[Plate, ...]
     groups: tuple[RestCluster, ...]
+    workers: Workers = field(default_factory=Workers)
 
 
 @dataclass(frozen=True, eq=False)
@@ -229,7 +232,12 @@ class CapacitanceModel:
     rest: RestGeometry
 
     def at(
-        self, displacement: ArrayLike, *, exact: bool = False, progress: Progress | None = None
+        self,
+        displacement: ArrayLike,
+        *,
+        exact: bool = False,
+        workers: int | None = None,
+        progress: Progress | None = None,
     ) -> CapacitanceModel:
         """The model with its bodies displaced, equations (118) and (119).
 
@@ -239,15 +247,16 @@ class CapacitanceModel:
         rows of identical cells follow travel, equations (164) and (165). With
         ``surrogate_tolerance`` set, clusters solved by the field method come from the
         expansion of an earlier solution where it holds, equations (148) to (150), unless
-        ``exact``. Bodies that touch are an error. Stage sidewalls logs through the
-        ``connflex_core`` logger and reports to ``progress`` as it does at rest.
+        ``exact``. Bodies that touch are an error. ``workers`` threads solve the pieces,
+        as many as at rest by default. Stage sidewalls logs through the ``connflex_core``
+        logger and reports to ``progress`` as it does at rest.
         """
         moved = np.asarray(displacement, dtype=float)
         if moved.shape != (len(self.dofs),):
             raise ValueError(
                 f"displacement must hold one value for each of {len(self.dofs)} degrees of freedom"
             )
-        return _evaluate(self.rest, moved, progress, exact)
+        return _evaluate(self.rest, moved, progress, exact, workers)
 
     @property
     def net_matrix(self) -> Array:
@@ -345,6 +354,7 @@ def find_capacitance(
     structure: Structure,
     params: ElectrostaticParams | None = None,
     *,
+    workers: int | None = None,
     progress: Progress | None = None,
 ) -> CapacitanceModel:
     """Capacitance between all electrodes of a structure at rest, equations (109) to (116).
@@ -357,6 +367,10 @@ def find_capacitance(
     below the device layer along every wall adds to sidewalls, equations (157) to (163),
     for clusters and for device electrodes alone over the handle. Derivatives are in the
     six degrees of freedom of every movable body.
+    ``workers`` threads solve windows, cross-sections, and blocks of rows of one dense
+    system, every processor by default; sums are taken in a fixed order, so the count
+    changes results only within rounding, and the model keeps it for evaluation at
+    displaced bodies.
     Stages plates, clusters, and sidewalls log through the
     ``connflex_core`` logger and report to ``progress``; sidewalls advances once per
     cluster, and once per window for a cluster solved in windows.
@@ -429,7 +443,7 @@ def find_capacitance(
                 clusters=sum(len(g.electrodes) > 1 for g in groups),
                 windows=sum(g.plan.windows for g in groups),
             )
-    rest = RestGeometry(structure, params, plates, tuple(groups))
+    rest = RestGeometry(structure, params, plates, tuple(groups), Workers(workers))
     return _evaluate(
         rest, np.zeros(6 * sum(not body.anchor for body in structure.bodies)), progress
     )
@@ -471,10 +485,16 @@ def _fringe_plan(
 
 
 def _evaluate(
-    rest: RestGeometry, displacement: Array, progress: Progress | None, exact: bool = True
+    rest: RestGeometry,
+    displacement: Array,
+    progress: Progress | None,
+    exact: bool = True,
+    workers: int | None = None,
 ) -> CapacitanceModel:
-    """Capacitance model of ``rest`` with its bodies displaced."""
+    """Capacitance model of ``rest`` with its bodies displaced, by its workers unless
+    ``workers`` gives another count."""
     structure, params = rest.structure, rest.params
+    pool = rest.workers if workers is None else Workers(workers)
     tolerance = params.surrogate_tolerance
     count = len(structure.electrodes)
     oxide, released, sidewall, fringe = (np.zeros((count, count)) for _ in range(4))
@@ -551,7 +571,15 @@ def _evaluate(
                         )
                     mesh = _carried(group.plan.mesh, group.body, centers, motion)
                     found, plan = solve_sidewalls(
-                        group.body, pivots, group.plan, mesh, facing, params, quiet, current.advance
+                        group.body,
+                        pivots,
+                        group.plan,
+                        mesh,
+                        facing,
+                        params,
+                        quiet,
+                        current.advance,
+                        pool,
                     )
                 if group.fringe is not None and shell is None:
                     shell = find_fringe(
@@ -561,6 +589,7 @@ def _evaluate(
                         rests[:, :2] + full[:, :2],
                         rests[:, :2],
                         full,
+                        pool,
                     )
                 if fielded and reused is None and found is not None:
                     _remember(group, full, found, shell, params, structure)

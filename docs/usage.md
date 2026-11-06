@@ -849,6 +849,29 @@ plates to the handle, a few milliseconds with the plates method, and as long
 as the solve at rest with the field method. Formulas are in
 [transient](theory.md#transient).
 
+## Workers
+
+Solving the field is many independent pieces: the windows of a cluster, the
+cross-sections of its fringe, and the blocks of rows of one dense system.
+`capacitance`, `at`, `equilibrium`, `transient`, and `sidewall_capacitance`
+take `workers=`, the number of threads that run them: every processor of the
+machine by default, and `workers=1` runs them one after another. Sums are
+taken in a fixed order, so the count changes results only within rounding,
+by which of two translated windows solves their shared field first, and a
+model keeps the count it was built with for its evaluation at displaced
+bodies unless an analysis passes another.
+
+```python
+model = structure.capacitance(params, workers=8)
+settled = structure.equilibrium(model, {2: 40.0}, workers=8)
+```
+
+Planning stays serial: clusters, facing walls, meshing, and rows of identical
+cells, as do the derivatives of one dense system. A BLAS that runs its own
+threads, such as OpenBLAS, oversubscribes the machine when every worker calls
+it on a large matrix; limit its threads, for example with
+`OPENBLAS_NUM_THREADS=1`, unless one dense system dominates the run.
+
 ## Progress and logging
 
 Each stage of `extract`, `modal`, `static`, `plates`, `capacitance`,
@@ -896,7 +919,7 @@ candidate, mass once per body, and electrodes once per beam, rejected
 candidate, and via; the other stages are single operations. `plates` reports
 one stage, plates, that advances once per device electrode.
 `sidewall_capacitance` with method `"field"` reports mesh, assemble, solve,
-derivatives, and curvature; assemble advances once per boundary element and
+derivatives, and curvature; assemble advances once per block of rows and
 derivatives once per pair of bodies. For a mesh solved in windows it reports
 mesh and windows, which advances once per window. With method `"plates"` it
 reports one stage, facing. `capacitance` reports plates, clusters, and

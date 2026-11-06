@@ -3,7 +3,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
-from shapely import Polygon, affinity, box
+from shapely import MultiPolygon, Polygon, affinity, box
 
 from connflex_core import (
     CapacitanceModel,
@@ -486,3 +486,48 @@ def test_report_lists_capacitance_by_pair_part_net_and_cluster(
         }
     ]
     assert report["unassigned_area"] == pytest.approx(2 * 200 * 10 * UM**2)
+
+
+def test_workers_share_windows_and_sections_and_change_nothing(comb: Structure) -> None:
+    params = ElectrostaticParams(
+        element_size=4 * UM, interaction_distance=30 * UM, window_elements=40
+    )
+    alone = comb.capacitance(params, workers=1)
+    shared = comb.capacitance(params, workers=4)
+    (cluster,) = shared.clusters
+    assert cluster.windows > 1
+    assert cluster.sections > 1
+
+    def same(found: np.ndarray, expected: np.ndarray) -> None:
+        assert found == pytest.approx(expected, rel=1e-10, abs=1e-12 * np.max(abs(expected)))
+
+    same(shared.matrix, alone.matrix)
+    same(shared.gradient, alone.gradient)
+    for mine, theirs in zip(shared.blocks, alone.blocks, strict=True):
+        same(mine.values, theirs.values)
+    place = [1e-6, 0.2e-6, 0.0, 0.0, 0.0, 0.0]
+    same(shared.at(place, workers=4).matrix, alone.at(place).matrix)
+    with pytest.raises(ValueError, match="workers"):
+        comb.capacitance(params, workers=0)
+
+
+def test_derivatives_about_the_core_corner_are_those_of_a_translate() -> None:
+    """A window may take the derivatives of a translate solved in its own coordinates:
+    about the corner of each copy's core they are the same, which lets the copy that
+    holds the factorization serve whichever copy asks first."""
+    from connflex_core.electrostatics.dense import charge_derivatives, solve_charges
+    from connflex_core.electrostatics.outlines import mesh_outlines
+    from connflex_core.progress import quiet
+
+    def copy(shift: float) -> tuple[np.ndarray, np.ndarray]:
+        squares = [box(0, 0, 10, 10), box(13, -1, 21, 8)]
+        regions = [affinity.translate(square, shift, 2 * shift) for square in squares]
+        scaled = [MultiPolygon([affinity.scale(r, UM, UM, origin=(0, 0))]) for r in regions]
+        mesh = mesh_outlines(scaled, 2 * UM, 4.0)
+        core = (mesh.start[:, 0] + mesh.end[:, 0]) / 2 > (6 + shift) * UM
+        charges = solve_charges(mesh, 2, quiet, core)
+        corner = ((mesh.start + mesh.end) / 2)[core].min(axis=0)
+        return charge_derivatives(charges, np.array([0, 1]), np.tile(corner, (2, 1)), quiet)
+
+    for mine, theirs in zip(copy(0.0), copy(37.0), strict=True):
+        assert mine == pytest.approx(theirs, rel=1e-9, abs=1e-12 * np.max(abs(theirs)))

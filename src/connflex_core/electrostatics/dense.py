@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from functools import partial
 
 import numpy as np
 import scipy.linalg
@@ -13,6 +14,7 @@ from numpy.typing import NDArray
 from connflex_core.electrostatics.kernel import pair_derivatives, pair_integrals
 from connflex_core.electrostatics.outlines import Mesh
 from connflex_core.progress import Stage
+from connflex_core.workers import Workers
 
 Array = NDArray[np.float64]
 Complex = NDArray[np.complex128]
@@ -66,6 +68,7 @@ def solve_charges(
     enter: Enter,
     core: NDArray[np.bool_] | None = None,
     period: Array | None = None,
+    workers: Workers | None = None,
 ) -> Charges:
     """Solve the field of a mesh for one volt on each of its conductors in turn.
 
@@ -73,7 +76,8 @@ def solve_charges(
     all do. With ``period``, a vector in meters, the mesh is one cell of a row repeated
     without end along it, equation (151). ``enter`` opens the stages assemble and solve:
     ``stage`` bound to a progress receiver, or ``quiet`` when the solution is one step of
-    a larger stage.
+    a larger stage. ``workers`` share the assembly by blocks of rows, which assemble
+    advances once each.
     """
     count = len(mesh.conductor)
     corners = np.concatenate([mesh.start, mesh.end])
@@ -86,19 +90,19 @@ def solve_charges(
 
     potential = np.empty((count, count))
     rows = max(1, PAIRS_PER_PASS // count)
-    with enter("assemble", total=count) as current:
-        for first in range(0, count, rows):
-            block = slice(first, first + rows)
-            if step is None:
-                integral = pair_integrals(start[block, None], end[block, None], start, end)
-            else:
-                from connflex_core.electrostatics.periodic import periodic_integrals
+    blocks = [slice(first, first + rows) for first in range(0, count, rows)]
 
-                integral = periodic_integrals(
-                    start[block, None], end[block, None], start, end, step
-                )
-            potential[block] = -integral / (2 * np.pi * length[block, None] * length)
-            current.advance(len(length[block]))
+    def fill(block: slice) -> None:
+        if step is None:
+            integral = pair_integrals(start[block, None], end[block, None], start, end)
+        else:
+            from connflex_core.electrostatics.periodic import periodic_integrals
+
+            integral = periodic_integrals(start[block, None], end[block, None], start, end, step)
+        potential[block] = -integral / (2 * np.pi * length[block, None] * length)
+
+    with enter("assemble", total=len(blocks)) as current:
+        (workers or Workers(1)).run([partial(fill, block) for block in blocks], current.advance)
 
     with enter("solve"):
         try:

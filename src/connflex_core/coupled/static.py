@@ -83,6 +83,7 @@ def equilibrium(
     loads: Mapping[int, Sequence[float]] | None = None,
     start: Equilibrium | ArrayLike | None = None,
     options: StaticOptions | None = None,
+    workers: int | None = None,
     progress: Progress | None = None,
 ) -> Equilibrium:
     """Displacement at which beam forces balance electrostatic forces, one operating point.
@@ -95,7 +96,8 @@ def equilibrium(
     ``start``: an earlier ``Equilibrium`` of this structure or a displacement of every
     degree of freedom. It finds the equilibrium near its start, so which of several it
     finds depends on where it starts; ``stable`` and ``margin`` tell whether that one
-    holds. No equilibrium within ``max_iterations`` raises ``NoEquilibriumError``. Stages
+    holds. No equilibrium within ``max_iterations`` raises ``NoEquilibriumError``.
+    ``workers`` threads evaluate the model, as many as at rest by default. Stages
     assemble and equilibrium log through the ``connflex_core`` logger and report to
     ``progress``.
     """
@@ -129,7 +131,7 @@ def equilibrium(
         if len(load) != 6:
             raise ValueError(f"load on body {body} must have six components")
         applied[rows[body] : rows[body] + 6] = load
-    origin = _origin(model, start, kept)
+    origin = _origin(model, start, kept, workers)
 
     def drive(here: CapacitanceModel) -> tuple[Array, Array]:
         """Electrode potentials at a displacement, and stiffness that held charge adds."""
@@ -151,7 +153,7 @@ def equilibrium(
         return level[here.net], added
 
     with stage("equilibrium", progress) as current:
-        here, iterations = _settle(origin, system.stiffness, kept, drive, applied, options)
+        here, iterations = _settle(origin, system.stiffness, kept, drive, applied, options, workers)
         current.count(iterations=iterations)
         if here is None:
             raise NoEquilibriumError(
@@ -160,7 +162,7 @@ def equilibrium(
                 f"equilibrium; start from an equilibrium at nearer potentials"
             )
     if model.rest.params.surrogate_tolerance is not None:
-        here = here.at(here.displacement, exact=True)
+        here = here.at(here.displacement, exact=True, workers=workers)
     reached, added = drive(here)
     both = np.ix_(kept, kept)
     tangent = system.stiffness + here.stiffness(reached) + added
@@ -184,7 +186,10 @@ def equilibrium(
 
 
 def _origin(
-    model: CapacitanceModel, start: Equilibrium | ArrayLike | None, kept: NDArray[np.bool_]
+    model: CapacitanceModel,
+    start: Equilibrium | ArrayLike | None,
+    kept: NDArray[np.bool_],
+    workers: int | None,
 ) -> CapacitanceModel:
     """Capacitance model where Newton iteration starts."""
     if start is None:
@@ -199,7 +204,7 @@ def _origin(
         raise ValueError(
             f"start must hold one value for each of {len(model.dofs)} degrees of freedom"
         )
-    return model.at(np.where(kept, place, 0.0))
+    return model.at(np.where(kept, place, 0.0), workers=workers)
 
 
 def _settle(
@@ -209,6 +214,7 @@ def _settle(
     drive: Callable[[CapacitanceModel], tuple[Array, Array]],
     applied: Array,
     options: StaticOptions,
+    workers: int | None,
 ) -> tuple[CapacitanceModel | None, int]:
     """Newton iteration from the displacement of ``model``, with the iterations it took.
 
@@ -234,7 +240,7 @@ def _settle(
         whole = True
         for _ in range(HALVINGS):
             try:
-                there = model.at(place + step)
+                there = model.at(place + step, workers=workers)
                 break
             except ValueError:
                 step, whole = step / 2, False

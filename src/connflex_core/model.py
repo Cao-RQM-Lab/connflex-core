@@ -185,12 +185,17 @@ class Structure:
         return find_plates(self, params, progress=progress)
 
     def capacitance(
-        self, params: ElectrostaticParams | None = None, *, progress: Progress | None = None
+        self,
+        params: ElectrostaticParams | None = None,
+        *,
+        workers: int | None = None,
+        progress: Progress | None = None,
     ) -> CapacitanceModel:
-        """Capacitance between all electrodes at rest, from plates and sidewalls."""
+        """Capacitance between all electrodes at rest, from plates and sidewalls, solved
+        by ``workers`` threads, every processor by default."""
         from connflex_core.electrostatics.capacitance import find_capacitance
 
-        return find_capacitance(self, params, progress=progress)
+        return find_capacitance(self, params, workers=workers, progress=progress)
 
     def equilibrium(
         self,
@@ -201,10 +206,12 @@ class Structure:
         loads: Mapping[int, Sequence[float]] | None = None,
         start: Equilibrium | ArrayLike | None = None,
         options: StaticOptions | None = None,
+        workers: int | None = None,
         progress: Progress | None = None,
     ) -> Equilibrium:
         """Equilibrium under potentials and charges on nets, found from rest or from
-        ``start``, with the capacitance model of this structure."""
+        ``start``, with the capacitance model of this structure evaluated by ``workers``
+        threads, as many as at rest by default."""
         from connflex_core.coupled.static import equilibrium
 
         return equilibrium(
@@ -215,6 +222,7 @@ class Structure:
             loads=loads,
             start=start,
             options=options,
+            workers=workers,
             progress=progress,
         )
 
@@ -243,11 +251,12 @@ class Structure:
         charges: Mapping[int, float] | None = None,
         loads: Mapping[int, Sequence[float]] | None = None,
         start: Equilibrium | ArrayLike | None = None,
+        workers: int | None = None,
         progress: Progress | None = None,
     ) -> Transient:
         """Motion, potentials, and charges over ``times`` under ``sources`` and with the
         resistors and capacitors of ``circuit``, with the capacitance model of this
-        structure."""
+        structure evaluated by ``workers`` threads, as many as at rest by default."""
         from connflex_core.coupled.transient import transient
 
         return transient(
@@ -260,6 +269,7 @@ class Structure:
             charges=charges,
             loads=loads,
             start=start,
+            workers=workers,
             progress=progress,
         )
 
