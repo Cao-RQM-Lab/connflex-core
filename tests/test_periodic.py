@@ -1,9 +1,10 @@
 from dataclasses import replace
 from itertools import pairwise
+from typing import Any, cast
 
 import numpy as np
 import pytest
-from shapely import box
+from shapely import Polygon, affinity, box, union_all
 
 from connflex_core import (
     CapacitanceModel,
@@ -11,8 +12,10 @@ from connflex_core import (
     Layout,
     Structure,
     extract,
+    sidewall_capacitance,
 )
-from connflex_core.electrostatics.dense import charge_derivatives, solve_charges
+from connflex_core.electrostatics import windows
+from connflex_core.electrostatics.dense import Charges, charge_derivatives, solve_charges
 from connflex_core.electrostatics.outlines import Mesh
 from connflex_core.progress import quiet
 from test_equilibrium import EXTRACTION, STACK, net_at
@@ -138,7 +141,7 @@ def long_comb() -> Structure:
 
 
 def test_long_comb_is_found_as_one_row(long_comb: Structure) -> None:
-    model = long_comb.capacitance(replace(WINDOWS, periodic_min_cells=8))
+    model = long_comb.capacitance(WINDOWS)
     rows = [row for problem in model.rest.groups[0].plan.problems for row in problem.rows]
     assert len(rows) == 1
     assert abs(rows[0].period[0]) == pytest.approx(16 * UM)
@@ -152,7 +155,7 @@ def test_periodic_row_matches_whole_solution_at_rest_and_displaced(long_comb: St
     the shuttle agree with one dense solution of the whole comb, at rest and with the
     shuttle moved and turned."""
     whole = long_comb.capacitance(replace(WINDOWS, dense_cutoff=float("inf")))
-    periodic = long_comb.capacitance(replace(WINDOWS, periodic_min_cells=8))
+    periodic = long_comb.capacitance(WINDOWS)
     stator = net_at(long_comb, 0, 200)
     shuttle = net_at(long_comb, 0, 20)
     turn = periodic.dofs.index((1, "tz"))
@@ -177,6 +180,56 @@ def test_periodic_row_matches_whole_solution_at_rest_and_displaced(long_comb: St
             assert found.stiffness(potentials)[k, k] == pytest.approx(
                 truth.stiffness(potentials)[k, k], rel=5e-3
             )
+
+
+def test_windows_beside_translated_rows_are_solved_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Three combs 150 um apart: what each row leaves to the windows, bar ends and the
+    walls behind its fingers, is cut in the frame of the row, so the windows of every comb
+    take the solutions of the first comb's."""
+
+    def comb(y: float) -> list[Polygon]:
+        shuttle = [
+            box(-160, 0, 160, 15),
+            *(box(PITCH * k + 10, 15, PITCH * k + 14, 55) for k in range(-10, 10)),
+        ]
+        stator = [
+            box(-160, 69, 160, 84),
+            *(box(PITCH * k + 2, 29, PITCH * k + 6, 69) for k in range(-10, 10)),
+        ]
+        return [
+            cast(
+                Polygon,
+                affinity.scale(affinity.translate(union_all(part), 0, y), UM, UM, origin=(0, 0)),
+            )
+            for part in (shuttle, stator)
+        ]
+
+    params = ElectrostaticParams(
+        element_size=4 * UM,
+        corner_grading=4.0,
+        interaction_distance=15 * UM,
+        dense_cutoff=0.0,
+        plates_cutoff=float("inf"),
+        window_elements=100,
+    )
+    solved = []
+
+    def counted(*args: Any, **kwargs: Any) -> Charges:
+        solved.append(1)
+        return solve_charges(*args, **kwargs)
+
+    monkeypatch.setattr(windows, "solve_charges", counted)
+    one = sidewall_capacitance(comb(0), params)
+    once = len(solved)
+    three = sidewall_capacitance([*comb(0), *comb(150), *comb(300)], params)
+    assert len(solved) == 2 * once
+    assert three.windows == 3 * one.windows
+    for k in range(3):
+        mine = np.arange(2 * k, 2 * k + 2)
+        assert three.capacitance[np.ix_(mine, mine)] == pytest.approx(one.capacitance, rel=1e-12)
+        assert three.gradient[np.ix_(mine, mine, mine)] == pytest.approx(
+            one.gradient, abs=1e-12 * np.max(abs(one.gradient))
+        )
 
 
 def _moved(model: CapacitanceModel, turn: int) -> np.ndarray:

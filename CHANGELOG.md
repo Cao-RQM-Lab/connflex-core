@@ -127,7 +127,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   field problem solved in windows, found where outlines repeat their edges,
   take their interior from one cell solved with the periodic kernel and the
   derivatives in turn from one window around it; each cell follows its
-  bodies' turn through its lever arm. Off by default.
+  bodies' turn through its lever arm. What a row leaves to the windows is
+  cut into cores in the frame of the row, so congruent rows leave windows
+  that are translates. On by default for rows of 8 cells or more.
 - Windows that are translates of one another, element for element with
   their cores, conductors, and bodies, are solved once; each copy moves the
   derivatives to the pivots of its own bodies. Window cores are cut on

@@ -1505,7 +1505,8 @@ stops short of two trench widths leaves out part of the field across it.
     Translates are found by the coordinates of the elements relative to
     that corner, rounded to $10^{-11}$ m, and cores are cut on centers
     rounded the same way, so that groups of elements that are translates
-    are cut into cores that are.
+    are cut into cores that are. Windows cut by medians over a whole mesh
+    are rarely translates; those of the groups of (156) often are.
 
     The point a body turns about travels with the body, as a center of mass
     does. A second derivative for travel and rotation taken about a point
@@ -2802,19 +2803,48 @@ $d_i$ or two periods, whichever is larger, which counts charge on that
 cell and turns its bodies rigidly about the cell center. The periodic
 solution keeps the capacitance and the derivatives in travel.
 
+What a row leaves to the windows repeats with it: congruent rows have
+congruent ends, and the walls beside their cells repeat with the cells.
+Cut by medians over all of a mesh, these elements fall into cores that
+differ from row to row, so they are cut in the frame of their row instead.
+With $s = \mathbf{r} \cdot \mathbf{e}$ along a row, $s_-$ where its first
+cell begins and $s_+$ where its last ends, and $\ell = \lceil d_i / |\mathbf{t}|
+\rceil\, |\mathbf{t}|$ the fewest whole cells that span $d_i$, an element
+within $2 d_i + |\mathbf{t}|$ of the cells of a row joins the nearest such
+row, in group
+
+$$
+z = \begin{cases}
+\text{before} & s < s_-, \\
+\text{beyond} & s > s_+, \\
+\bigl\lfloor (s - s_-) / \ell \bigr\rfloor & \text{otherwise},
+\end{cases} \tag{156}
+$$
+
+and each group is cut into cores by medians, as in (91). Elements near no
+row form one more group. Rows that are translates of one another, with
+surroundings that are too, then give cores and windows that are translates,
+which are solved once.
+
 !!! note "Implementation choices"
     A real row ends, and its cells near either end differ from those of an
-    endless row in a way that fades only as the inverse of the distance to
-    the end. On a comb of 40 cells against one dense solution of the whole,
-    rows put capacitance 0.26 percent high and on one of 80 cells 0.13
-    percent high, while the pull along the fingers, the side spring, and
-    the spring in turn agree to 0.05 percent or better; windows with an
-    overlap of 30 micrometers do no better on capacitance and are some ten
-    times further off in pull.
+    endless row. The interior stops $d_i$ short of where the row ends, and
+    the windows of (156) take what lies beyond. Against one dense solution
+    of a comb of 40 cells, at rest and with the shuttle moved and turned,
+    rows with $d_i$ of 10 micrometers put capacitance within $6 \times
+    10^{-5}$, the pull along the fingers within $1 \times 10^{-3}$, the
+    spring in turn within $8 \times 10^{-4}$, and the side spring within
+    $2 \times 10^{-5}$. Windows with an overlap of 30 micrometers are off by
+    $3 \times 10^{-4}$, $4 \times 10^{-3}$, $3 \times 10^{-3}$, and $3
+    \times 10^{-5}$ and take twenty times as long; with 10 micrometers, the
+    pull is off by $1.5 \times 10^{-2}$. On a comb of 80 cells rows put
+    capacitance $5 \times 10^{-4}$ high and windows of 30 micrometers $1.5
+    \times 10^{-3}$.
 
-    Rows are left to windows by default, `periodic_min_cells` unset, since
-    their error depends on how long a row is. Their gain is greatest where
-    windows solve hundreds of near copies of one window.
+    Rows cost least where windows would solve many copies of one window:
+    a row is one cell, and translated windows are one solution. With
+    bodies turned, windows that were translates at rest no longer are and
+    are each solved, and rows keep the gain of their cells.
 
     The cell mesh is the mesh of the outlines itself: an outline meshes
     each edge from its length and the angles at its ends, so congruent

@@ -14,7 +14,7 @@ from connflex_core.electrostatics import VACUUM_PERMITTIVITY
 from connflex_core.electrostatics.dense import Enter, charge_derivatives, solve_charges
 from connflex_core.electrostatics.facing import FacingWalls, facing_plates, feature_sizes
 from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
-from connflex_core.electrostatics.periodic import Row, find_rows, solve_rows
+from connflex_core.electrostatics.periodic import Row, find_rows, near_rows, solve_rows
 from connflex_core.electrostatics.windows import cut_cores, smallest_window, solve_windows
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.params import ElectrostaticParams
@@ -212,19 +212,19 @@ def plan_sidewalls(
     every = len(field) == len(pairs) and all(m == "dense" for m in method)
     if every and len(mesh.conductor) <= params.max_elements:
         return SidewallPlan(pairs, feature, tuple(method), mesh, True, ())
-    cores: dict[str, set[int]] = {"dense": set(), "windowed": set()}
+    conductors_of: dict[str, set[int]] = {"dense": set(), "windowed": set()}
     for k in field:
-        cores[method[k]].update(pairs[k].tolist())
+        conductors_of[method[k]].update(pairs[k].tolist())
     problems = []
-    dense = np.flatnonzero(np.isin(mesh.conductor, sorted(cores["dense"])))
+    dense = np.flatnonzero(np.isin(mesh.conductor, sorted(conductors_of["dense"])))
     if dense.size:
         if smallest_window(mesh, dense, size, reach) <= params.max_elements:
             chosen = [k for k in field if method[k] == "dense"]
             problems.append(FieldProblem([dense], pairs[chosen]))
         else:
             method = ["windowed" if m == "dense" else m for m in method]
-            cores["windowed"].update(cores["dense"])
-    windowed = np.flatnonzero(np.isin(mesh.conductor, sorted(cores["windowed"])))
+            conductors_of["windowed"].update(conductors_of["dense"])
+    windowed = np.flatnonzero(np.isin(mesh.conductor, sorted(conductors_of["windowed"])))
     if windowed.size:
         chosen = [k for k in field if method[k] == "windowed"]
         rows: list[Row] = []
@@ -232,23 +232,23 @@ def plan_sidewalls(
             rows = [
                 row
                 for row in find_rows(regions, mesh, reach, params.periodic_min_cells)
-                if np.isin(mesh.conductor[row.elements], sorted(cores["windowed"])).all()
+                if np.isin(mesh.conductor[row.elements], sorted(conductors_of["windowed"])).all()
             ]
             if rows:
                 windowed = np.setdiff1d(windowed, np.concatenate([row.elements for row in rows]))
-        crowd = None
+        crowd, groups = None, [windowed] if windowed.size else []
         if rows:
 
             def crowd(core: Index) -> int:
                 return smallest_window(mesh, core, size, reach)
 
-        problems.append(
-            FieldProblem(
-                cut_cores(mesh, params.window_elements, windowed, crowd) if windowed.size else [],
-                pairs[chosen],
-                rows=tuple(rows),
-            )
-        )
+            groups = near_rows(rows, mesh, windowed, reach) if windowed.size else []
+        cores = [
+            core
+            for group in groups
+            for core in cut_cores(mesh, params.window_elements, group, crowd)
+        ]
+        problems.append(FieldProblem(cores, pairs[chosen], rows=tuple(rows)))
     return SidewallPlan(pairs, feature, tuple(method), mesh, False, tuple(problems))
 
 

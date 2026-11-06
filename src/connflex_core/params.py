@@ -242,7 +242,7 @@ class ElectrostaticParams:
     interaction_distance: float | None = None
     include_plates: bool = True
     include_sidewalls: bool = True
-    periodic_min_cells: int | None = None
+    periodic_min_cells: int | None = 8
     surrogate_tolerance: float | None = None
 
     def __post_init__(self) -> None:

@@ -361,6 +361,55 @@ def _cells(
     return Row(period=period, cells=tuple(chosen), centers=centers, middle=len(chosen) // 2)
 
 
+def near_rows(rows: Sequence[Row], mesh: Mesh, elements: Index, reach: float) -> list[Index]:
+    """``elements`` in groups that translated rows with translated surroundings cut
+    alike, equation (156).
+
+    An element within twice ``reach`` and one period of the cells of a row joins the
+    nearest such row. Those before its first cell form one group, those beyond its last
+    another, and those beside its cells groups as long as the fewest whole cells that
+    span ``reach``, counted from the first. Elements near no row form the last group.
+    """
+    center = (mesh.start + mesh.end) / 2
+    points = center[elements]
+    tree = STRtree(np.asarray(shapely.points(points)))
+    nearest = np.full(len(elements), np.inf)
+    owner = np.full(len(elements), -1)
+    frames = []
+    for k, row in enumerate(rows):
+        pitch = float(np.linalg.norm(row.period))
+        along = row.period / pitch
+        across = np.array([-along[1], along[0]])
+        low = float(row.centers[0] @ along) - pitch / 2
+        high = float(row.centers[-1] @ along) + pitch / 2
+        side = center[row.elements] @ across
+        bottom, top = float(side.min()), float(side.max())
+        frames.append((along, low, high, np.ceil(reach / pitch) * pitch))
+        outline = shapely.Polygon(
+            [
+                s * along + u * across
+                for s, u in ((low, bottom), (high, bottom), (high, top), (low, top))
+            ]
+        )
+        near = tree.query(outline, predicate="dwithin", distance=2 * reach + pitch)
+        s, u = points[near] @ along, points[near] @ across
+        apart = np.hypot(
+            np.maximum(np.maximum(low - s, s - high), 0.0),
+            np.maximum(np.maximum(bottom - u, u - top), 0.0),
+        )
+        closer = apart < nearest[near]
+        nearest[near[closer]] = apart[closer]
+        owner[near[closer]] = k
+    groups = []
+    for k, (along, low, high, block) in enumerate(frames):
+        mine = elements[owner == k]
+        s = center[mine] @ along
+        zone = np.where(s < low, -1, np.where(s > high, -2, np.floor((s - low) / block)))
+        groups += [mine[zone == z] for z in np.unique(zone)]
+    rest = elements[owner < 0]
+    return [*groups, rest] if len(rest) else groups
+
+
 def solve_rows(
     rows: Sequence[Row],
     mesh: Mesh,
