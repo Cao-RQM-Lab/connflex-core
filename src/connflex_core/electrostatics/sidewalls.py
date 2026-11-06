@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager, nullcontext
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -14,8 +14,19 @@ from connflex_core.electrostatics import VACUUM_PERMITTIVITY
 from connflex_core.electrostatics.dense import Enter, charge_derivatives, solve_charges
 from connflex_core.electrostatics.facing import FacingWalls, facing_plates, feature_sizes
 from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
-from connflex_core.electrostatics.periodic import Row, find_rows, near_rows, solve_rows
-from connflex_core.electrostatics.windows import cut_cores, smallest_window, solve_windows
+from connflex_core.electrostatics.periodic import (
+    Row,
+    find_rows,
+    interior_cells,
+    near_rows,
+    solve_rows,
+)
+from connflex_core.electrostatics.windows import (
+    WindowSets,
+    cut_cores,
+    smallest_window,
+    solve_windows,
+)
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.params import ElectrostaticParams
 from connflex_core.progress import Progress, Stage, stage
@@ -54,8 +65,8 @@ class SidewallCapacitance:
             the capacitance of pairs taken as plates.
         windows: Number of field solutions behind the result: 1 for a mesh solved whole,
             the number of windows and rows of identical cells otherwise, counting a
-            window that took the solution of a translate, 0 when every pair is taken as
-            plates.
+            window that took the solution of a translate and the windows of cells that
+            travel took out of rows, 0 when every pair is taken as plates.
         asymmetry: Largest difference between the charge on one conductor per volt on
             another and the same with the two exchanged, over pairs solved by the field
             method, against the largest such entry, before the two were averaged.
@@ -83,15 +94,19 @@ class FieldProblem:
     Attributes:
         cores: Elements of each window core.
         pairs: k by 2 pairs of conductors whose capacitance it supplies.
-        windows: Elements of each window as chosen at rest; None before that.
+        windows: Elements of each window wherever bodies have taken it, equation (164);
+            None before the solution at rest.
         rows: Rows of identical cells whose interior is solved by the periodic kernel
             instead of windows, equation (153).
+        loose: Windows of cells that travel has taken out of the interior of their row,
+            equation (165).
     """
 
     cores: list[Index]
     pairs: Index
-    windows: list[Index] | None = None
+    windows: WindowSets | None = None
     rows: tuple[Row, ...] = ()
+    loose: WindowSets = field(default_factory=WindowSets)
 
 
 @dataclass(frozen=True, eq=False)
@@ -268,14 +283,15 @@ def solve_sidewalls(
     ``facing_plates`` for the regions where they are. Each pair takes its capacitance
     from its own method, equation (107). ``enter`` opens each stage; with ``advance`` no
     stage is opened for windows and it is called once per window. Also returns the plan
-    with the elements of each window, which passed back keep the windows at rest.
+    with the elements of each window, which passed back keep each window as long as it
+    holds what its core needs, equation (164).
     """
     count, rigid = len(facing[0]), len(pivots)
     between = np.zeros((count, count))
     slopes = np.zeros((count, count, rigid, 3))
     bends = np.zeros((count, count, rigid, 3, rigid, 3))
     charge = np.zeros((len(mesh.conductor), count))
-    uneven, largest, problems = 0.0, 0.0, []
+    uneven, largest, problems, extra = 0.0, 0.0, [], 0
     for k, (a, b) in enumerate(plan.pairs):
         if plan.method[k] == "plates":
             for i, j in ((a, b), (b, a)):
@@ -312,6 +328,26 @@ def solve_sidewalls(
                     problem.pairs,
                 )
                 if problem.rows:
+                    kept_cells = interior_cells(problem.rows, mesh, plan.mesh, body, _reach(params))
+                    cores, keys = _loose(problem.rows, kept_cells, params.window_elements)
+                    if cores:
+                        *part, _ = solve_windows(
+                            mesh,
+                            body,
+                            pivots,
+                            cores,
+                            params.element_size or 0.0,
+                            params.interaction_distance,
+                            params.window_tolerance,
+                            params.max_elements,
+                            lambda: None,
+                            problem.loose,
+                            problem.pairs,
+                            keys,
+                        )
+                        for summed, piece in zip(found, part, strict=True):
+                            summed += piece
+                        extra += len(cores)
                     solve_rows(
                         problem.rows,
                         mesh,
@@ -320,6 +356,7 @@ def solve_sidewalls(
                         pivots,
                         _reach(params),
                         (found[0], found[1], found[2], found[3]),
+                        kept_cells,
                     )
                     for _ in problem.rows:
                         step()
@@ -351,10 +388,27 @@ def solve_sidewalls(
         charge=permittivity * charge,
         mesh=mesh,
         walls=facing[3],
-        windows=1 if plan.whole else plan.windows,
+        windows=1 if plan.whole else plan.windows + extra,
         asymmetry=uneven / largest if largest else 0.0,
     )
     return result, replace(plan, problems=tuple(problems)) if problems else plan
+
+
+def _loose(
+    rows: Sequence[Row], kept: Sequence[NDArray[np.bool_]], most: int
+) -> tuple[list[Index], list[tuple[int, int, bytes]]]:
+    """Cores of the cells that rows no longer count, in blocks of whole cells of at most
+    ``most`` elements, each named by its row, its block, and its cells left out."""
+    cores, keys = [], []
+    for number, (row, mask) in enumerate(zip(rows, kept, strict=True)):
+        size = max(1, most // max(1, len(row.cells[0])))
+        for block in range(0, len(mask), size):
+            out = ~mask[block : block + size]
+            if out.any():
+                cells = [row.cells[block + int(k)] for k in np.flatnonzero(out)]
+                cores.append(np.concatenate(cells))
+                keys.append((number, block, out.tobytes()))
+    return cores, keys
 
 
 def _facing(

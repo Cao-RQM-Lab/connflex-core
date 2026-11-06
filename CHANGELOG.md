@@ -144,6 +144,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   their cores, conductors, and bodies, are solved once; each copy moves the
   derivatives to the pivots of its own bodies. Window cores are cut on
   coordinates rounded as for those keys, so translated groups are cut alike.
+- Windows and rows of identical cells follow travel: at displaced bodies a
+  window keeps its elements while they hold everything within three
+  quarters of its overlap of its core, and otherwise takes the elements
+  within its overlap where they are now; a cell of a row counts while its
+  elements stay inside the runs of the row less `interaction_distance`, and
+  the others go to windows. Teeth slid past each other by many pitches keep
+  the error of a solution planned where they are.
 
 ### Removed
 

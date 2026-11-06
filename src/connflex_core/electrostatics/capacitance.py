@@ -62,7 +62,8 @@ class Cluster:
             nets is solved by the field method.
         windows: Number of field solutions it took: 1 when solved whole, the number of
             windows and rows of identical cells otherwise, counting a window that took
-            the solution of a translate, 0 when every pair is taken as plates.
+            the solution of a translate and the windows of cells that travel took out
+            of rows, 0 when every pair is taken as plates.
         asymmetry: Asymmetry of its field solutions before they were made symmetric,
             as on ``SidewallCapacitance``: for windows a measure of their error.
         walls: Pieces of wall facing another electrode, with electrodes numbered by
@@ -127,7 +128,8 @@ class RestCluster:
         regions: Silicon of each electrode.
         bodies: Bodies its electrodes move with, ascending.
         body: Position in ``bodies`` of the body of each electrode.
-        plan: Pairs, feature sizes, methods, mesh, and windows chosen at rest.
+        plan: Pairs, feature sizes, methods, mesh, and windows chosen at rest, with the
+            sets of elements windows took as bodies traveled, equation (164).
         facing: Result of ``facing_plates`` at rest.
         near: Pairs of its electrodes on different bodies within ``interaction_distance``
             of each other, as positions in ``electrodes``, each with the distance between
@@ -233,7 +235,8 @@ class CapacitanceModel:
 
         ``displacement`` holds one value for each degree of freedom in ``dofs``, measured
         from rest. Every matrix, the gradient, and the second derivative are those at the
-        displaced bodies. Clusters, meshes, and windows stay as found at rest. With
+        displaced bodies. Clusters, meshes, and cores stay as found at rest; windows and
+        rows of identical cells follow travel, equations (164) and (165). With
         ``surrogate_tolerance`` set, clusters solved by the field method come from the
         expansion of an earlier solution where it holds, equations (148) to (150), unless
         ``exact``. Bodies that touch are an error. Stage sidewalls logs through the

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Hashable, Sequence
+from dataclasses import dataclass, field
 from typing import NamedTuple
 
 import numpy as np
@@ -20,6 +20,24 @@ Array = NDArray[np.float64]
 Index = NDArray[np.intp]
 
 FIRST_OVERLAP = 4.0
+TRAVEL_MARGIN = 0.25
+
+
+@dataclass(eq=False)
+class WindowSets:
+    """Elements of each window wherever it was chosen, equation (164), by key of its
+    core.
+
+    Attributes:
+        overlap: Overlap of each window, as found at rest or as first given.
+        sets: Sets of elements chosen for each window so far, the one at rest first,
+            each with the overlap it was chosen with; empty for a window not solved.
+        last: Position in ``sets`` of the set each window took last.
+    """
+
+    overlap: dict[Hashable, float] = field(default_factory=dict)
+    sets: dict[Hashable, list[tuple[Index, float]]] = field(default_factory=dict)
+    last: dict[Hashable, int] = field(default_factory=dict)
 
 
 def cut_cores(
@@ -92,26 +110,29 @@ def solve_windows(
     tolerance: float,
     limit: int,
     advance: Callable[[], None],
-    windows: list[Index] | None = None,
+    windows: WindowSets | None = None,
     pairs: Index | None = None,
-) -> tuple[Array, Array, Array, Array, list[Index]]:
+    keys: Sequence[Hashable] | None = None,
+) -> tuple[Array, Array, Array, Array, WindowSets]:
     """Sum over windows of the charge that each solution puts on its core.
 
     A window holds a core and every element within an overlap of its bounding box,
     equations (91) to (96). The overlap starts at ``FIRST_OVERLAP`` times ``size`` and
     doubles until the charge on the core changes by less than ``tolerance``, the overlap
     reaches ``reach``, or the next window would hold more than ``limit`` elements.
-    With ``windows``, the elements of each window as an earlier call returned them, no
-    overlap is searched: a mesh whose bodies have moved keeps the windows it had. With
-    ``pairs``, pairs of conductors as rows, a window is solved only when it holds both
-    conductors of a pair and its core lies on one of them; otherwise when it holds two
-    conductors. A window that is a translate of one solved before, with its core,
+    With ``windows``, as an earlier call returned them, no overlap is searched: a mesh
+    whose bodies have moved keeps a set of elements for each window that holds what lies
+    within the overlap less ``TRAVEL_MARGIN`` of it, and otherwise takes the elements
+    within the overlap where they are now, equation (164). ``keys`` name the cores, by
+    default their positions; a core new to ``windows`` takes ``reach`` as its overlap.
+    With ``pairs``, pairs of conductors as rows, a window is solved only when it holds
+    both conductors of a pair and its core lies on one of them; otherwise when it holds
+    two conductors. A window that is a translate of one solved before, with its core,
     conductors, and bodies alike, takes that solution, its derivatives moved to its own
     pivots by equation (155).
     Returns capacitance, gradient, Hessian, and element charges per unit permittivity,
     in the layout of ``SidewallCapacitance`` and before capacitance is made symmetric,
-    and the elements of each window, none for a window that was not solved.
-    ``advance`` is called once per core.
+    and the sets of elements of the windows. ``advance`` is called once per core.
     """
     count, conductors, rigid = len(mesh.conductor), len(body), len(pivots)
     center = (mesh.start + mesh.end) / 2
@@ -122,6 +143,7 @@ def solve_windows(
     charge = np.zeros((count, conductors))
     three = np.arange(3)
     chosen: list[Index] = []
+    overlaps = np.zeros(len(cores))
     known: dict[bytes, _Solved] = {}
     rank = np.zeros(conductors, dtype=np.intp)
 
@@ -130,6 +152,42 @@ def solve_windows(
             return len(present) > 1
         on = np.isin(pairs, np.unique(mesh.conductor[core])).any(axis=1)
         return bool(np.any(np.isin(pairs, present).all(axis=1) & on))
+
+    def around(core: Index, overlap: float) -> Index:
+        low, high = center[core].min(axis=0), center[core].max(axis=0)
+        return np.sort(tree.query(shapely.box(*(low - overlap), *(high + overlap))))
+
+    def follow(key: Hashable, core: Index, sets: WindowSets) -> Index:
+        """Set of elements that window ``key`` takes where the bodies are now."""
+        options = sets.sets.setdefault(key, [])
+
+        def holds(elements: Index, overlap: float) -> bool:
+            needed = around(core, (1 - TRAVEL_MARGIN) * overlap)
+            if len(elements):
+                return bool(np.isin(needed, elements).all())
+            return not useful(np.unique(mesh.conductor[needed]), core)
+
+        last = sets.last.get(key, 0)
+        for k in sorted(range(len(options)), key=lambda k: (k != last, -k)):
+            if holds(*options[k]):
+                sets.last[key] = k
+                return options[k][0]
+        overlap = sets.overlap.setdefault(key, FIRST_OVERLAP * size if reach is None else reach)
+        inside = around(core, overlap)
+        while len(inside) > limit and overlap > FIRST_OVERLAP * size:
+            overlap /= 2
+            inside = around(core, overlap)
+        if len(inside) > limit:
+            raise ValueError(
+                f"a window needs {len(inside)} boundary elements where the bodies are, more "
+                f"than max_elements = {limit}: raise max_elements or element_size, or lower "
+                f"window_elements"
+            )
+        if not useful(np.unique(mesh.conductor[inside]), core):
+            inside = inside[:0]
+        options.append((inside, overlap))
+        sets.last[key] = len(options) - 1
+        return inside
 
     def charges_of(elements: Index, present: Index, mine: NDArray[np.bool_]) -> Charges:
         rank[present] = np.arange(len(present))
@@ -149,15 +207,16 @@ def solve_windows(
         return _Window(elements, present, moving, mine), known[key], charges
 
     for number, core in enumerate(cores):
-        low, high = center[core].min(axis=0), center[core].max(axis=0)
         overlap = FIRST_OVERLAP * size if reach is None else min(FIRST_OVERLAP * size, reach)
         held: tuple[_Window, _Solved, Charges | None] | None = None
         share = np.zeros((conductors, conductors))
         smallest = True
-        if windows is not None and len(windows[number]):
-            held = solve(windows[number], core)
+        if windows is not None:
+            elements = follow(number if keys is None else keys[number], core, windows)
+            if len(elements):
+                held = solve(elements, core)
         while windows is None:
-            inside = np.sort(tree.query(shapely.box(*(low - overlap), *(high + overlap))))
+            inside = around(core, overlap)
             if len(inside) > limit:
                 if smallest:
                     raise ValueError(
@@ -167,6 +226,8 @@ def solve_windows(
                     )
                 break
             smallest = False
+            if held is None:
+                overlaps[number] = overlap
             present = np.unique(mesh.conductor[inside])
             before, share = share, np.zeros((conductors, conductors))
             settled = False
@@ -178,6 +239,7 @@ def solve_windows(
                     np.max(np.abs(share - before)) < tolerance * np.max(np.abs(share))
                 )
                 held = found
+                overlaps[number] = overlap
             if settled or len(inside) == count or (reach is not None and overlap >= reach):
                 break
             overlap = 2 * overlap if reach is None else min(2 * overlap, reach)
@@ -204,4 +266,13 @@ def solve_windows(
             charge[np.ix_(elements[mine], present)] = solved.charge
         chosen.append(np.zeros(0, dtype=np.intp) if held is None else held[0].elements)
         advance()
-    return capacitance, gradient, hessian, charge, chosen
+    if windows is None:
+        names = list(range(len(cores))) if keys is None else list(keys)
+        windows = WindowSets(
+            {key: float(overlap) for key, overlap in zip(names, overlaps, strict=True)},
+            {
+                key: [(elements, float(overlap))]
+                for key, elements, overlap in zip(names, chosen, overlaps, strict=True)
+            },
+        )
+    return capacitance, gradient, hessian, charge, windows

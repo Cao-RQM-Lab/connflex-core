@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 
 import networkx as nx
 import numpy as np
@@ -35,11 +35,14 @@ def periodic_integrals(
     """Double integral over element pairs of ln|2 sin(pi w / p)| less a constant,
     equation (151), for a row repeated without end along ``period``.
 
-    The nearest ``IMAGES`` copies on either side enter through the exact pair integral,
-    the rest through the remainder of (152) by Gauss-Legendre quadrature on both
-    elements. A constant per pair is dropped, which a neutral row does not feel.
+    The second element of each pair is first taken to its copy nearest the first. The
+    nearest ``IMAGES`` copies on either side of that enter through the exact pair
+    integral, the rest through the remainder of (152) by Gauss-Legendre quadrature on
+    both elements. A constant per pair is dropped, which a neutral row does not feel.
     """
     a0, a1, b0, b1 = np.broadcast_arrays(a0, a1, b0, b1)
+    shift = _nearest(a0, a1, b0, b1, period)
+    b0, b1 = b0 + shift, b1 + shift
     total = np.zeros(a0.shape)
     for k in range(-IMAGES, IMAGES + 1):
         total += pair_integrals(a0, a1, b0 + k * period, b1 + k * period)
@@ -66,6 +69,9 @@ def periodic_derivatives(
     and turns about the copy of its pivot, so the row stays periodic.
     """
     a0, a1, b0, b1 = np.broadcast_arrays(a0, a1, b0, b1)
+    shift = _nearest(a0, a1, b0, b1, period)
+    b0, b1 = b0 + shift, b1 + shift
+    copied: Complex = pivot_b + shift
     gradient = np.zeros((6, *a0.shape))
     hessian = np.zeros((6, 6, *a0.shape))
     for k in range(-IMAGES, IMAGES + 1):
@@ -75,7 +81,7 @@ def periodic_derivatives(
             b0 + k * period,
             b1 + k * period,
             np.asarray(pivot_a, dtype=np.complex128),
-            np.asarray(pivot_b + k * period, dtype=np.complex128),
+            copied + k * period,
         )
         gradient += slope
         hessian += bend
@@ -90,11 +96,11 @@ def periodic_derivatives(
         along * 1j * (first - pivot_a) * np.ones(second.shape),
         -along * one,
         -along * 1j * one,
-        -along * 1j * (second - pivot_b) * np.ones(first.shape),
+        -along * 1j * (second - copied[..., None, None]) * np.ones(first.shape),
     ]
     turns = {
         (2, 2): -along * (first - pivot_a) * np.ones(second.shape),
-        (5, 5): along * (second - pivot_b) * np.ones(first.shape),
+        (5, 5): along * (second - copied[..., None, None]) * np.ones(first.shape),
     }
     weight = np.abs(a1 - a0) * np.abs(b1 - b0)
     for p in range(6):
@@ -107,6 +113,15 @@ def periodic_derivatives(
             if q != p:
                 hessian[q, p] = hessian[p, q]
     return gradient, hessian
+
+
+def _nearest(a0: Complex, a1: Complex, b0: Complex, b1: Complex, period: complex) -> Complex:
+    """Whole periods that take the second element of each pair to its copy nearest the
+    first: the remainder of (152) is smooth only within a few periods."""
+    along = np.conj(period) / abs(period)
+    apart = (along * ((a0 + a1) - (b0 + b1)) / 2).real
+    shift: Complex = np.round(apart / abs(period)) * period
+    return shift
 
 
 def _spots(start: Complex, end: Complex) -> Complex:
@@ -161,12 +176,17 @@ class Row:
         cells: Elements of each interior cell, in order along ``period``.
         centers: Center of each interior cell at rest, in meters.
         middle: Position in ``cells`` of the cell solved for all of them.
+        owners: Conductors whose runs make the row.
+        ends: Points at rest where the runs of each owner begin and end along the row,
+            owners by 2 by 2, in meters.
     """
 
     period: Array
     cells: tuple[Index, ...]
     centers: Array
     middle: int
+    owners: Index = field(default_factory=lambda: np.zeros(0, dtype=np.intp))
+    ends: Array = field(default_factory=lambda: np.zeros((0, 2, 2)))
 
     @property
     def elements(self) -> Index:
@@ -238,7 +258,15 @@ def find_rows(regions: Sequence[MultiPolygon], mesh: Mesh, reach: float, fewest:
                 fewest,
             )
             if found_array is not None:
-                arrays.append(found_array)
+                owned = sorted(owners)
+                ends = []
+                for owner in owned:
+                    points = np.vstack([found[k][1] for k in group if found[k][0] == owner])
+                    s = points @ along
+                    ends.append([points[np.argmin(s)], points[np.argmax(s)]])
+                arrays.append(
+                    replace(found_array, owners=np.array(owned, dtype=np.intp), ends=np.array(ends))
+                )
     return arrays
 
 
@@ -410,6 +438,39 @@ def near_rows(rows: Sequence[Row], mesh: Mesh, elements: Index, reach: float) ->
     return [*groups, rest] if len(rest) else groups
 
 
+def interior_cells(
+    rows: Sequence[Row], mesh: Mesh, rest: Mesh, body: Index, reach: float
+) -> list[NDArray[np.bool_]]:
+    """Which cells of each row lie, where the bodies are now, within the overlap of its
+    runs less ``reach`` at both ends, equation (165); ``mesh``, ``rest``, and ``body`` as
+    for ``solve_rows``."""
+    turn = _turns_of(mesh, rest, body)
+    center = (mesh.start + mesh.end) / 2
+    kept = []
+    for row in rows:
+        along = row.period / np.linalg.norm(row.period)
+        spans = [
+            sorted(
+                float(np.dot([point.real, point.imag], along))
+                for point in (_placed(turn, int(body[owner]), complex(*end)) for end in pair)
+            )
+            for owner, pair in zip(row.owners, row.ends, strict=True)
+        ]
+        low = max(first for first, _ in spans) + reach
+        high = min(last for _, last in spans) - reach
+        slack = 1e-9 * reach
+        kept.append(
+            np.array(
+                [
+                    bool(np.all((s >= low - slack) & (s <= high + slack)))
+                    for s in (center[cell] @ along for cell in row.cells)
+                ],
+                dtype=bool,
+            )
+        )
+    return kept
+
+
 def solve_rows(
     rows: Sequence[Row],
     mesh: Mesh,
@@ -418,6 +479,7 @@ def solve_rows(
     pivots: Array,
     reach: float,
     totals: tuple[Array, Array, Array, Array],
+    kept: Sequence[NDArray[np.bool_]] | None = None,
 ) -> int:
     """Add to ``totals``, capacitance, gradient, Hessian, and element charges per unit
     permittivity, what the cells of ``rows`` hold, equations (154) and (155), and return
@@ -425,33 +487,38 @@ def solve_rows(
 
     ``mesh`` is the mesh with the bodies where they are and ``rest`` the same mesh at
     rest; ``body`` gives the body of each conductor and ``pivots`` the point each body
-    turns about, as for ``charge_derivatives``. Rows whose cells are translates at rest
-    and lie on the same conductors form a family. The middle cell of the first row of a
-    family, solved with the periodic kernel, gives capacitance and its derivatives in
-    travel; a window of ``reach`` around it, with its bodies turned rigidly about the
-    cell center, gives those in turn. Every cell of the family is that cell moved by the
-    turn of its bodies, carried to second order.
+    turns about, as for ``charge_derivatives``. ``kept`` tells for each row which of its
+    cells count, by default all. Rows whose cells are translates at rest and lie on the
+    same conductors form a family. The counted cell nearest the middle of the first row
+    of a family with one, solved with the periodic kernel, gives capacitance and its
+    derivatives in travel; a window of ``reach`` around it, with its bodies turned
+    rigidly about the cell center, gives those in turn. Every counted cell of the family
+    is that cell moved by the turn of its bodies, carried to second order.
     """
     capacitance, gradient, hessian, charge = totals
     turn = _turns_of(mesh, rest, body)
-    families: dict[bytes, list[Row]] = {}
-    for row in rows:
+    counted = kept if kept is not None else [np.ones(len(row.cells), dtype=bool) for row in rows]
+    families: dict[bytes, list[tuple[Row, NDArray[np.bool_]]]] = {}
+    for row, mask in zip(rows, counted, strict=True):
         middle = row.cells[row.middle]
         reference = ((rest.start[middle] + rest.end[middle]) / 2).mean(axis=0)
         order, present, moving, key = canonical(rest, middle, body, reference, {})
         key += present.tobytes() + np.asarray(row.period).tobytes()
-        families.setdefault(key, []).append(row)
+        if mask.any():
+            families.setdefault(key, []).append((row, mask))
     cache: dict[bytes, tuple[Array, ...]] = {}
     three = np.arange(3)
     for family in families.values():
-        first = family[0]
-        origin = complex(*first.centers[first.middle])
+        first, mask = family[0]
+        chosen = np.flatnonzero(mask)
+        pick = int(chosen[np.argmin(np.abs(chosen - first.middle))])
+        origin = complex(*first.centers[pick])
         spots = {
             b: _placed(turn, b, origin)
-            for b in np.unique(body[mesh.conductor[first.cells[first.middle]]]).tolist()
+            for b in np.unique(body[mesh.conductor[first.cells[pick]]]).tolist()
         }
         found, order, present, moving = _cell(
-            mesh, first.cells[first.middle], body, spots, first, reach, cache
+            mesh, first.cells[pick], body, spots, first, reach, cache
         )
         held, flat, curve, cell_charge = found
         size, rigid = len(present), len(moving)
@@ -460,8 +527,9 @@ def solve_rows(
         total = np.zeros((size, size))
         tilt = np.zeros((size, size, 3 * rigid))
         swing = np.zeros((size, size, 3 * rigid, 3 * rigid))
-        for row in family:
-            for k, center in enumerate(row.centers):
+        for row, mask in family:
+            for k in np.flatnonzero(mask):
+                center = row.centers[k]
                 step = np.zeros(3 * rigid)
                 arms = np.zeros((rigid, 2))
                 offset = complex(*center) - origin

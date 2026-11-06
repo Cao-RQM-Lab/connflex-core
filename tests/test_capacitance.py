@@ -351,6 +351,63 @@ def test_gradient_and_stiffness_follow_a_moved_structure(
             )
 
 
+def toothed_rack() -> Structure:
+    """Bar with teeth at 10 um pitch on two long beams, under a fixed block with teeth,
+    4 um from tip to tip; the bar reaches 150 um past the block at either end."""
+    bar = [box(-300, 0, 300, 30), *(box(x, 30, x + 5, 40) for x in range(-295, 300, 10))]
+    block = [box(-150, 54, 150, 200), *(box(x, 44, x + 5, 54) for x in range(-145, 150, 10))]
+    beams = [box(-299, -800, -297, 0), box(297, -800, 299, 0)]
+    anchors = [box(-450, -1100, -150, -800), box(150, -1100, 450, -800)]
+    layout = Layout.from_shapely(
+        device=[*bar, *block, *beams, *anchors], handle=[box(-500, -1200, 500, 300)], unit=UM
+    )
+    stack = Stack(
+        device=Layer(thickness=THICKNESS, material=Material.silicon()),
+        box=Layer(thickness=BOX, material=Material.oxide()),
+        handle=Layer(thickness=400 * UM, material=Material.silicon()),
+    )
+    params = ExtractionParams(
+        release_hole_max_area=100 * UM * UM, release_distance=60 * UM, body_min_width=20 * UM
+    )
+    return extract(layout, stack, params)
+
+
+def test_windows_follow_bodies_that_travel_past_their_overlap() -> None:
+    """Bar slid up to seven teeth along. Windows kept from rest would miss teeth that now
+    face their cores, and the row of teeth would count bar teeth past the end of the
+    block as interior: pull 40 percent off. Field beyond ``interaction_distance``, which
+    windows and rows drop, leaves a few percent as the overhang of the bar changes."""
+    rack = toothed_rack()
+    whole_field = ElectrostaticParams(
+        element_size=2 * UM,
+        interaction_distance=30 * UM,
+        dense_cutoff=float("inf"),
+        plates_cutoff=float("inf"),
+        include_plates=False,
+        include_fringe=False,
+    )
+    whole = rack.capacitance(whole_field)
+    (cluster,) = whole.clusters
+    windowed = rack.capacitance(
+        replace(
+            whole_field,
+            max_elements=cluster.elements - 1,
+            window_elements=cluster.elements // 4,
+        )
+    )
+    assert windowed.clusters[0].windows >= 8
+    along = whole.dofs.index((whole.dofs[0][0], "ux"))
+    for travel in (12.5, 42.5, 72.5, -32.5):
+        place = np.zeros(len(whole.dofs))
+        place[along] = travel * UM
+        there, reference = windowed.at(place), whole.at(place)
+        assert there.sidewall == pytest.approx(
+            reference.sidewall, abs=1e-2 * np.max(abs(reference.sidewall))
+        )
+        pull = reference.gradient[:, :, along]
+        assert there.gradient[:, :, along] == pytest.approx(pull, abs=5e-2 * np.max(abs(pull)))
+
+
 def test_parallel_plate_pulls_and_tilts_a_body_that_carries_handle_silicon() -> None:
     """A fixed pad 4 um from a 200 um plate that is bonded to its own handle island."""
     pad, plate, far = box(0, 0, 300, 300), box(304, 50, 504, 250), box(704, 0, 1004, 300)

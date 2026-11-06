@@ -1406,8 +1406,9 @@ $\max |\hat{c}_{ab} - \hat{c}_{ba}| / \max |\hat{c}_{ab}|$ is zero when one
 window holds the whole mesh. Otherwise it measures what the windows leave
 out, and it is reported with the result.
 
-Elements keep their cores and windows as bodies move, so (92) depends on
-the motion through $\mathbf{P}_k$ alone, as (70) does. With
+Elements keep their cores as bodies move, and a window its elements while
+(164) holds, so (92) depends on the motion through $\mathbf{P}_k$ alone, as
+(70) does. With
 $\mathbf{X}_k = \mathbf{M}_k \mathbf{E}_k$ and
 $\mathbf{Y}_k = \mathbf{M}_k \mathbf{E}_k^c$,
 
@@ -1841,9 +1842,10 @@ windows.
     methods, since they give the feature sizes. They cost a small part of
     a field solution.
 
-    Methods, cores, and windows are fixed at rest. Evaluated at displaced
-    bodies, a pair keeps its method, so capacitance stays a smooth function
-    of displacement, and (106) is never applied anew to a moved geometry.
+    Methods and cores are fixed at rest, and windows follow travel by
+    (164). Evaluated at displaced bodies, a pair keeps its method, so
+    capacitance stays a smooth function of displacement, and (106) is never
+    applied anew to a moved geometry.
 
     A window reaches no farther than its overlap, at most $d_i$, so charge
     on parts of a conductor whose windows reach no partner is not counted.
@@ -2014,8 +2016,10 @@ exactly, for the function $\mathbf{C}(\mathbf{q})$ that the model computes.
 
 What was found at rest stays. Clusters are those of (110) at rest. With the
 field method the mesh is carried with the bodies and not made anew, and a
-cluster solved in windows keeps the elements of each window, so
-$\mathbf{C}(\mathbf{q})$ is smooth and (95) remains its exact derivative.
+cluster solved in windows keeps its cores, each window its elements while
+(164) holds, and each row its cells while (165) holds, so
+$\mathbf{C}(\mathbf{q})$ is smooth between changes of set and (95) its
+exact derivative there.
 The plates method finds its pieces anew on the carried outlines, since they
 are exact for any outlines; its kinks are those of (97). The limits are
 those of the parts: a plate is exact in rise, of second order in tilt, and
@@ -2741,9 +2745,12 @@ $$
 R_K(w) = \ln \Bigl| \frac{\sin(\pi w / p)}{\pi w / p} \Bigr| - \sum_{k=1}^{K} \ln \Bigl| 1 - \frac{w^2}{k^2 p^2} \Bigr|, \tag{152}
 $$
 
-with $K = 2$. The copies enter through the closed form (67) and its
-derivatives, and $R_K$, analytic for $|\operatorname{Re} w| < (K+1)\,p$, by
-four-point Gauss-Legendre quadrature on each element of a pair, with its
+with $K = 2$. The second element of each pair is first taken to its copy
+nearest the first, which (151) allows, so that $|\operatorname{Re} w|$
+stays within a period or so wherever the bodies have carried the elements of
+a cell. The copies enter through the closed form (67) and its derivatives,
+and $R_K$, analytic for $|\operatorname{Re} w| < (K+1)\,p$, by four-point
+Gauss-Legendre quadrature on each element of a pair, with its
 first and second derivatives from those of $\ln \sin$. Every copy of an
 element moves with it and turns about the copy of its pivot. The matrix of
 (64) for one cell is symmetric but not always definite, and is factored
@@ -3017,6 +3024,74 @@ shields them from it.
     bodies take the cross-sections whose rounding they share and expand from
     them by (160); a surrogate, (149), keeps the fringe of each of its
     solutions and expands it with them.
+
+## Windows and rows over travel
+
+A window chosen at rest holds the elements within its overlap $\delta_k$ of
+its core, (91). Bodies that travel farther than that bring walls before the
+core that the window does not hold, and carry away walls it does. Teeth that
+slide past each other by a few pitches, as in a stepper or a rack, would
+leave each core facing open space in its window, and the pull would be tens
+of percent off. Where the bodies are now, with $\mathbf{r}_i(\mathbf{q})$ the
+element centers and $B_k(\mathbf{q})$ the box of the core's centers, a set
+of elements $S$ still serves window $k$ while it holds every element within
+$(1 - \mu)\, \delta_k$ of its core:
+
+$$
+\bigl\{ i : \mathbf{r}_i(\mathbf{q}) \in B_k(\mathbf{q}) \oplus [-(1 - \mu)\, \delta_k,\, (1 - \mu)\, \delta_k]^2 \bigr\} \subseteq S, \qquad \mu = \tfrac{1}{4}. \tag{164}
+$$
+
+A window keeps every set it has taken, the one of (91) at rest first. It
+takes the set it took last while that serves, otherwise the newest that
+serves, and otherwise a new one: the elements within $\delta_k$ of its core
+where they are now, by (91) with the overlap found at rest, halved while the
+window would hold more than `max_elements`. A window that held no pair at
+rest is solved once a pair comes within $(1 - \mu)\, \delta_k$ of its core.
+A set changes only after travel of $\mu\, \delta_k$ or more, and while it
+holds, (92) to (95) hold as they are: $\mathbf{C}(\mathbf{q})$ is smooth and
+(95) its exact derivative. Where a window changes its set,
+$\mathbf{C}(\mathbf{q})$ steps by what the overlap leaves out, of the size
+of the asymmetry of (94).
+
+A row goes stale too. Its cells are elements fixed at rest, and the
+periodic solution counts every element of a cell as if the row went on
+without end. Travel along a row moves the elements of one body through the
+cells of the other, and the runs that end the row with it. With $s_c^-$ and
+$s_c^+$ where the runs of conductor $c$ of the row begin and end along it,
+carried with its body to where it is now, cell $k$ is counted while every
+one of its elements lies at least $d_i$ inside every run:
+
+$$
+\max_c s_c^- + d_i \;\le\; \mathbf{r}_i(\mathbf{q}) \cdot \mathbf{e} \;\le\; \min_c s_c^+ - d_i
+\quad \text{for every element } i \text{ of cell } k. \tag{165}
+$$
+
+At rest every cell is counted, by the construction of (153). Cells that are
+not go to windows of their own, in blocks of whole cells of at most $n_w$
+elements, which take $d_i$ as their overlap and follow (164). The cell
+solved for a row is the counted cell nearest its middle.
+
+On a bar with teeth at a pitch of 10 micrometers under a fixed block with
+teeth 4 micrometers from tip to tip, slid 3 to 7 pitches along with $d_i$ of
+30 micrometers, windows kept from rest put the pull 17 to 41 percent off a
+solution of the whole mesh, and windows and rows that follow travel 1.5 to
+4.1 percent off. Windows and rows planned anew where the bar is are 1.3 to
+2.3 percent off. Both drop field beyond $d_i$, which changes as the
+overhang of the bar does, and with $d_i$ of 60 micrometers both stay within
+1.6 percent.
+
+!!! note "Implementation choices"
+    Which set a window takes depends on where the bodies have been: two
+    histories that reach one displacement can differ by a change of set.
+    A static solution or a transient follows one path, and sees a set
+    change once each time travel crosses the margin of (164).
+
+    Checking (164) takes one query of a tree of element centers per window.
+    A surrogate's expansion, (149), checks nothing; its anchors are field
+    solutions, each with the sets of its moment.
+
+    Rows that turn are not followed beyond (154): an arc of teeth is no row
+    of translates, and windows cover it.
 
 ## Symbols and parameters
 
