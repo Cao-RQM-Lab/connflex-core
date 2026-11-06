@@ -157,6 +157,36 @@ class SmallSignalOptions:
 
 
 @dataclass(frozen=True)
+class TransientOptions:
+    """Options of a transient run.
+
+    Attributes:
+        quality_factor: Quality factor of every mode of the structure without
+            potentials, which sets its damping, equation (140). Required.
+        tolerance: Error the integrator allows per step, relative to each state and to
+            the scales of equation (146).
+        max_step: Longest time step in seconds. None leaves step length to error control.
+        contact_clearance: The run ends with a contact event when the clearance of
+            equation (126) falls to this.
+    """
+
+    quality_factor: float
+    tolerance: float = 1e-6
+    max_step: float | None = None
+    contact_clearance: float = 0.1
+
+    def __post_init__(self) -> None:
+        require_positive("quality_factor", self.quality_factor)
+        require_positive("tolerance", self.tolerance)
+        if self.max_step is not None:
+            require_positive("max_step", self.max_step)
+        if not 0 < self.contact_clearance < 1:
+            raise ValueError(
+                f"contact_clearance must lie between 0 and 1, got {self.contact_clearance}"
+            )
+
+
+@dataclass(frozen=True)
 class ElectrostaticParams:
     """Electrostatic model parameters. Lengths in meters.
 

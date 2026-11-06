@@ -89,6 +89,35 @@ keyword overrides.
 | `quality_factor` | $Q$ | **required** | Quality factor of every mode of the small-signal model about an equilibrium, equation (132). Damping is an input: the library computes no loss mechanism. It sets the width of each resonance, $f_n / Q$, and the motional resistance of equation (136). |
 | `linear_tolerance` | $\tau_l$ | 0.1 | `SmallSignal.linearity` warns with `LinearizationWarning` when the swing across a pair of electrodes against its bias, or the closing of the narrowest gap at the peak of the motion, exceeds this fraction, equation (137). The force then errs by about half the first and the coefficients by about twice the second. |
 
+## `TransientOptions`
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `quality_factor` | $Q$ | **required** | Quality factor of every mode of the structure without potentials, which sets the damping matrix of a transient, equation (140). Under bias a mode keeps that damping and so has a slightly lower quality factor. |
+| `tolerance` | $\tau_t$ | 1e-6 | Error the integrator allows per step, relative to each state, and in absolute terms this times the scales of equation (146): the buried oxide gap for translations, the lowest frequency for velocities, and node capacitance times the largest source value for charges. |
+| `max_step` | | none | Longest time step in seconds. Needed only for drive features that error control could step over, such as a short pulse of a callable waveform without breakpoints. |
+| `contact_clearance` | $\chi_c$ | 0.1 | The run ends with a contact event when the narrowest gap between two bodies falls to this fraction of its width at rest, equation (126). Nothing in the model describes bodies that touch. |
+
+## `Source`
+
+A voltage source that drives one electrode in a transient.
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `electrode` | | **required** | Electrode it connects to, as `Structure.electrode_at` returns it for a point on the pad. An integer is refused. |
+| `waveform` | $e(t)$ | **required** | Volts against seconds: a number for a constant, a `PiecewiseLinear`, or any continuous callable of time. |
+| `resistance` | $R_k$ | 0 | Series resistance in ohms, equation (141). Zero holds the electrode at the waveform. |
+
+## `PiecewiseLinear`
+
+A waveform through points, constant before the first and after the last. Its
+points are breakpoints of the integration.
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `times` | | **required** | Times of the points in seconds, strictly ascending. |
+| `values` | | **required** | Value at each time, in volts for a source. |
+
 ## `Wire`
 
 A connection made off the die between two pads, passed to `extract` in
@@ -110,6 +139,9 @@ the field: lengths, areas, thicknesses, densities, moduli, and resistivity are p
 when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
 `window_tolerance > 0`; `dense_cutoff >= 0` and `plates_cutoff >= dense_cutoff`;
 `tolerance > 0` and `max_iterations >= 1` of `StaticOptions`;
-`quality_factor > 0` and `linear_tolerance > 0` of `SmallSignalOptions`; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
+`quality_factor > 0` and `linear_tolerance > 0` of `SmallSignalOptions`;
+`quality_factor > 0`, `tolerance > 0`, `max_step > 0` when given, and
+`0 < contact_clearance < 1` of `TransientOptions`; `resistance >= 0` of a
+`Source`; `PiecewiseLinear` times strictly ascending, as many as values; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
 `"device"` or `"handle"`, and its `resistance >= 0`; every stack layer has a
 thickness.

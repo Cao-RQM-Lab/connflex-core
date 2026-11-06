@@ -2459,6 +2459,174 @@ $\pm 1$.
     ratio of (137) evaluates the capacitance model at both extremes of the
     motion, which costs two evaluations of it.
 
+## Transient
+
+Under large or switched drive, through resistance, the structure is followed
+in time. The unknowns are the displacement $\mathbf{q}$ and velocity
+$\mathbf{u}$ of the bodies that beams join to the anchor, and the charge
+$\mathbf{Q}_d$ on each node that a source reaches only through resistance.
+With the force of (120) at the potentials of the moment and constant
+mechanical loads $\mathbf{f}_0$,
+
+$$
+\dot{\mathbf{q}} = \mathbf{u}, \qquad
+\mathbf{M}^\text{full} \dot{\mathbf{u}} + \mathbf{D}\, \mathbf{u} + \mathbf{K}^\text{full} \mathbf{q} = \mathbf{f}(\mathbf{q}, \mathbf{v}) + \mathbf{f}_0, \qquad
+\dot{\mathbf{Q}}_d = \mathbf{i}_d. \tag{139}
+$$
+
+Damping is that of one quality factor $Q$ for every mode of the structure
+without potentials, the modes $\boldsymbol{\Phi}$ and frequencies
+$\omega_n$ of (38):
+
+$$
+\mathbf{D} = \mathbf{M}^\text{full} \boldsymbol{\Phi}\, \operatorname{diag}\Bigl( \frac{\omega_n}{Q} \Bigr)\, \boldsymbol{\Phi}^\top \mathbf{M}^\text{full}. \tag{140}
+$$
+
+A fixed matrix keeps the ledger of (145) exact. Under bias the modes
+soften, and a mode at $\omega'_n$ then has the quality factor
+$Q\, \omega'_n / \omega_n$, slightly below $Q$.
+
+### Network
+
+Nodes are those of (130), with each source in place of a port: it drives
+the node of its electrode. An ideal source, without resistance, holds its
+node $h$ at its waveform $e_h(t)$. A source of resistance $R_k$ feeds its
+node $k$ through it, and its node is one of the nodes $d$ that carry
+charge as a state, with the inner nodes behind links with resistance. A
+floating net is one node $f$ that keeps its charge $\mathbf{Q}_f$, and a net
+with neither source nor charge is held at zero volts on every electrode.
+The current into a node $d$ is
+
+$$
+i_d = -\sum_l G_{dl}\, v_l + \frac{e_d - v_d}{R_d}, \tag{141}
+$$
+
+with $\mathbf{G}$ of (130), and the second term only at a node that a source
+with resistance feeds. With $U$ the nodes $d$ and $f$ together and
+$\mathbf{C}$ the node capacitance of (130) at $\mathbf{q}$, the charges fix
+the potentials:
+
+$$
+\mathbf{C}_{UU}\, \mathbf{v}_U = \begin{bmatrix} \mathbf{Q}_d \\ \mathbf{Q}_f \end{bmatrix} - \mathbf{C}_{Uh}\, \mathbf{e}_h(t). \tag{142}
+$$
+
+Charge rather than potential is the state because charge is what
+resistance limits: a source that changes moves the potentials of other
+nodes at once through capacitance, but no charge through a resistor.
+Solving (142) at every evaluation leaves (139) an ordinary differential
+system without constraints.
+
+### Integration
+
+Resistance and capacitance of beams and sources give time constants that
+are often far shorter than mechanical periods, so the system is stiff. It
+is integrated by the fifth-order Radau IIA method, which is L-stable,
+with error control and its Jacobian in closed form. From (129) at node
+level, $\boldsymbol{\Gamma}$ with rows over nodes, and with $\tilde{\mathbf{G}}$
+the conductance of (130) with $1 / R_k$ added on the diagonal at nodes fed
+through resistance and $\mathbf{E}_d$ the columns of the nodes $d$,
+
+$$
+\frac{\partial \mathbf{f}}{\partial \mathbf{q}} = -\mathbf{K}_e - \boldsymbol{\Gamma}_U^\top \mathbf{C}_{UU}^{-1} \boldsymbol{\Gamma}_U, \quad
+\frac{\partial \mathbf{f}}{\partial \mathbf{Q}_d} = \boldsymbol{\Gamma}_U^\top \mathbf{C}_{UU}^{-1} \mathbf{E}_d, \quad
+\frac{\partial \mathbf{i}_d}{\partial \mathbf{q}} = \tilde{\mathbf{G}}_{dU}\, \mathbf{C}_{UU}^{-1} \boldsymbol{\Gamma}_U, \quad
+\frac{\partial \mathbf{i}_d}{\partial \mathbf{Q}_d} = -\tilde{\mathbf{G}}_{dU}\, \mathbf{C}_{UU}^{-1} \mathbf{E}_d, \tag{143}
+$$
+
+with $\mathbf{K}_e$ of (116). The first is (128) extended to every node
+whose charge, not potential, is held over the instant. Integration restarts
+at the breakpoints of each waveform, where its slope changes.
+
+### Current of a source
+
+A source with resistance drives the current $(e_k - v_k) / R_k$. An ideal
+source drives what its node takes, the change of its charge and the current
+into its links:
+
+$$
+i_h = \bigl( \dot{\mathbf{C}} \mathbf{v} + \mathbf{C} \dot{\mathbf{v}} + \mathbf{G} \mathbf{v} \bigr)_h, \qquad
+\mathbf{C}_{UU}\, \dot{\mathbf{v}}_U = \begin{bmatrix} \dot{\mathbf{Q}}_d \\ \mathbf{0} \end{bmatrix} - \bigl( \dot{\mathbf{C}} \mathbf{v} \bigr)_U - \mathbf{C}_{Uh}\, \dot{\mathbf{e}}_h, \qquad
+\dot{\mathbf{C}} = \sum_k \frac{\partial \mathbf{C}}{\partial q_k}\, u_k, \tag{144}
+$$
+
+which needs the slope $\dot{e}_h$ of its waveform.
+
+### Energy
+
+The energy stored in the bodies, the beams, and the field, and the energy
+taken and supplied,
+
+$$
+\begin{aligned}
+W &= \tfrac{1}{2} \mathbf{u}^\top \mathbf{M}^\text{full} \mathbf{u} + \tfrac{1}{2} \mathbf{q}^\top \mathbf{K}^\text{full} \mathbf{q} + \tfrac{1}{2} \mathbf{v}^\top \mathbf{C}\, \mathbf{v}, \\
+W_D &= \int \mathbf{u}^\top \mathbf{D}\, \mathbf{u}\, dt, \qquad
+W_R = \int \Bigl( \mathbf{v}^\top \mathbf{G}\, \mathbf{v} + \sum_k \frac{(e_k - v_k)^2}{R_k} \Bigr) dt, \qquad
+W_S = \int \Bigl( \sum_s e_s\, i_s + \mathbf{f}_0^\top \mathbf{u} \Bigr) dt,
+\end{aligned} \tag{145}
+$$
+
+balance exactly, $W(t) - W(t_0) + W_D + W_R = W_S$, with the sum over every
+source $s$ in $W_S$ and the potentials of every electrode in $W$. The three
+integrals are integrated as states beside (139), so what remains of the
+balance is the error of integration.
+
+### Tolerances and start
+
+Each step keeps its error below $\tau_t$ times each state plus an absolute
+part, in units that make states of different kinds comparable:
+
+$$
+\tau_t\, g_0, \quad \tau_t\, \frac{g_0}{\sqrt{A_B}}, \quad \tau_t\, g_0\, \omega_1, \quad \tau_t\, C_{dd} V_0, \quad \tau_t\, \tfrac{1}{2} V_0^2 \sum_k C_{kk}, \tag{146}
+$$
+
+for translations, rotations of a body of area $A_B$, velocities, charges,
+and energies, with $g_0$ the gap of the buried oxide, $\omega_1$ the lowest
+frequency of (38), and $V_0$ the largest source value at the output times
+and breakpoints, at least one volt. The run starts at $\mathbf{q}_0$, rest
+or the displacement given, at zero velocity, with the potentials the
+sources hold without current at $t_0$:
+
+$$
+\tilde{\mathbf{G}}_{dd}\, \mathbf{v}_d = \Bigl( \frac{e_d(t_0)}{R_d} \Bigr) - \tilde{\mathbf{G}}_{dh}\, \mathbf{e}_h(t_0), \qquad
+\mathbf{C}_{ff}\, \mathbf{v}_f = \mathbf{Q}_f - \mathbf{C}_{fs}\, \mathbf{v}_s, \qquad
+\mathbf{Q}_d = \bigl( \mathbf{C} \mathbf{v} \bigr)_d, \tag{147}
+$$
+
+where the first term on the right is zero at nodes without a source and
+$s$ are all nodes of driven nets.
+
+### Contact
+
+The run ends when the clearance $\chi$ of (126) falls to $\chi_c$. The
+moment is found on the continuous extension of the last step, and the
+result reports it last, with the electrodes across the closing gap.
+
+!!! note "Implementation choices"
+    A waveform must be continuous: a step is a ramp of the rise time it has.
+    A drive that switches in no time would deliver its energy in no time
+    through an ideal source, which (144) cannot follow, and no real driver
+    does so. A waveform that is a `PiecewiseLinear` gives its breakpoints
+    and slopes; another callable is differentiated by central differences
+    for (144) and should be continuous between breakpoints it lists.
+
+    Outputs come from the continuous extension of the step that spans them,
+    which is less accurate than the ends of the steps. Every output
+    evaluates the capacitance model once more.
+
+    Every degree of freedom of the bodies that beams join to the anchor is
+    integrated; no mode is left out. Bodies that no beam holds stay at
+    rest. A floating net is one node, as in small signal.
+
+    Each step evaluates the capacitance model at the stages of the method
+    and its Newton iterations, about ten times. That is fractions of a
+    millisecond with plates alone, a few milliseconds with the plates
+    method, and as long as the solve at rest with the field method, which
+    makes long runs on the field method slow.
+
+    A trial step that would bring two bodies into contact is retried with
+    a step four times shorter, up to eight times; the run then ends at the
+    last accepted step with a contact event.
+
 ## Symbols and parameters
 
 Every symbol below is a documented input. Full definitions, units, defaults,
@@ -2488,6 +2656,10 @@ and validation rules are on the [parameters page](parameters.md).
 | $\tau_s$ | relative size of the last Newton step at which static equilibrium is accepted | `StaticOptions.tolerance` |
 | $Q$ | quality factor of every mode about an equilibrium | `SmallSignalOptions.quality_factor` |
 | $\tau_l$ | voltage or gap ratio of a drive above which the small-signal model warns | `SmallSignalOptions.linear_tolerance` |
+| $Q$ | quality factor of every mode without potentials in a transient | `TransientOptions.quality_factor` |
+| $\tau_t$ | error per step of the transient integrator, relative to each state and to the scales of (146) | `TransientOptions.tolerance` |
+| $\chi_c$ | clearance at which a transient ends with a contact event | `TransientOptions.contact_clearance` |
+| $R_k$ | series resistance of a source | `Source.resistance` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
 | $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |

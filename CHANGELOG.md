@@ -106,6 +106,16 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pin per port, capacitors and resistors between nodes, and one series
   branch per mode coupled to the nodes through controlled sources; all
   modes unless `modes` lists some.
+- `Structure.transient`, `Transient`, `TransientOptions`, `Source`, and
+  `PiecewiseLinear`: motion, potentials, and charges over time under voltage
+  sources at electrodes, each ideal or behind a series resistance, with
+  floating nets that keep their charge and the resistor network of links.
+  Charges of nodes behind resistance are states beside displacement and
+  velocity, integrated by an L-stable implicit method with its Jacobian in
+  closed form and restarted at waveform breakpoints. One quality factor
+  damps every mode. A run ends at its last time or when a gap closes to
+  `contact_clearance`, reported in `contact`. `Energy` is the ledger of
+  stored, damped, resistive, and supplied energy at each output time.
 
 ### Removed
 

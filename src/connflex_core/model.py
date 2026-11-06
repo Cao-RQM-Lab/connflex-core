@@ -20,6 +20,7 @@ from connflex_core.params import (
     SmallSignalOptions,
     SolveOptions,
     StaticOptions,
+    TransientOptions,
 )
 from connflex_core.progress import Progress
 from connflex_core.stack import Stack
@@ -29,6 +30,8 @@ if TYPE_CHECKING:
 
     from connflex_core.coupled.small_signal import SmallSignal
     from connflex_core.coupled.static import Equilibrium
+    from connflex_core.coupled.transient import Transient
+    from connflex_core.electrical.drivers import Source
     from connflex_core.electrostatics.capacitance import CapacitanceModel
     from connflex_core.electrostatics.plates import Plate
     from connflex_core.mechanics.modal import ModalResult
@@ -228,6 +231,34 @@ class Structure:
         from connflex_core.coupled.small_signal import small_signal
 
         return small_signal(self, equilibrium, ports, options, progress=progress)
+
+    def transient(
+        self,
+        model: CapacitanceModel,
+        sources: Sequence[Source],
+        times: ArrayLike,
+        options: TransientOptions,
+        *,
+        charges: Mapping[int, float] | None = None,
+        loads: Mapping[int, Sequence[float]] | None = None,
+        start: Equilibrium | ArrayLike | None = None,
+        progress: Progress | None = None,
+    ) -> Transient:
+        """Motion, potentials, and charges over ``times`` under ``sources``, with the
+        capacitance model of this structure."""
+        from connflex_core.coupled.transient import transient
+
+        return transient(
+            self,
+            model,
+            sources,
+            times,
+            options,
+            charges=charges,
+            loads=loads,
+            start=start,
+            progress=progress,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-serializable tree with polygons as GeoJSON-style mappings."""

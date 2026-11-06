@@ -11,9 +11,12 @@ from connflex_core import (
     ExtractionParams,
     Layer,
     Material,
+    PiecewiseLinear,
     SmallSignalOptions,
     SolveOptions,
+    Source,
     StaticOptions,
+    TransientOptions,
     Wire,
 )
 
@@ -52,6 +55,11 @@ def test_static_options_match_the_page() -> None:
 
 def test_small_signal_options_match_the_page() -> None:
     assert documented_rows("`SmallSignalOptions`")[""] == field_names(SmallSignalOptions)
+
+
+def test_transient_inputs_match_the_page() -> None:
+    for cls in (TransientOptions, Source, PiecewiseLinear):
+        assert documented_rows(f"`{cls.__name__}`")[""] == field_names(cls)
 
 
 def test_wire_matches_the_page() -> None:

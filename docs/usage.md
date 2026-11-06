@@ -689,10 +689,84 @@ coupled to the nodes through controlled sources. Every mode is included
 unless `modes` lists some; a mode left out also takes its compliance below
 resonance with it. Formulas are in [small signal](theory.md#small-signal).
 
+## Transient
+
+```python
+drive = structure.electrode_at((1.2e-3, 0.4e-3), "device")
+sense = structure.electrode_at((0.2e-3, 0.4e-3), "device")
+pulse = cf.PiecewiseLinear([0.0, 1e-7, 2e-5, 2.01e-5], [0.0, 60.0, 60.0, 0.0])
+sources = [cf.Source(drive, pulse, resistance=1e3), cf.Source(sense, 0.0)]
+times = np.linspace(0.0, 4e-5, 2001)
+run = structure.transient(model, sources, times, cf.TransientOptions(quality_factor=5000.0))
+
+run.times  # output times, ending early at contact
+run.displacement, run.velocity  # one row per time; columns follow run.dofs
+run.potentials, run.charge  # one row per time, one column per electrode
+run.current  # current each source drives into its electrode, in source order
+run.clearance  # narrowest gap between two bodies against its width at rest
+run.contact  # electrodes across the gap whose closing ended the run, or None
+run.energy.supplied, run.energy.resistive, run.energy.damped  # since the start, joules
+run.energy.imbalance  # zero but for the error of integration
+run.steps, run.evaluations  # accepted time steps, capacitance model evaluations
+```
+
+`structure.transient` follows motion, potentials, and charges over time
+under sources, with the same nets and nodes as the small-signal model. A
+`Source` drives one electrode, the pad its driver is bonded to, given as the
+`Electrode` that `electrode_at` returns. Without resistance it holds that
+electrode at its waveform; with `resistance` it feeds it through a resistor,
+which is how a driver's output resistance enters. Electrodes of a driven
+net behind beams or wires with resistance are reached through them.
+`charges` names nets that float with a fixed charge, and every other net is
+held at zero volts on every electrode. `loads` adds constant forces.
+
+A waveform is a number, a `PiecewiseLinear` through points, or any
+continuous callable of time, such as `lambda t: 40.0 + np.sin(2 * np.pi * 1e5 * t)`.
+A step is a ramp of the rise time your driver has: a source that jumps in no
+time would supply energy in no time, which nothing real does. The points of
+a `PiecewiseLinear` restart the integrator, so its corners are followed
+exactly. A callable without them is followed by error control, and
+`max_step` keeps it from stepping over a short feature.
+
+The run starts at `times[0]` with the potentials the sources hold without
+current at that time, and with the bodies at rest at zero displacement or at
+`start`, an `Equilibrium` or a displacement. To drive a signal on top of a
+bias, start from the equilibrium at that bias with a waveform that equals
+the bias at `times[0]`. Damping is one quality factor for every mode of the
+structure without potentials. The run ends at `times[-1]`, or earlier when the
+narrowest gap between two bodies closes to `contact_clearance` of its width
+at rest; the time of that event is then the last of `run.times`.
+
+A sequence of drives is part of the waveforms you pass. The phases of a
+stepper are one waveform per phase, each on in its turn:
+
+```python
+dwell, rise, volts = 50e-6, 1e-6, 60.0
+
+
+def turn(begin):  # on from begin for dwell seconds, with ramps of rise
+    ends = [begin, begin + rise, begin + dwell, begin + dwell + rise]
+    return cf.PiecewiseLinear(ends, [0.0, volts, volts, 0.0])
+
+
+phases = [phase_a, phase_b, phase_c]  # one electrode of each phase
+sources = [cf.Source(pad, turn(k * dwell)) for k, pad in enumerate(phases)]
+run = structure.transient(model, sources, np.linspace(0.0, 3 * dwell, 3001), options)
+```
+
+The energy ledger adds up exactly in the equations: stored energy gained,
+plus what damping and resistance took, equals what sources and loads
+supplied. `run.energy.imbalance` is what the integration left of that, a
+check on `tolerance`. Each time step evaluates the capacitance model about
+ten times, and each output once more: fractions of a millisecond with
+plates to the handle, a few milliseconds with the plates method, and as long
+as the solve at rest with the field method. Formulas are in
+[transient](theory.md#transient).
+
 ## Progress and logging
 
 Each stage of `extract`, `modal`, `static`, `plates`, `capacitance`,
-`sidewall_capacitance`, `equilibrium`, and `small_signal` logs when it starts and when it finishes, with elapsed time and counts, through the standard `connflex_core`
+`sidewall_capacitance`, `equilibrium`, `small_signal`, and `transient` logs when it starts and when it finishes, with elapsed time and counts, through the standard `connflex_core`
 logger. The logger is silent until a handler is attached:
 
 ```python
