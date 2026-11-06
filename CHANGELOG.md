@@ -90,6 +90,18 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bodies at a displacement as a fraction of its width at rest, and the two
   electrodes across it. `Plate.extent` and `Plate.lowest` give the gap of a
   plate at its closest corner.
+- `Structure.small_signal`, `SmallSignal`, and `SmallSignalOptions`: linear
+  model about a stable equilibrium for small potentials at ports: `Electrode`
+  objects, held by sources, and never integers, which nets also are. Resonant frequencies and mode shapes under
+  bias, transduction of each mode at each node, node capacitance with
+  floating nets eliminated, and conductance of links with resistance, so
+  electrodes behind resistive beams are inner nodes. `admittance` between
+  ports and `displacement` for a drive at frequencies the caller gives,
+  and `motional` series branches per mode and node. One quality factor for
+  every mode is required. `linearity` reports how far a drive swings against the bias and
+  closes the narrowest gap, as `Linearity`, and warns with
+  `LinearizationWarning` beyond `linear_tolerance`.
+- `Equilibrium.floating`: nets that held a fixed charge.
 
 ### Removed
 

@@ -82,6 +82,13 @@ keyword overrides.
 | `tolerance` | $\tau_s$ | 1e-9 | Newton iteration for static equilibrium stops when the strain energy of its last step is below this fraction, squared, of the strain energy of the displacement, equation (122), or one step after it is below this fraction itself. |
 | `max_iterations` | | 30 | Most Newton iterations of one solve. Reaching it raises `NoEquilibriumError`. |
 
+## `SmallSignalOptions`
+
+| Field | Symbol | Default | Effect |
+| --- | --- | --- | --- |
+| `quality_factor` | $Q$ | **required** | Quality factor of every mode of the small-signal model about an equilibrium, equation (132). Damping is an input: the library computes no loss mechanism. It sets the width of each resonance, $f_n / Q$, and the motional resistance of equation (136). |
+| `linear_tolerance` | $\tau_l$ | 0.1 | `SmallSignal.linearity` warns with `LinearizationWarning` when the swing across a pair of electrodes against its bias, or the closing of the narrowest gap at the peak of the motion, exceeds this fraction, equation (137). The force then errs by about half the first and the coefficients by about twice the second. |
+
 ## `Wire`
 
 A connection made off the die between two pads, passed to `extract` in
@@ -102,6 +109,7 @@ the field: lengths, areas, thicknesses, densities, moduli, and resistivity are p
 `ambient_permittivity >= 1`; `element_size > 0` and `interaction_distance > 0`
 when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
 `window_tolerance > 0`; `dense_cutoff >= 0` and `plates_cutoff >= dense_cutoff`;
-`tolerance > 0` and `max_iterations >= 1` of `StaticOptions`; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
+`tolerance > 0` and `max_iterations >= 1` of `StaticOptions`;
+`quality_factor > 0` and `linear_tolerance > 0` of `SmallSignalOptions`; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
 `"device"` or `"handle"`, and its `resistance >= 0`; every stack layer has a
 thickness.

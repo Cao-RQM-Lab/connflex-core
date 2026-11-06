@@ -14,13 +14,20 @@ from shapely.geometry import mapping
 from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Nets
 from connflex_core.mechanics.inertia import MassProperties
-from connflex_core.params import ElectrostaticParams, ExtractionParams, SolveOptions, StaticOptions
+from connflex_core.params import (
+    ElectrostaticParams,
+    ExtractionParams,
+    SmallSignalOptions,
+    SolveOptions,
+    StaticOptions,
+)
 from connflex_core.progress import Progress
 from connflex_core.stack import Stack
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
+    from connflex_core.coupled.small_signal import SmallSignal
     from connflex_core.coupled.static import Equilibrium
     from connflex_core.electrostatics.capacitance import CapacitanceModel
     from connflex_core.electrostatics.plates import Plate
@@ -207,6 +214,20 @@ class Structure:
             options=options,
             progress=progress,
         )
+
+    def small_signal(
+        self,
+        equilibrium: Equilibrium,
+        ports: Sequence[Electrode],
+        options: SmallSignalOptions,
+        *,
+        progress: Progress | None = None,
+    ) -> SmallSignal:
+        """Linear response about ``equilibrium`` to small potentials at ``ports``: the
+        electrodes, from ``electrode_at``, of the pads that sources drive."""
+        from connflex_core.coupled.small_signal import small_signal
+
+        return small_signal(self, equilibrium, ports, options, progress=progress)
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-serializable tree with polygons as GeoJSON-style mappings."""

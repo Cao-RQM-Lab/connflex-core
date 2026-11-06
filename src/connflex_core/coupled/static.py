@@ -54,6 +54,7 @@ class Equilibrium:
         iterations: Newton iterations taken.
         loose: Bodies that no chain of beams joins to the anchor. Nothing can balance a
             force on them, so they are kept at rest and left out of ``softest``.
+        floating: Nets that held a fixed charge, ascending.
         model: Capacitance model at ``displacement``, whose ``clearance`` tells how far
             the narrowest gap between two bodies has closed.
     """
@@ -69,6 +70,7 @@ class Equilibrium:
     stable: bool
     iterations: int
     loose: tuple[int, ...]
+    floating: tuple[int, ...]
     model: CapacitanceModel
 
 
@@ -174,6 +176,7 @@ def equilibrium(
         stable=softest > 0,
         iterations=iterations,
         loose=tuple(sorted({body for body, _ in system.dofs if body not in joined})),
+        floating=tuple(floating.tolist()),
         model=here,
     )
 

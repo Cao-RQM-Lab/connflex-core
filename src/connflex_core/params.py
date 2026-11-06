@@ -138,6 +138,25 @@ class StaticOptions:
 
 
 @dataclass(frozen=True)
+class SmallSignalOptions:
+    """Options of the small-signal model about an equilibrium.
+
+    Attributes:
+        quality_factor: Quality factor of every mode at the equilibrium, equation (132).
+            Required: damping is an input, not computed.
+        linear_tolerance: ``SmallSignal.linearity`` warns when either of its ratios,
+            equation (137), exceeds this.
+    """
+
+    quality_factor: float
+    linear_tolerance: float = 0.1
+
+    def __post_init__(self) -> None:
+        require_positive("quality_factor", self.quality_factor)
+        require_positive("linear_tolerance", self.linear_tolerance)
+
+
+@dataclass(frozen=True)
 class ElectrostaticParams:
     """Electrostatic model parameters. Lengths in meters.
 

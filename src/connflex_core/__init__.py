@@ -6,6 +6,7 @@ from connflex_core import adapters
 from connflex_core.adapters.gds import load_gds
 from connflex_core.adapters.gdsfactory_ import from_gdsfactory
 from connflex_core.adapters.klayout_ import from_klayout
+from connflex_core.coupled.small_signal import Linearity, LinearizationWarning, SmallSignal
 from connflex_core.coupled.static import Equilibrium, NoEquilibriumError
 from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Conductor, Connection, Nets, Via, Wire, find_nets
@@ -22,6 +23,7 @@ from connflex_core.model import Beam, Body, RejectedCandidate, Structure
 from connflex_core.params import (
     ElectrostaticParams,
     ExtractionParams,
+    SmallSignalOptions,
     SolveOptions,
     StaticOptions,
 )
@@ -46,6 +48,8 @@ __all__ = [
     "Layer",
     "LayerMap",
     "Layout",
+    "Linearity",
+    "LinearizationWarning",
     "Link",
     "MassProperties",
     "Material",
@@ -56,6 +60,8 @@ __all__ = [
     "Progress",
     "RejectedCandidate",
     "SidewallCapacitance",
+    "SmallSignal",
+    "SmallSignalOptions",
     "SolveOptions",
     "Stack",
     "StaticOptions",

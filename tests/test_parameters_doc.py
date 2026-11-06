@@ -11,6 +11,7 @@ from connflex_core import (
     ExtractionParams,
     Layer,
     Material,
+    SmallSignalOptions,
     SolveOptions,
     StaticOptions,
     Wire,
@@ -47,6 +48,10 @@ def test_electrostatic_params_match_the_page() -> None:
 
 def test_static_options_match_the_page() -> None:
     assert documented_rows("`StaticOptions`")[""] == field_names(StaticOptions)
+
+
+def test_small_signal_options_match_the_page() -> None:
+    assert documented_rows("`SmallSignalOptions`")[""] == field_names(SmallSignalOptions)
 
 
 def test_wire_matches_the_page() -> None:

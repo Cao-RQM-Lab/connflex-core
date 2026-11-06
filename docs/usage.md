@@ -501,6 +501,7 @@ result.potentials, result.charge  # per electrode
 result.model  # capacitance model at the equilibrium
 result.model.clearance, result.model.closest  # narrowest gap against its width at rest, and where
 result.loose  # bodies that no beam holds, kept at rest
+result.floating  # nets that held a fixed charge
 
 result = structure.equilibrium(model, {drive: 40.0}, loads={1: [0, 0, -1e-6, 0, 0, 0]})
 result = structure.equilibrium(model, {drive: 40.0}, charges={sense: 0.0})  # sense floats
@@ -578,10 +579,108 @@ to tip are taken as plates, the iteration fails at any voltage; that is the
 cusp of the plates method and not pull-in. Formulas are in
 [static equilibrium](theory.md#static-equilibrium).
 
+## Small signal
+
+```python
+bias = structure.equilibrium(model, {shuttle: 40.0})
+drive = structure.electrode_at((1.2e-3, 0.4e-3), "device")
+sense = structure.electrode_at((0.2e-3, 0.4e-3), "device")
+signal = structure.small_signal(bias, [drive, sense], cf.SmallSignalOptions(quality_factor=5000.0))
+
+signal.frequencies_hz  # resonant frequencies under bias, ascending
+signal.modes  # mass-normalized mode shapes under bias; rows follow signal.dofs
+signal.transduction  # mode by node: force on each mode per volt on each node
+signal.capacitance, signal.conductance  # node by node, floating nets eliminated
+signal.nodes  # electrodes of each node: ports first, then inner nodes
+
+hertz = np.linspace(50e3, 60e3, 2001)
+admittance = signal.admittance(hertz)  # frequencies by ports by ports, complex siemens
+motion = signal.displacement(hertz, [0.1, 0.0])  # complex amplitude of every degree of freedom
+inductance, capacitance, resistance = signal.motional()  # mode by node
+check = signal.linearity([0.1, 0.0], 55e3)  # check.voltage, check.gap, check.peak
+```
+
+`structure.small_signal` linearizes the structure about an equilibrium for
+small potentials at its ports. Port order is the order of rows and columns
+of `admittance` and of drive amplitudes. The equilibrium has to be stable.
+The quality factor applies to every mode and is required, since nothing in
+the library computes damping.
+
+### Ports and nets
+
+`equilibrium` takes potentials by net; `small_signal` takes ports as
+electrodes. A net is everything joined electrically, which shares one
+potential when no current flows. An electrode is a piece of a net that
+moves with one body, and links that may have resistance join the
+electrodes of a net. The two are numbered apart, in `structure.nets` and
+`structure.electrodes`. A port is where a source connects: one electrode,
+which the source holds at the potential its net has in the equilibrium
+plus the signal. Ports are `Electrode` objects, as `electrode_at` returns
+them for a point on the pad the source is bonded to; an integer is refused
+with a `TypeError`, so a net index cannot pass for a port.
+
+```python
+pad = structure.electrode_at((1.2e-3, 0.4e-3), "device")  # the port
+pad.net  # its net, the key of its potential in equilibrium
+[e for e in structure.electrodes if e.net == pad.net]  # every electrode of that net
+```
+
+The equilibrium and the ports give each net one of three roles:
+
+| Net in the equilibrium | In the small-signal model |
+| --- | --- |
+| Has a potential and a port on one of its electrodes | The source holds the port. Electrodes that links without resistance join to it are the same node; electrodes behind resistance are inner nodes, reached through the resistor network. |
+| Has a potential and no port | Held at its potential on every electrode, a signal ground. Its current is not reported. A net named nowhere in the equilibrium is at zero volts and is one of these. |
+| Holds a charge | One node that keeps its charge, so its potential follows the signal and the motion. It cannot carry a port, since no source holds it. |
+
+So:
+
+- Without `Material.resistivity`, beams have no resistance, every net is
+  one node, and a port stands for its whole net: any electrode of the net
+  gives the same model.
+- With resistivity, the electrode matters. Choose the pad the source is
+  bonded to; a shuttle behind long thin beams then sees its drive late and
+  weakened at high frequency.
+- A wire with resistance leaves the pad at its far end as an inner node of
+  the same net; an ideal wire makes the two pads one node.
+- Two ports on one net need resistance between them. Two ports on
+  electrodes that links without resistance join would be one node held by
+  two sources, which is an error.
+- To see the current a net at a fixed potential draws, such as a sense
+  electrode at zero volts, give it a port and a drive of zero. Its row of
+  `admittance` is the current through that source per volt at each port.
+- `signal.nodes` lists the electrode indices of each node, ports first, and
+  `structure.electrodes[a].net` the net of each.
+
+### Response
+
+`admittance` gives, at each frequency you pass in hertz, the current into
+each port per volt at each port with the others held; it is symmetric.
+`displacement` gives complex amplitudes of every degree of freedom for a
+drive, one complex amplitude per port, so `abs` is the amplitude and
+`np.angle` the phase against the drive. `motional` gives the series branch
+of each mode at each node with every other node held: for a single port
+near one resonance, `signal.capacitance` in parallel with that branch is the
+Butterworth-Van Dyke circuit. Frequencies are yours to choose; for a
+resonance, sample a few times more densely than its width
+`signal.frequencies_hz[n] / quality_factor`.
+
+### Range of the linearization
+
+The linearization holds while the drive is small against the bias across
+each moving gap and the motion small against the gap. `linearity` measures
+both for a drive at one frequency: `voltage` is the largest swing across a
+pair of electrodes whose capacitance moves, against its bias, and `gap` how
+far the narrowest gap closes at the peak of the motion, against its width
+in the equilibrium. It warns with `cf.LinearizationWarning` when either
+exceeds `linear_tolerance`, and evaluates the capacitance model twice. Use
+`warnings.simplefilter("error", cf.LinearizationWarning)` to make that an
+error. Formulas are in [small signal](theory.md#small-signal).
+
 ## Progress and logging
 
-Each stage of `extract`, `modal`, `static`, `plates`, `capacitance`, and
-`sidewall_capacitance` logs when it starts and when it finishes, with elapsed time and counts, through the standard `connflex_core`
+Each stage of `extract`, `modal`, `static`, `plates`, `capacitance`,
+`sidewall_capacitance`, `equilibrium`, and `small_signal` logs when it starts and when it finishes, with elapsed time and counts, through the standard `connflex_core`
 logger. The logger is silent until a handler is attached:
 
 ```python
