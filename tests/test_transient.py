@@ -227,7 +227,8 @@ def test_traveling_drive_pulls_out_where_pendulum_reduction_does() -> None:
     one pitch per period and pulls the bar along at a lag. Once its beams and damping ask
     more than the field holds, the bar slips back by a pitch and catches the next tooth.
     The transient on the field method, through the surrogate, follows one degree of
-    freedom along the bar under the force of exact field solutions over one pitch."""
+    freedom along the bar under the force of exact field solutions over one pitch. The
+    fringe is left out: its rounding where tooth ends pass is finer than the table."""
     rack = toothed_rack()
     modal = rack.modal()
     mass, spring, quality = modal.mass[0, 0], modal.stiffness[0, 0], 0.5
@@ -240,6 +241,7 @@ def test_traveling_drive_pulls_out_where_pendulum_reduction_does() -> None:
         dense_cutoff=float("inf"),
         plates_cutoff=float("inf"),
         surrogate_tolerance=3e-3,
+        include_fringe=False,
     )
     model = rack.capacitance(params)
     stators = [

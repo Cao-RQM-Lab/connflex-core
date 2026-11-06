@@ -334,6 +334,21 @@ whole than windows give; `periodic_min_cells=None` solves every row in
 windows. Formulas are in
 [rows of identical cells](theory.md#rows-of-identical-cells).
 
+Walls end at the top and bottom of the device layer, and the field that
+wraps around those ends adds to what the layout plane holds: across gaps,
+and down to the handle beneath, which also lifts fingers between walls at
+another potential. With `include_fringe`, on by default, every piece of wall
+is cut across, the field of the cut is solved in the plane of its normal and
+the vertical, and what it holds beyond the layout plane and the plates goes
+into `model.fringe`, part of `model.matrix`. It changes with travel, turn,
+rise, and tilt of the bodies, so vertical forces and springs of combs and the
+lift over the handle are in the model. It matters most where the device
+layer is thin against its gaps; a cut repeated anywhere in the structure is
+solved once, and `model.clusters[k].sections` counts the distinct ones a
+cluster's walls took. `include_fringe=False` keeps the layout plane alone, and
+with `include_plates=False` the cuts have no handle. Formulas are in
+[fringe above and below the device layer](theory.md#fringe-above-and-below-the-device-layer).
+
 Each cluster reports `interactions`, the feature size and method of every
 pair of its nets, `windows` and `asymmetry`, which is rounding for one
 dense system and a measure of the error for windows, and `walls`, the
@@ -365,7 +380,7 @@ With `surrogate_tolerance` set, a cluster solved by the field method reuses
 the nearest earlier solution of it, expanded to second order in the motion
 of its bodies, as long as that expansion stays within the tolerance in
 capacitance and its gradient; elsewhere it is solved anew and the new
-solution kept. The radius around each solution follows from how well it
+solution kept. Its fringe is kept and expanded with it. The radius around each solution follows from how well it
 predicted the next one. `model.clusters[k].anchors` counts the solutions a
 cluster holds, and `model.at(displacement, exact=True)` solves anew
 regardless. `equilibrium` solves its result anew, so its stiffness and
@@ -382,7 +397,7 @@ run.model.clusters[0].anchors  # field solutions the run needed
 ```
 
 `to_dict` gives a tree for review. It lists every pair of electrodes with
-capacitance between them, split into oxide, released, and sidewall parts,
+capacitance between them, split into oxide, released, sidewall, and fringe parts,
 with their nets and the change of the total with each body that moves it;
 the matrix between nets; the clusters with their size, windows,
 asymmetry, and the feature size and method of each pair of nets; and

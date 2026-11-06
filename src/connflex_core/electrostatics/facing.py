@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
+from typing import Any
 
 import numpy as np
 import shapely
@@ -51,6 +52,40 @@ class FacingWalls:
         return cls(np.zeros((0, 2)), np.zeros((0, 2)), none, none, np.zeros((0, 2)))
 
 
+@dataclass(frozen=True, eq=False)
+class FacingRuns:
+    """Pieces of wall that face another conductor, with their length and its
+    derivatives for rigid motion of the bodies that set it, equation (103).
+
+    Attributes:
+        edge: Outline edge of each piece, numbered as by ``outline_edges``.
+        conductor: Conductor of each piece.
+        facing: Conductor each piece faces.
+        start: P by 2 first end points, as on ``FacingWalls``.
+        end: P by 2 second end points.
+        gap: P by 2 gaps at ``start`` and at ``end``.
+        bodies: P by 4 bodies of the parameters of ``length``: of the edge, of the edge
+            it faces, and of the edges that set its two ends, -1 where fewer.
+        length: Length of each piece, with its gradient and Hessian in travel along x
+            and y and turn about its pivot of each of the four bodies.
+        distance: Gap at the middle of each piece along the normal of its wall, with
+            its derivatives in the same parameters.
+        middle: Distance of that middle along its edge from the edge's first point,
+            with its derivatives.
+    """
+
+    edge: Index
+    conductor: Index
+    facing: Index
+    start: Array
+    end: Array
+    gap: Array
+    bodies: Index
+    length: Jet
+    distance: Jet
+    middle: Jet
+
+
 def facing_plates(
     regions: Sequence[MultiPolygon], body: Index, pivots: Array, reach: float
 ) -> tuple[Array, Array, Array, FacingWalls]:
@@ -62,29 +97,9 @@ def facing_plates(
     zero, its gradient and Hessian in the layout of ``SidewallCapacitance``, and the
     pieces of wall.
     """
-    start, end, conductor, outward = _edges(regions)
-    along = end - start
-    length = np.hypot(along[:, 0], along[:, 1])
-    tangent = along / length[:, None]
-    normal = outward[:, None] * np.stack([tangent[:, 1], -tangent[:, 0]], axis=1)
-    pieces = _visible(start, end, conductor, length, tangent, normal, reach)
-
-    # Bodies of a piece: of its edge, of the edge it faces, and of the edges that set
-    # its two ends. Each distinct one takes a slot of three parameters.
+    edges, pieces, slot, used, members = _pieces(regions, body, reach)
+    start, end, conductor, outward, length = edges
     moving = body[conductor]
-    involved = moving[pieces[:, [0, 1, 3, 6]]]
-    each = np.arange(len(pieces))
-    slot = np.zeros((len(pieces), 4), dtype=np.intp)
-    used = np.ones(len(pieces), dtype=np.intp)
-    members = np.zeros((len(pieces), 4), dtype=np.intp)
-    members[:, 0] = involved[:, 0]
-    for k in range(1, 4):
-        match = involved[:, :k] == involved[:, k : k + 1]
-        known = match.any(axis=1)
-        slot[:, k] = np.where(known, slot[each, match.argmax(axis=1)], used)
-        members[each, slot[:, k]] = involved[:, k]
-        used += ~known
-
     count, rigid = len(regions), len(pivots)
     between = np.zeros((count, count))
     slopes = np.zeros((count, count, 3 * rigid))
@@ -96,9 +111,10 @@ def facing_plates(
         group = np.flatnonzero(used == slots)
         for first in range(0, len(group), PIECES_PER_PASS):
             part = group[first : first + PIECES_PER_PASS]
-            value, left[part], right[part], gap[part] = _integrals(
+            value, low, high, _, gap[part] = _integrals(
                 pieces[part], start, end, length, outward, pivots[moving], slot[part], slots, reach
             )
+            left[part], right[part] = low.value, high.value
             near, far = conductor[pieces[part, 0]], conductor[pieces[part, 1]]
             for row, column in ((near, far), (far, near)):
                 np.add.at(between, (row, column), value.value / 2)
@@ -123,22 +139,134 @@ def facing_plates(
                             ),
                             value.hessian[:, 3 * i : 3 * i + 3, 3 * j : 3 * j + 3] / 2,
                         )
-    edge = pieces[:, 0]
-    ends = np.stack([left, right], axis=1)
-    turned = outward[edge] < 0
-    ends[turned], gap[turned] = ends[turned, ::-1], gap[turned, ::-1]
-    walls = FacingWalls(
-        start=start[edge] + ends[:, :1] * tangent[edge],
-        end=start[edge] + ends[:, 1:] * tangent[edge],
-        conductor=conductor[edge],
-        facing=conductor[pieces[:, 1]],
-        gap=gap,
-    )
+    walls = _walls(edges, pieces, left, right, gap)
     return (
         _maxwell(between),
         _maxwell(slopes).reshape(count, count, rigid, 3),
         _maxwell(bends).reshape(count, count, rigid, 3, rigid, 3),
         walls,
+    )
+
+
+def facing_runs(
+    regions: Sequence[MultiPolygon],
+    body: Index,
+    pivots: Array,
+    reach: float,
+    smooth: float = 0.0,
+) -> FacingRuns:
+    """Pieces of wall that face another conductor within ``reach``, as for
+    ``facing_plates``, with the length of each and its derivatives.
+
+    With ``smooth``, a piece whose ends are the ends of its edge or of the edge it faces
+    takes the overlap of the two rounded over that length where ends pass each other,
+    equation (161), so that its length has continuous slope as walls slide.
+    """
+    edges, pieces, slot, used, members = _pieces(regions, body, reach)
+    start, end, conductor, outward, length = edges
+    moving = body[conductor]
+    count = len(pieces)
+    left, right = np.zeros(count), np.zeros(count)
+    gap = np.zeros((count, 2))
+    run, distance, halfway = (
+        Jet(np.zeros(count), np.zeros((count, 12)), np.zeros((count, 12, 12))) for _ in range(3)
+    )
+    for slots in range(1, 5):
+        group = np.flatnonzero(used == slots)
+        for first in range(0, len(group), PIECES_PER_PASS):
+            part = group[first : first + PIECES_PER_PASS]
+            _, low, high, middle, gap[part], (u0, u1) = _integrals(
+                pieces[part],
+                start,
+                end,
+                length,
+                outward,
+                pivots[moving],
+                slot[part],
+                slots,
+                reach,
+                ends=True,
+            )
+            left[part], right[part] = low.value, high.value
+            span = high - low
+            if smooth > 0:
+                span = _pick(
+                    _geometric(pieces[part]),
+                    _overlap(u0, u1, length[pieces[part, 0]], smooth),
+                    span,
+                )
+            for into, jet in ((run, span), (distance, middle), (halfway, (low + high) * 0.5)):
+                into.value[part] = jet.value
+                into.gradient[part, : 3 * slots] = jet.gradient
+                into.hessian[part, : 3 * slots, : 3 * slots] = jet.hessian
+    walls = _walls(edges, pieces, left, right, gap)
+    bodies = np.where(np.arange(4) < used[:, None], members, -1)
+    return FacingRuns(
+        edge=pieces[:, 0],
+        conductor=walls.conductor,
+        facing=walls.facing,
+        start=walls.start,
+        end=walls.end,
+        gap=walls.gap,
+        bodies=bodies,
+        length=run,
+        distance=distance,
+        middle=halfway,
+    )
+
+
+def _pieces(
+    regions: Sequence[MultiPolygon], body: Index, reach: float
+) -> tuple[tuple[Array, Array, Index, Array, Array], Index, Index, Index, Index]:
+    """Outline edges with their lengths, pieces of them that face another conductor, and
+    for each piece the slot of each of its four bodies, how many slots it uses, and the
+    body in each slot."""
+    start, end, conductor, outward = outline_edges(regions)
+    along = end - start
+    length = np.hypot(along[:, 0], along[:, 1])
+    tangent = along / length[:, None]
+    normal = outward[:, None] * np.stack([tangent[:, 1], -tangent[:, 0]], axis=1)
+    pieces = _visible(start, end, conductor, length, tangent, normal, reach)
+
+    # Bodies of a piece: of its edge, of the edge it faces, and of the edges that set
+    # its two ends. Each distinct one takes a slot of three parameters.
+    moving = body[conductor]
+    involved = moving[pieces[:, [0, 1, 3, 6]]]
+    each = np.arange(len(pieces))
+    slot = np.zeros((len(pieces), 4), dtype=np.intp)
+    used = np.ones(len(pieces), dtype=np.intp)
+    members = np.zeros((len(pieces), 4), dtype=np.intp)
+    members[:, 0] = involved[:, 0]
+    for k in range(1, 4):
+        match = involved[:, :k] == involved[:, k : k + 1]
+        known = match.any(axis=1)
+        slot[:, k] = np.where(known, slot[each, match.argmax(axis=1)], used)
+        members[each, slot[:, k]] = involved[:, k]
+        used += ~known
+    return (start, end, conductor, outward, length), pieces, slot, used, members
+
+
+def _walls(
+    edges: tuple[Array, Array, Index, Array, Array],
+    pieces: Index,
+    left: Array,
+    right: Array,
+    gap: Array,
+) -> FacingWalls:
+    """Pieces as ``FacingWalls`` from their ends along their edges."""
+    start, end, conductor, outward, length = edges
+    tangent = (end - start) / length[:, None]
+    edge = pieces[:, 0]
+    ends = np.stack([left, right], axis=1)
+    gap = gap.copy()
+    turned = outward[edge] < 0
+    ends[turned], gap[turned] = ends[turned, ::-1], gap[turned, ::-1]
+    return FacingWalls(
+        start=start[edge] + ends[:, :1] * tangent[edge],
+        end=start[edge] + ends[:, 1:] * tangent[edge],
+        conductor=conductor[edge],
+        facing=conductor[pieces[:, 1]],
+        gap=gap,
     )
 
 
@@ -150,7 +278,7 @@ def _maxwell(between: Array) -> Array:
     return matrix
 
 
-def _edges(regions: Sequence[MultiPolygon]) -> tuple[Array, Array, Index, Array]:
+def outline_edges(regions: Sequence[MultiPolygon]) -> tuple[Array, Array, Index, Array]:
     """Start, end, conductor, and side of the outward normal of every outline edge."""
     starts, ends, owners, sides = [], [], [], []
     for index, region in enumerate(regions):
@@ -308,14 +436,16 @@ def _integrals(
     slot: Index,
     slots: int,
     reach: float,
-) -> tuple[Jet, Array, Array, Array]:
+    ends: bool = False,
+) -> tuple[Any, ...]:
     """Integral of inverse gap over each piece with its derivatives, equations (102) and (103).
 
     Parameters are travel along x and y and rotation about its pivot for each of
     ``slots`` bodies. Columns of ``slot`` give the body of the edge, of the edge it
     faces, and of the edges that set the two ends of the piece; ``pivot`` holds the
     pivot of every edge. Also returns both ends of each piece as distances along its
-    edge, and the gap at both.
+    edge and the gap at its middle, with their derivatives, and the gap at both ends;
+    with ``ends`` as well where both ends of the faced edge fall along the edge.
     """
     edge, other = pieces[:, 0], pieces[:, 1]
 
@@ -352,8 +482,87 @@ def _integrals(
     run = right - left
     gap = v0 + slope * ((left + right) * 0.5 - u0)
     value = run / gap * (slope * run / (gap * 2.0)).through(_shape, _shape_slope, _shape_bend)
-    ends = np.stack([(v0 + slope * (at - u0)).value for at in (left, right)], axis=1)
-    return value, left.value, right.value, ends
+    gaps = np.stack([(v0 + slope * (at - u0)).value for at in (left, right)], axis=1)
+    if ends:
+        return value, left, right, gap, gaps, (u0, u1)
+    return value, left, right, gap, gaps
+
+
+def _geometric(pieces: Index) -> NDArray[np.bool_]:
+    """Pieces whose two ends are ends of their own edge or of the edge they face."""
+    edge, other = pieces[:, 0], pieces[:, 1]
+    found = np.ones(len(pieces), dtype=bool)
+    for kind, setter in ((pieces[:, 2], pieces[:, 3]), (pieces[:, 5], pieces[:, 6])):
+        found &= ((kind == OWN) & (setter == edge)) | ((kind == PROJECTED) & (setter == other))
+    return found
+
+
+def _overlap(first: Jet, second: Jet, span: Array, width: float) -> Jet:
+    """Overlap of an edge from 0 to ``span`` with the faced edge from ``first`` to
+    ``second`` along it, rounded over ``width`` where ends pass, equation (161)."""
+    low = _pick(first.value <= second.value, first, second)
+    high = _pick(first.value <= second.value, second, first)
+
+    def onset(x: Jet) -> Jet:
+        return x.through(
+            lambda u: _onset(u, width),
+            lambda u: _onset_slope(u, width),
+            lambda u: _onset_bend(u, width),
+        )
+
+    def even(x: Jet) -> Jet:
+        return x.through(
+            lambda u: _even(u, width),
+            lambda u: _even_slope(u, width),
+            lambda u: _even_bend(u, width),
+        )
+
+    # Each of the four ramps of the overlap is rounded on the side where the walls still
+    # face each other, the two where they stop facing so that the overlap meets zero
+    # with zero slope.
+    return onset(span - low) - even(span - high) - even(-low) - high + onset(high)
+
+
+def _onset(x: Array, width: float) -> Array:
+    """Zero below 0, x above ``width``, and between them a cubic with matching slopes:
+    where walls begin to face each other."""
+    inner = np.clip(x, 0.0, width)
+    return np.where(x >= width, x, 2 * inner**2 / width - inner**3 / width**2)
+
+
+def _onset_slope(x: Array, width: float) -> Array:
+    inner = np.clip(x, 0.0, width)
+    return np.where(x >= width, 1.0, 4 * inner / width - 3 * inner**2 / width**2)
+
+
+def _onset_bend(x: Array, width: float) -> Array:
+    inner = np.clip(x, 0.0, width)
+    return np.where((x > 0) & (x < width), 4 / width - 6 * inner / width**2, 0.0)
+
+
+def _even(x: Array, width: float) -> Array:
+    """Zero below and x above half ``width`` either side of 0, and a parabola between:
+    where an end of one wall passes an end of the other."""
+    inner = np.clip(x, -width / 2, width / 2)
+    return np.where(x >= width / 2, x, (inner + width / 2) ** 2 / (2 * width))
+
+
+def _even_slope(x: Array, width: float) -> Array:
+    inner = np.clip(x, -width / 2, width / 2)
+    return np.where(x >= width / 2, 1.0, (inner + width / 2) / width)
+
+
+def _even_bend(x: Array, width: float) -> Array:
+    return np.where(abs(x) < width / 2, 1 / width, 0.0)
+
+
+def _pick(mask: NDArray[np.bool_], yes: Jet, no: Jet) -> Jet:
+    """Jet of ``yes`` where ``mask`` holds and of ``no`` elsewhere."""
+    return Jet(
+        np.where(mask, yes.value, no.value),
+        np.where(mask[:, None], yes.gradient, no.gradient),
+        np.where(mask[:, None, None], yes.hessian, no.hessian),
+    )
 
 
 def _moved(points: Array, pivot: Array, slot: Index, parameters: int) -> tuple[Jet, Jet]:

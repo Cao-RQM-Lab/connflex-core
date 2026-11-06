@@ -130,6 +130,16 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bodies' turn through its lever arm. What a row leaves to the windows is
   cut into cores in the frame of the row, so congruent rows leave windows
   that are translates. On by default for rows of 8 cells or more.
+- `ElectrostaticParams.include_fringe`, on by default, `CapacitanceModel.fringe`,
+  and `Cluster.sections`: field above and below the device layer along every
+  wall, from cuts across walls solved in the plane of their normal and the
+  vertical with the handle beneath. It adds to capacitance between device
+  electrodes and to the handle, depends on rise and tilt as well as travel
+  and turn, and so gives vertical comb springs and the lift of fingers over
+  the handle. Facing walls weight it by their overlap, rounded where ends pass
+  so that teeth sliding past each other pull without jumps; repeated cuts are
+  solved once per structure, and the surrogate expands the fringe with its
+  solutions.
 - Windows that are translates of one another, element for element with
   their cores, conductors, and bodies, are solved once; each copy moves the
   derivatives to the pivots of its own bodies. Window cores are cut on

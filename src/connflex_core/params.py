@@ -221,6 +221,10 @@ class ElectrostaticParams:
             device and handle electrodes.
         include_sidewalls: Whether it holds sidewall capacitance between device
             electrodes.
+        include_fringe: Whether sidewalls carry the fringe above and below the device
+            layer, found in cuts across each wall, equations (157) to (163): to other
+            device electrodes and, with ``include_plates``, to the handle beneath.
+            Needs ``include_sidewalls``.
         periodic_min_cells: Rows of at least this many identical cells within a field
             problem solved in windows are solved instead by the periodic kernel, one
             cell for the row, equations (151) to (155). None leaves every row to the
@@ -242,6 +246,7 @@ class ElectrostaticParams:
     interaction_distance: float | None = None
     include_plates: bool = True
     include_sidewalls: bool = True
+    include_fringe: bool = True
     periodic_min_cells: int | None = 8
     surrogate_tolerance: float | None = None
 

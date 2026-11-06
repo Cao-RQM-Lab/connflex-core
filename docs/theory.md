@@ -1898,14 +1898,17 @@ $$
 \bigl[ \mathbf{C}^\text{sw} \bigr]_{ab} = t_\text{device}\, c_{ab} \quad \text{for } a, b \text{ in one cluster}, \tag{111}
 $$
 
-and electrodes of different clusters share no sidewall capacitance. Then
+and electrodes of different clusters share no sidewall capacitance. With
+$\mathbf{C}^\text{fr}$ the fringe above and below the device layer of
+(163), found for each cluster and for each device electrode alone over the
+handle, zero when it is left out,
 
 $$
-\mathbf{C} = \mathbf{C}^\text{ox} + \mathbf{C}^\text{rel} + \mathbf{C}^\text{sw}, \qquad
+\mathbf{C} = \mathbf{C}^\text{ox} + \mathbf{C}^\text{rel} + \mathbf{C}^\text{sw} + \mathbf{C}^\text{fr}, \qquad
 \mathbf{C}^\top = \mathbf{C}, \qquad \mathbf{C}\, \mathbf{1} = \mathbf{0}. \tag{112}
 $$
 
-Rows sum to zero because (109), (71), and (98) do: a potential common to all
+Rows sum to zero because (109), (71), (98), and (163) do: a potential common to all
 electrodes moves no charge, nothing outside the structure holds charge, and
 $-C_{ab}$ is the capacitance between electrodes $a$ and $b$.
 
@@ -2652,15 +2655,18 @@ evaluation solves each cluster anew at the cost of the solve at rest. Each
 such solution gives more than values: with $\mathbf{m}$ the in-plane motion
 of the bodies of a cluster, $(a_x, a_y, a_\psi)$ of (114) for each, it gives
 the matrix $\mathbf{c}$ and its first and second derivatives in
-$\mathbf{m}$ exactly, (81) and (84). Motions are compared by how far they
-carry any silicon of the cluster,
+$\mathbf{m}$ exactly, (81) and (84). With the fringe of (163) the motion
+also holds the rise $u_z$ and the turns $\theta_x$, $\theta_y$ of every
+body, of which the fringe and its derivatives are kept as well. Motions are
+compared by how far they carry any silicon of the cluster,
 
 $$
-\rho(\mathbf{m}, \mathbf{m}') = \max_B \Bigl( \bigl\| (a_x, a_y)_B - (a_x, a_y)'_B \bigr\| + R_B\, \bigl| a_{\psi,B} - a'_{\psi,B} \bigr| \Bigr), \tag{148}
+\rho(\mathbf{m}, \mathbf{m}') = \max_B \Bigl( \bigl\| (a_x, a_y)_B - (a_x, a_y)'_B \bigr\| + R_B\, \bigl| a_{\psi,B} - a'_{\psi,B} \bigr| + |\Delta u_{z,B}| + R_B \bigl( |\Delta \theta_{x,B}| + |\Delta \theta_{y,B}| \bigr) \Bigr), \tag{148}
 $$
 
 with $R_B$ the largest distance from the center of body $B$ to a corner of
-the bounding box of its silicon in the cluster. A solution at
+the bounding box of its silicon in the cluster, and $\Delta$ the change of
+rise and turns between the two motions. A solution at
 $\mathbf{m}_a$ is kept with a radius $r_a$. At a motion $\mathbf{m}$ within
 the radius of a kept solution, the nearest such one supplies the cluster
 by its expansion to second order, with $\boldsymbol{\delta} = \mathbf{m} -
@@ -2851,6 +2857,166 @@ which are solved once.
     edges carry congruent elements. A row whose cells are not translates of
     each other, for instance one along a long straight edge that its
     elements do not divide evenly, is left to the windows.
+
+## Fringe above and below the device layer
+
+The layout-plane field of (61) is the field of walls without end in height: it
+puts $\varepsilon t / g$ per unit length between walls a gap $g$ apart, and
+nothing above or below the device layer. Real walls end at its top and bottom
+faces. Field leaves the top face of one wall, arches over the gap, and lands on
+the top of the other; at the bottom it divides between the other wall and the
+handle a box gap $g_0$ below. A thinner layer or a wider gap leaves more of the
+field to these ends, and since the handle lies under the device layer alone,
+it draws the field of the lower ends down and lifts what lies between fingers
+at another potential.
+
+Near a wall the field is taken as two-dimensional in the plane of its normal
+and the vertical, a cut, and what the field of the cut holds beyond the
+layout-plane field and the plates is added along the wall. At a point
+$\mathbf{p}$ of a wall of conductor $w$ with outward normal $\hat{\mathbf{n}}$,
+the line $\mathbf{p} + s\, \hat{\mathbf{n}}$ for $|s| \le d_i$ crosses silicon
+in intervals $[s_k^-, s_k^+]$ of conductors $c_k$, the wall's own ending at
+$s = 0$. In the plane of $s$ and height $z$ each interval is a block, and the
+handle, where it lies beneath the cut, a slab:
+
+$$
+B_k = [s_k^-, s_k^+] \times [z_{c_k},\, z_{c_k} + t], \qquad
+H = \{ z \le z_h - g_0 \}, \tag{157}
+$$
+
+with $z_c$ the rise of the body of conductor $c$ at the cut and $z_h$ that of
+the handle. The cut is solved as (63) on the outlines of these blocks and of
+the slab, which reaches $d_i + t$ past the cut on either side. Its core $K$ is
+the wall face $s = 0$ and the halves of the top and bottom faces of the wall's
+block nearest it, and the charge on the core per unit length per volt on
+conductor $j$, as (92), is
+
+$$
+q_j = \mathbf{e}_K^\top \mathbf{M}\, \mathbf{e}_j. \tag{158}
+$$
+
+The layout-plane field already holds $t / d$ between the wall and $f$, the
+first conductor ahead of it at $s = d$, and a plate (42) holds $(w/2) /
+(g_0 + z_w - z_h)$ under the half face of the core, $w$ the width of the wall's
+block. What the cut adds, per unit length and permittivity, is the rest:
+
+$$
+\epsilon_j = q_j - \frac{t}{d}\, (\delta_{jw} - \delta_{jf}) - \frac{w / 2}{g_0 + z_w - z_h}\, (\delta_{jw} - \delta_{jh}). \tag{159}
+$$
+
+Its derivatives in the travel of each body along $s$ and upward are those of
+(76) and (84) on the outlines of the cut, and of the two subtractions. The
+handle is a plane: travel along the cut does not move it, and the slab, which
+is centered on the wall, goes with the wall.
+
+Walls repeat, and so do cuts. A cut is rounded to a grid of $\Delta = \min(t,
+g_0) / 16$ and solved once for every rounded cut met; a cut that rounding
+would close, silicon or a gap narrower than $\Delta$, keeps its own geometry.
+Each body $b$ of a cut has the end of its silicon nearest the wall a distance
+$\delta_b$ from where rounding put it, measured from the wall, and rises by
+$z_b$. With $\mathbf{x} = (\delta_b, z_b)$ over the bodies of the cut,
+
+$$
+\epsilon_j(\mathbf{x}) = \epsilon_j^0 + \mathbf{g}_j^\top \mathbf{x} + \tfrac{1}{2}\, \mathbf{x}^\top \mathbf{H}_j\, \mathbf{x}, \tag{160}
+$$
+
+with $\epsilon^0$, $\mathbf{g}$, and $\mathbf{H}$ those of the rounded cut. A
+body rises at the point where the cut stands on its wall, carried back to
+rest, by $z_b = u_z + \theta_x (y - y_b) - \theta_y (x - x_b)$ with $(x_b,
+y_b)$ the center of body $b$, as a plate does at its reference point (46).
+
+Every piece of wall that faces another conductor, (99) to (101), is cut at its
+middle and counts with its length $L$; the offset of the body it faces is the
+gap of (103) at that middle, and those of other bodies their travel along the
+cut, as if their walls were square to it. A piece whose ends are ends of its
+own edge, from 0 to $a$ along it, and of the edge it faces, from $b_1$ to
+$b_2$, has its length rounded over $\lambda = g_0$ where ends pass,
+
+$$
+L = r^+(a - b_1) - r^\circ(a - b_2) - r^\circ(-b_1) - b_2 + r^+(b_2), \tag{161}
+$$
+
+$$
+r^+(x) = \begin{cases} 0 & x \le 0 \\ \frac{2 x^2}{\lambda} - \frac{x^3}{\lambda^2} & 0 < x < \lambda \\ x & x \ge \lambda \end{cases}, \qquad
+r^\circ(x) = \begin{cases} 0 & x \le -\frac{\lambda}{2} \\ \frac{(x + \lambda / 2)^2}{2 \lambda} & |x| < \frac{\lambda}{2} \\ x & x \ge \frac{\lambda}{2} \end{cases},
+$$
+
+which is the overlap of the two away from where ends pass, has a continuous
+slope everywhere, and meets zero with zero slope where the walls stop facing
+each other: $r^+$ rounds where walls begin or stop facing, inside the overlap,
+and $r^\circ$ where two ends on one side pass, evenly either way. A tooth that
+slides past another so pulls without a jump.
+
+A wall that faces nothing, or the part of an edge that no piece covers, is
+cut behind its wall alone, with nothing ahead and no layout-plane part to
+take out, wherever the handle lies beneath the middle of its edge. Every edge
+$e$ of length $\ell_e$ counts its open cut $\epsilon^\circ_e$, and every piece
+$k$ on it counts its own cut less the open one,
+
+$$
+\hat{c}_{wj} = \sum_{e} \ell_e\, \epsilon^\circ_{ej} + \sum_{k} L_k \bigl(\epsilon_{kj} - \epsilon^\circ_{e(k) j}\bigr), \tag{162}
+$$
+
+over the edges and pieces of conductor $w$, each cut expanded by (160). Like
+(93) the counts are not symmetric, and the capacitance added is
+
+$$
+C_{ab} = \varepsilon\, \frac{\hat{c}_{ab} + \hat{c}_{ba}}{2}, \qquad
+C_{ah} = C_{ha} = \varepsilon\, \hat{c}_{ah}, \qquad
+C_{aa} = -\sum_{b \ne a} C_{ab}, \tag{163}
+$$
+
+between device electrodes $a$ and $b$ and to a handle electrode $h$. Its
+gradient and Hessian follow (162) and (163) through the lengths of (161) and
+the expansions of (160), in the six degrees of freedom of every body.
+
+Two walls 4 micrometers apart, each a block 22 micrometers wide or more, show
+how the correction goes with thickness:
+
+| $t$ | Excess to the wall ahead | Against $t / g$ | With the handle 2 micrometers below: to the wall ahead | To the handle |
+| --- | --- | --- | --- | --- |
+| 10 um | $1.85\, \varepsilon$ | 0.74 | $0.75\, \varepsilon$ | $0.92\, \varepsilon$ |
+| 20 um | $1.85\, \varepsilon$ | 0.37 | $0.76\, \varepsilon$ | $0.90\, \varepsilon$ |
+| 40 um | $1.85\, \varepsilon$ | 0.18 | $0.77\, \varepsilon$ | $0.88\, \varepsilon$ |
+| 80 um | $1.85\, \varepsilon$ | 0.09 | $0.78\, \varepsilon$ | $0.85\, \varepsilon$ |
+
+The fringe at the two ends of a wall does not grow with its height, so it
+matters less as $t / g$ grows, and the handle takes about half of it. On a
+comb of fingers 4 micrometers wide with gaps of 3 micrometers, 25
+micrometers thick, the fringe adds 14 percent to the pull along the fingers
+without a handle. Over a grounded handle, with the shuttle grounded and the
+stator driven, it takes 18 percent off the pull instead: walls of the stator
+that no finger faces couple to the handle beside them, and an engaging finger
+shields them from it.
+
+!!! note "Implementation choices"
+    The cross-section holds air: buried oxide under anchored electrodes is
+    left to the plates, since the release undercut leaves air under the
+    edges of walls, where the fringe lies, wherever the release distance
+    exceeds the box. Elements are at most $t / 8$ long on walls and $g_0$ on
+    faces, and shorten toward corners by `corner_grading`. Between 4 and 32
+    elements over the height the excess changes by $5 \times 10^{-4}$, and a
+    slab reaching $2 t$ rather than $t$ past the cut changes it by $2 \times
+    10^{-3}$.
+
+    A cut is uniform along its wall. Corners of outlines add no field of
+    their own, and the rounding of (161) stands in for it where ends pass.
+    Walls that face each other at an angle steeper than plates take,
+    (101), count as open. An open wall with no handle beneath counts nothing:
+    its fringe reaches only conductors behind it within $d_i$. With
+    `include_plates` off the cuts have no handle. Device electrodes with no
+    neighbor within $d_i$ count their edges over the handle too.
+
+    Gradients are the exact derivatives of (163). Second derivatives are
+    exact in travel and rise for the wall's body and the body it faces;
+    walls of other bodies in a cut move as if square to it, which leaves
+    those in turn a few tenths of a percent of the fringe's off.
+
+    A cross-section takes tens of milliseconds. Cuts that repeat, as in
+    combs, are solved once for a structure, clusters sharing them. Displaced
+    bodies take the cross-sections whose rounding they share and expand from
+    them by (160); a surrogate, (149), keeps the fringe of each of its
+    solutions and expands it with them.
 
 ## Symbols and parameters
 

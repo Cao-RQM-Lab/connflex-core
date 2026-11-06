@@ -49,12 +49,13 @@ def comb() -> Structure:
 
 @pytest.fixture(scope="module")
 def settings() -> ElectrostaticParams:
-    """Field solved whole for every pair."""
+    """Field solved whole for every pair, in the layout plane alone."""
     return ElectrostaticParams(
         element_size=4 * UM,
         interaction_distance=30 * UM,
         dense_cutoff=float("inf"),
         plates_cutoff=float("inf"),
+        include_fringe=False,
     )
 
 
@@ -223,7 +224,11 @@ def test_plates_method_takes_every_comb_gap_as_a_parallel_plate(
 ) -> None:
     """Finger tips are 20 um from the wall they point at, beyond the 10 um that counts."""
     params = ElectrostaticParams(
-        dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=10 * UM, include_plates=False
+        dense_cutoff=0.0,
+        plates_cutoff=0.0,
+        interaction_distance=10 * UM,
+        include_plates=False,
+        include_fringe=False,
     )
     model = comb.capacitance(params)
     stator, shuttle = at["stator"], at["shuttle"]
@@ -250,7 +255,9 @@ def test_model_at_displaced_bodies_follows_the_plate_formulas(
 ) -> None:
     """Shuttle moved along and across its fingers and toward the handle."""
     rest = comb.capacitance(
-        ElectrostaticParams(dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=10 * UM)
+        ElectrostaticParams(
+            dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=10 * UM, include_fringe=False
+        )
     )
     stator, shuttle, handle = at["stator"], at["shuttle"], at["handle"]
     assert not rest.displacement.any()
@@ -277,7 +284,9 @@ def test_derivatives_at_displaced_bodies_are_slopes_of_the_displaced_model(
     comb: Structure, at: dict[str, int]
 ) -> None:
     rest = comb.capacitance(
-        ElectrostaticParams(dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=30 * UM)
+        ElectrostaticParams(
+            dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=30 * UM, include_fringe=False
+        )
     )
     place = np.array([2e-6, 0.4e-6, -0.3e-6, 2e-4, -1e-4, 3e-4])
     here = rest.at(place)
@@ -369,6 +378,7 @@ def test_parallel_plate_pulls_and_tilts_a_body_that_carries_handle_silicon() -> 
             interaction_distance=30 * UM,
             dense_cutoff=float("inf"),
             plates_cutoff=float("inf"),
+            include_fringe=False,
         )
     )
     potentials = np.zeros(len(structure.electrodes))
@@ -388,6 +398,7 @@ def test_report_lists_capacitance_by_pair_part_net_and_cluster(
     pairs = {tuple(pair["electrodes"]): pair for pair in report["pairs"]}
     drive = pairs[tuple(sorted((at["stator"], at["shuttle"])))]
     assert drive["sidewall"] == pytest.approx(-model.sidewall[at["stator"], at["shuttle"]])
+    assert drive["fringe"] == 0.0
     assert drive["total"] == drive["sidewall"]
     assert drive["nets"] == [comb.electrodes[i].net for i in drive["electrodes"]]
     (moving,) = drive["gradient"]

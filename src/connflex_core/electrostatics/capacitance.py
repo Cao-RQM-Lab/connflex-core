@@ -12,9 +12,12 @@ import shapely
 from numpy.typing import ArrayLike, NDArray
 from shapely import MultiPolygon, STRtree, affinity
 
+from connflex_core.electrostatics import VACUUM_PERMITTIVITY
 from connflex_core.electrostatics.facing import FacingWalls, facing_plates
+from connflex_core.electrostatics.fringe import FringeCapacitance, FringePlan, find_fringe
 from connflex_core.electrostatics.outlines import Mesh
 from connflex_core.electrostatics.plates import Plate, find_plates
+from connflex_core.electrostatics.section import Section
 from connflex_core.electrostatics.sidewalls import (
     Facing,
     SidewallCapacitance,
@@ -68,6 +71,8 @@ class Cluster:
             the cluster lie within ``interaction_distance`` of each other.
         anchors: Field solutions of it that the surrogate holds, equation (148); 0 when
             ``surrogate_tolerance`` is None or no pair is solved by the field method.
+        sections: Distinct cross-sections that the cuts across its walls took for the
+            fringe, equation (160); 0 without ``include_fringe``.
     """
 
     electrodes: tuple[int, ...]
@@ -77,6 +82,7 @@ class Cluster:
     walls: FacingWalls
     interactions: tuple[Interaction, ...]
     anchors: int = 0
+    sections: int = 0
 
 
 @dataclass(frozen=True, eq=False)
@@ -102,7 +108,8 @@ class RestGeometry:
         structure: Structure the model was built from.
         params: Parameters it was built with.
         plates: Plates between device and handle electrodes.
-        groups: Clusters of device electrodes at rest.
+        groups: Clusters of device electrodes at rest, and with ``include_fringe`` each
+            device electrode alone over the handle that is in no cluster.
     """
 
     structure: Structure
@@ -126,6 +133,10 @@ class RestCluster:
             of each other, as positions in ``electrodes``, each with the distance between
             their silicon.
         surrogate: Field solutions kept for reuse at nearby displacements.
+        fringe: Handle beneath and cross-sections met, without ``include_fringe`` None.
+        beneath: Handle electrodes of ``fringe``.
+        held: Bodies of ``fringe``: ``bodies``, then those of handle electrodes that
+            move with none of them.
     """
 
     electrodes: tuple[int, ...]
@@ -136,6 +147,9 @@ class RestCluster:
     plan: SidewallPlan
     facing: Facing
     surrogate: _Surrogate = field(default_factory=lambda: _Surrogate())
+    fringe: FringePlan | None = None
+    beneath: tuple[int, ...] = ()
+    held: tuple[int, ...] = ()
 
 
 @dataclass(eq=False)
@@ -146,6 +160,7 @@ class _Anchor:
     motion: Array
     found: SidewallCapacitance
     radius: float
+    fringe: FringeCapacitance | None = None
 
 
 @dataclass(eq=False)
@@ -166,10 +181,12 @@ class CapacitanceModel:
     others at zero, so ``-matrix[a, b]`` is the capacitance between two electrodes.
 
     Attributes:
-        matrix: Sum of ``oxide``, ``released``, and ``sidewall``.
+        matrix: Sum of ``oxide``, ``released``, ``sidewall``, and ``fringe``.
         oxide: Part through surviving buried oxide, between device and handle electrodes.
         released: Part across released gaps between device and handle electrodes.
-        sidewall: Part between sidewalls of device electrodes.
+        sidewall: Part between sidewalls of device electrodes in the layout plane.
+        fringe: Part of the field above and below the device layer along walls,
+            between device electrodes and to the handle beneath, equation (163).
         gradient: n by n by D derivative of ``matrix`` in the degrees of freedom ``dofs``.
         blocks: Second derivative of ``matrix``, one block per plate between two bodies
             and per cluster. Blocks add where they share entries.
@@ -177,7 +194,8 @@ class CapacitanceModel:
             per movable body in body order, as for the assembled mechanical matrices.
         net: Net of each electrode.
         plates: Plates behind ``oxide`` and ``released``.
-        clusters: Groups of two or more device electrodes behind ``sidewall``.
+        clusters: Groups of two or more device electrodes behind ``sidewall`` and
+            ``fringe``.
         unassigned_area: Area in square meters of device silicon in beams and bridges,
             which belongs to no electrode and is not in the model.
         displacement: Displacement of every degree of freedom in ``dofs`` at which the
@@ -195,6 +213,7 @@ class CapacitanceModel:
     oxide: Array
     released: Array
     sidewall: Array
+    fringe: Array
     gradient: Array
     blocks: tuple[HessianBlock, ...]
     dofs: tuple[Dof, ...]
@@ -259,7 +278,7 @@ class CapacitanceModel:
         """JSON-serializable report for review.
 
         ``pairs`` lists every two electrodes with capacitance between them: its oxide,
-        released, and sidewall parts and their total in farads, their nets, and the
+        released, sidewall, and fringe parts and their total in farads, their nets, and the
         change of the total with the six degrees of freedom of each body that changes
         it. ``net_matrix``, ``clusters``, ``dofs``, ``displacement``, ``clearance``,
         ``closest``, and ``unassigned_area`` are as on the model.
@@ -274,6 +293,7 @@ class CapacitanceModel:
                     "oxide": float(-self.oxide[a, b]),
                     "released": float(-self.released[a, b]),
                     "sidewall": float(-self.sidewall[a, b]),
+                    "fringe": float(-self.fringe[a, b]),
                     "total": float(-self.matrix[a, b]),
                     "gradient": [
                         {"body": self.dofs[6 * k][0], "values": slope.tolist()}
@@ -330,8 +350,10 @@ def find_capacitance(
     are each included unless ``params`` leaves them out. Sidewalls need
     ``interaction_distance``, and ``element_size`` when a pair of nets is solved by the
     field method; each pair of nets in a cluster takes the method its feature size
-    selects, equations (104) to (108). Derivatives are in the six degrees of freedom of
-    every movable body.
+    selects, equations (104) to (108). With ``include_fringe`` the field above and
+    below the device layer along every wall adds to sidewalls, equations (157) to (163),
+    for clusters and for device electrodes alone over the handle. Derivatives are in the
+    six degrees of freedom of every movable body.
     Stages plates, clusters, and sidewalls log through the
     ``connflex_core`` logger and report to ``progress``; sidewalls advances once per
     cluster, and once per window for a cluster solved in windows.
@@ -354,8 +376,20 @@ def find_capacitance(
             graph.add_nodes_from(range(len(device)))
             near = STRtree(silicon).query(silicon, predicate="dwithin", distance=reach)
             graph.add_edges_from(near.T.tolist())
+            handle = [e for e in structure.electrodes if e.layer == "handle"]
+            below = (
+                STRtree([e.region for e in handle]) if handle and params.include_plates else None
+            )
+            fringe = params.include_fringe
+            solved: dict[bytes, Section] = {}
+
+            def kept(group: list[int]) -> bool:
+                if len(group) > 1:
+                    return True
+                return bool(fringe and below is not None and len(below.query(silicon[group[0]])))
+
             for members in sorted(
-                sorted(group) for group in nx.connected_components(graph) if len(group) > 1
+                sorted(group) for group in nx.connected_components(graph) if kept(sorted(group))
             ):
                 regions = tuple(silicon[k] for k in members)
                 bodies = tuple(sorted({device[k].body for k in members}))
@@ -369,6 +403,11 @@ def find_capacitance(
                 pivots = np.array([structure.bodies[b].inertial.center[:2] for b in bodies])
                 facing = facing_plates(regions, body, pivots, reach)
                 nets = np.array([device[k].net for k in members], dtype=np.intp)
+                plan, beneath, held = (
+                    _fringe_plan(structure, params, regions, bodies, handle, below, solved)
+                    if fringe
+                    else (None, (), bodies)
+                )
                 groups.append(
                     RestCluster(
                         electrodes=tuple(device[k].index for k in members),
@@ -378,13 +417,54 @@ def find_capacitance(
                         near=apart,
                         plan=plan_sidewalls(regions, nets, facing[3], params),
                         facing=facing,
+                        fringe=plan,
+                        beneath=beneath,
+                        held=held,
                     )
                 )
-            current.count(clusters=len(groups), windows=sum(g.plan.windows for g in groups))
+            current.count(
+                clusters=sum(len(g.electrodes) > 1 for g in groups),
+                windows=sum(g.plan.windows for g in groups),
+            )
     rest = RestGeometry(structure, params, plates, tuple(groups))
     return _evaluate(
         rest, np.zeros(6 * sum(not body.anchor for body in structure.bodies)), progress
     )
+
+
+def _fringe_plan(
+    structure: Structure,
+    params: ElectrostaticParams,
+    regions: tuple[MultiPolygon, ...],
+    bodies: tuple[int, ...],
+    handle: list[Any],
+    below: STRtree | None,
+    solved: dict[bytes, Section],
+) -> tuple[FringePlan, tuple[int, ...], tuple[int, ...]]:
+    """Plan of the fringe of a group: handle electrodes within reach beneath it, their
+    bodies among those of the group, and the bodies of the result. Groups share
+    ``solved``, the cross-sections met so far."""
+    reach = params.interaction_distance or 0.0
+    found: list[int] = []
+    if below is not None:
+        hits = below.query(list(regions), predicate="dwithin", distance=reach)[1]
+        found = sorted(set(hits.tolist()))
+    held = list(bodies)
+    place = []
+    for j in found:
+        if handle[j].body not in held:
+            held.append(handle[j].body)
+        place.append(held.index(handle[j].body))
+    plan = FringePlan(
+        handle=tuple(handle[j].region for j in found),
+        handle_body=np.array(place, dtype=np.intp),
+        thickness=structure.stack.device.thickness,
+        box=structure.stack.box.thickness,
+        reach=reach,
+        grading=params.corner_grading,
+        sections=solved,
+    )
+    return plan, tuple(handle[j].index for j in found), tuple(held)
 
 
 def _evaluate(
@@ -394,7 +474,7 @@ def _evaluate(
     structure, params = rest.structure, rest.params
     tolerance = params.surrogate_tolerance
     count = len(structure.electrodes)
-    oxide, released, sidewall = (np.zeros((count, count)) for _ in range(3))
+    oxide, released, sidewall, fringe = (np.zeros((count, count)) for _ in range(4))
     movable = [body.index for body in structure.bodies if not body.anchor]
     first = {index: 6 * position for position, index in enumerate(movable)}
     gradient = np.zeros((count, count, 6 * len(movable)))
@@ -427,74 +507,109 @@ def _evaluate(
     clusters: list[Cluster] = []
     groups: list[RestCluster] = []
     thickness = structure.stack.device.thickness
+    permittivity = VACUUM_PERMITTIVITY * params.ambient_permittivity
     steps = sum(1 + group.plan.windows for group in rest.groups)
     if rest.groups:
         with stage("sidewalls", progress, total=steps) as current:
             for group in rest.groups:
-                centers = [structure.bodies[b].inertial.center for b in group.bodies]
-                levers = [_in_plane(-thickness / 2 - center[2]) for center in centers]
-                motion = np.array(
-                    [lever @ moved(b) for lever, b in zip(levers, group.bodies, strict=True)]
+                rests = np.array([structure.bodies[b].inertial.center for b in group.held])
+                levers = [_in_plane(-thickness / 2 - center[2]) for center in rests]
+                full = np.array(
+                    [
+                        np.concatenate([lever @ moved(b), moved(b)[2:5]])
+                        for lever, b in zip(levers, group.held, strict=True)
+                    ]
                 )
-                pivots = np.array([center[:2] for center in centers]) + motion[:, :2]
-                regions = _displaced(group, np.array([c[:2] for c in centers]), motion)
+                size = len(group.bodies)
+                motion = full[:size, :3]
+                centers = rests[:size, :2]
+                pivots = centers + motion[:, :2]
+                regions = _displaced(group, centers, motion)
                 for i, j, width in group.near if motion.any() else ():
                     ratio = float(regions[i].distance(regions[j])) / width
                     if ratio < clearance:
                         clearance, closest = ratio, (group.electrodes[i], group.electrodes[j])
+                alone = len(group.electrodes) == 1
                 fielded = tolerance is not None and any(
                     method != "plates" for method in group.plan.method
                 )
-                reused = None if exact or not fielded else _reuse(group, motion)
+                reused = None if exact or not fielded else _reuse(group, full)
+                found: SidewallCapacitance | None = None
+                shell: FringeCapacitance | None = None
+                plan = group.plan
                 if reused is not None:
-                    found, plan = reused, group.plan
+                    found, shell = reused
                     current.advance(group.plan.windows)
-                else:
+                elif not alone:
                     facing = group.facing
                     if motion.any() and "plates" in group.plan.method:
                         facing = facing_plates(
                             regions, group.body, pivots, params.interaction_distance or 0.0
                         )
-                    mesh = _carried(
-                        group.plan.mesh, group.body, np.array([c[:2] for c in centers]), motion
-                    )
+                    mesh = _carried(group.plan.mesh, group.body, centers, motion)
                     found, plan = solve_sidewalls(
                         group.body, pivots, group.plan, mesh, facing, params, quiet, current.advance
                     )
-                    if fielded:
-                        _remember(group, motion, found, params, structure)
-                groups.append(replace(group, plan=plan))
-                clusters.append(
-                    Cluster(
-                        group.electrodes,
-                        len(group.plan.mesh.conductor),
-                        found.windows,
-                        found.asymmetry,
-                        found.walls,
-                        _interactions(group, structure, plan),
-                        len(group.surrogate.anchors),
+                if group.fringe is not None and shell is None:
+                    shell = find_fringe(
+                        group.fringe,
+                        regions,
+                        group.body,
+                        rests[:, :2] + full[:, :2],
+                        rests[:, :2],
+                        full,
                     )
-                )
-                held, size = group.electrodes, len(group.electrodes)
-                sidewall[np.ix_(held, held)] += thickness * found.capacitance
-                free = [k for k, index in enumerate(group.bodies) if index in first]
-                if free:
-                    travel = scipy.linalg.block_diag(*(levers[k] for k in free))
-                    dofs = np.concatenate([first[group.bodies[k]] + np.arange(6) for k in free])
-                    slope = found.gradient[:, :, free].reshape(size, size, -1)
-                    gradient[np.ix_(held, held, dofs)] += thickness * slope @ travel
-                    bend = found.hessian[:, :, free][:, :, :, :, free]
-                    bend = bend.reshape(size, size, 3 * len(free), 3 * len(free))
-                    values = thickness * np.einsum("abpq,pk,ql->abkl", bend, travel, travel)
-                    blocks.append(HessianBlock(held, dofs, values))
+                if fielded and reused is None and found is not None:
+                    _remember(group, full, found, shell, params, structure)
+                groups.append(replace(group, plan=plan))
+                if found is not None:
+                    clusters.append(
+                        Cluster(
+                            group.electrodes,
+                            len(group.plan.mesh.conductor),
+                            found.windows,
+                            found.asymmetry,
+                            found.walls,
+                            _interactions(group, structure, plan),
+                            len(group.surrogate.anchors),
+                            shell.sections if shell is not None else 0,
+                        )
+                    )
+                    held = group.electrodes
+                    _add(
+                        sidewall,
+                        gradient,
+                        blocks,
+                        held,
+                        thickness * found.capacitance,
+                        thickness * found.gradient,
+                        thickness * found.hessian,
+                        [(first.get(b), levers[k]) for k, b in enumerate(group.bodies)],
+                    )
+                if shell is not None:
+                    members = group.electrodes + group.beneath
+                    _add(
+                        fringe,
+                        gradient,
+                        blocks,
+                        members,
+                        permittivity * shell.capacitance,
+                        permittivity * shell.gradient,
+                        permittivity * shell.hessian,
+                        [
+                            (first.get(b), np.vstack([levers[k], _RISE]))
+                            for k, b in enumerate(group.held)
+                        ],
+                    )
                 current.advance()
 
     bridges = {link.source for link in structure.links if link.kind == "bridge"}
     return CapacitanceModel(
-        matrix=oxide + released + sidewall,
+        matrix=oxide + released + sidewall + fringe,
         oxide=oxide,
         released=released,
         sidewall=sidewall,
+        fringe=fringe,
         gradient=gradient,
         blocks=tuple(blocks),
         dofs=tuple((index, name) for index in movable for name in DOF_NAMES),
@@ -510,20 +625,59 @@ def _evaluate(
     )
 
 
-def _reuse(group: RestCluster, motion: Array) -> SidewallCapacitance | None:
-    """Expansion of the nearest solution whose radius reaches ``motion``, equation (149)."""
+def _add(
+    matrix: Array,
+    gradient: Array,
+    blocks: list[HessianBlock],
+    electrodes: tuple[int, ...],
+    value: Array,
+    slope: Array,
+    bend: Array,
+    maps: list[tuple[int | None, Array]],
+) -> None:
+    """Add a part among ``electrodes`` whose derivatives are in local parameters of
+    bodies, each mapped to the six degrees of freedom of its body by its matrix; bodies
+    without degrees of freedom have None."""
+    matrix[np.ix_(electrodes, electrodes)] += value
+    free = [k for k, (start, _) in enumerate(maps) if start is not None]
+    if not free:
+        return
+    size, local = len(electrodes), slope.shape[3]
+    travel = scipy.linalg.block_diag(*(maps[k][1] for k in free))
+    dofs = np.concatenate([int(maps[k][0] or 0) + np.arange(6) for k in free])
+    flat = slope[:, :, free].reshape(size, size, local * len(free))
+    gradient[np.ix_(electrodes, electrodes, dofs)] += flat @ travel
+    curved = bend[:, :, free][:, :, :, :, free].reshape(
+        size, size, local * len(free), local * len(free)
+    )
+    blocks.append(
+        HessianBlock(electrodes, dofs, np.einsum("abpq,pk,ql->abkl", curved, travel, travel))
+    )
+
+
+def _reuse(
+    group: RestCluster, motion: Array
+) -> tuple[SidewallCapacitance, FringeCapacitance | None] | None:
+    """Expansion of the nearest solution whose radius reaches ``motion``, equation (149).
+
+    ``motion`` holds six parameters for each body of ``group.held``: travel and turn in
+    the plane at device mid-plane, then rise and turns about x and y.
+    """
     memo, chosen, best = group.surrogate, None, np.inf
     for anchor in memo.anchors:
         apart = _apart(memo, motion, anchor.motion)
         if apart <= anchor.radius and apart < best:
             chosen, best = anchor, apart
-    return None if chosen is None else _expand(chosen, motion)
+    if chosen is None:
+        return None
+    return _expand(chosen, motion), _expand_fringe(chosen, motion)
 
 
 def _remember(
     group: RestCluster,
     motion: Array,
     found: SidewallCapacitance,
+    fringe: FringeCapacitance | None,
     params: ElectrostaticParams,
     structure: Structure,
 ) -> None:
@@ -533,7 +687,7 @@ def _remember(
     tolerance = params.surrogate_tolerance or 0.0
     if memo.reach is None:
         centers = [structure.bodies[b].inertial.center[:2] for b in group.bodies]
-        reach = np.zeros(len(group.bodies))
+        reach = np.zeros(len(group.held))
         for k, region in enumerate(group.regions):
             low_x, low_y, high_x, high_y = region.bounds
             corners = np.array([[low_x, low_y], [low_x, high_y], [high_x, low_y], [high_x, high_y]])
@@ -559,27 +713,51 @@ def _remember(
                 min(grown, SAFETY * apart * np.sqrt(tolerance / error)) if error else grown
             )
         radius = nearest.radius
-    memo.anchors.append(_Anchor(motion.copy(), found, radius))
+    memo.anchors.append(_Anchor(motion.copy(), found, radius, fringe))
 
 
 def _apart(memo: _Surrogate, motion: Array, anchor: Array) -> float:
     """Largest travel of a point of any body between two motions, equation (148)."""
     step = motion - anchor
     reach = memo.reach if memo.reach is not None else np.zeros(len(step))
-    return float(np.max(np.hypot(step[:, 0], step[:, 1]) + abs(step[:, 2]) * reach))
+    return float(
+        np.max(
+            np.hypot(step[:, 0], step[:, 1])
+            + abs(step[:, 2]) * reach
+            + abs(step[:, 3])
+            + (abs(step[:, 4]) + abs(step[:, 5])) * reach
+        )
+    )
 
 
 def _expand(anchor: _Anchor, motion: Array) -> SidewallCapacitance:
     """Second-order expansion of a kept solution at ``motion``, equation (149)."""
     found = anchor.found
-    size, count = found.capacitance.shape[0], motion.size
-    step = (motion - anchor.motion).ravel()
-    slope = found.gradient.reshape(size, size, count)
-    turned = found.hessian.reshape(size, size, count, count) @ step
+    size, bodies = found.capacitance.shape[0], found.gradient.shape[2]
+    step = (motion[:bodies, :3] - anchor.motion[:bodies, :3]).ravel()
+    slope = found.gradient.reshape(size, size, step.size)
+    turned = found.hessian.reshape(size, size, step.size, step.size) @ step
     return replace(
         found,
         capacitance=found.capacitance + slope @ step + 0.5 * turned @ step,
         gradient=(slope + turned).reshape(found.gradient.shape),
+    )
+
+
+def _expand_fringe(anchor: _Anchor, motion: Array) -> FringeCapacitance | None:
+    """Second-order expansion of the fringe kept with a solution, as equation (149)."""
+    found = anchor.fringe
+    if found is None:
+        return None
+    size = found.capacitance.shape[0]
+    step = (motion - anchor.motion).ravel()
+    slope = found.gradient.reshape(size, size, step.size)
+    turned = found.hessian.reshape(size, size, step.size, step.size) @ step
+    return FringeCapacitance(
+        found.capacitance + slope @ step + 0.5 * turned @ step,
+        (slope + turned).reshape(found.gradient.shape),
+        found.hessian,
+        found.sections,
     )
 
 
@@ -660,4 +838,5 @@ def _in_plane(lever: float) -> Array:
 
 
 _BETWEEN = np.array([[1.0, -1.0], [-1.0, 1.0]])
+_RISE = np.eye(6)[2:5]
 SAFETY = 0.8

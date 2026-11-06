@@ -82,12 +82,12 @@ def _ring_nodes(
     corner = size / grading**convex
     return [
         vertex[k]
-        + edge[k] * _edge_fractions(abs(edge[k]), corner[k], corner[k - len(vertex) + 1], size)
+        + edge[k] * edge_fractions(abs(edge[k]), corner[k], corner[k - len(vertex) + 1], size)
         for k in range(len(vertex))
     ]
 
 
-def _edge_fractions(length: float, left: float, right: float, size: float) -> Array:
+def edge_fractions(length: float, left: float, right: float, size: float) -> Array:
     """Node positions as fractions of an edge whose corners ask for ``left`` and ``right``.
 
     Target element length at distance x from the left corner is
