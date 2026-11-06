@@ -1,12 +1,16 @@
 from dataclasses import replace
+from functools import partial
 
 import numpy as np
 import pytest
 import scipy.integrate
+import scipy.interpolate
 from numpy.typing import NDArray
+from shapely import box
 
 from connflex_core import (
     ElectrostaticParams,
+    Layout,
     Material,
     PiecewiseLinear,
     SmallSignalOptions,
@@ -193,6 +197,97 @@ def test_drive_beyond_pull_in_ends_in_contact(plate: Structure) -> None:
     assert run.times[-1] < times[-1]
     assert run.clearance[-1] == pytest.approx(0.1, rel=1e-6)
     assert np.all(run.clearance[:-1] > 0.1)
+
+
+PITCH = 30.0
+STATORS = {0: (-255, -105, range(-7, -4)), 1: (-65, 85, range(-1, 2)), 2: (125, 275, range(5, 8))}
+
+
+def toothed_rack() -> Structure:
+    """A bar with 21 teeth at a 30 um pitch on two beams 1 mm long, soft along the bar,
+    under three anchored stators of three teeth 4 um across, each a third of a pitch on
+    from the last."""
+    device = [
+        box(-330, 0, 330, 40),
+        *(box(PITCH * k - 5, 40, PITCH * k + 5, 50) for k in range(-10, 11)),
+    ]
+    for phase, (low, high, teeth) in STATORS.items():
+        device.append(box(low, 64, high, 264))
+        device += [
+            box(PITCH * m + 10 * phase - 5, 54, PITCH * m + 10 * phase + 5, 64) for m in teeth
+        ]
+    device += [box(x, -1000, x + 2, 0) for x in (-329, 327)]
+    device += [box(-485, -1310, -185, -1000), box(185, -1310, 485, -1000)]
+    layout = Layout.from_shapely(device=device, handle=[box(-615, -1400, 615, 400)], unit=UM)
+    return extract(layout, STACK, EXTRACTION)
+
+
+def test_traveling_drive_pulls_out_where_pendulum_reduction_does() -> None:
+    """Each stator at V sqrt((1 + cos(w t - 2 pi p / 3)) / 2) makes a field that travels
+    one pitch per period and pulls the bar along at a lag. Once its beams and damping ask
+    more than the field holds, the bar slips back by a pitch and catches the next tooth.
+    The transient on the field method, through the surrogate, follows one degree of
+    freedom along the bar under the force of exact field solutions over one pitch."""
+    rack = toothed_rack()
+    modal = rack.modal()
+    mass, spring, quality = modal.mass[0, 0], modal.stiffness[0, 0], 0.5
+    damping = np.sqrt(spring * mass) / quality
+    params = ElectrostaticParams(
+        element_size=4 * UM,
+        corner_grading=4.0,
+        interaction_distance=10 * UM,
+        include_plates=False,
+        dense_cutoff=float("inf"),
+        plates_cutoff=float("inf"),
+        surrogate_tolerance=3e-3,
+    )
+    model = rack.capacitance(params)
+    stators = [
+        rack.electrode_at(((low + high) / 2 * UM, 150 * UM), "device")
+        for low, high, _ in STATORS.values()
+    ]
+    along = model.dofs.index((rack.electrode_at((0.0, 20 * UM), "device").body, "ux"))
+    volts, omega = 190.0, 2 * np.pi * 400.0
+
+    def level(phase: int, time: float) -> float:
+        return float(volts * np.sqrt((1 + np.cos(omega * time - 2 * np.pi * phase / 3)) / 2))
+
+    def levels(time: float) -> NDArray[np.float64]:
+        return np.array([level(phase, time) for phase in range(3)])
+
+    picks = np.zeros((3, len(model.net)))
+    picks[np.arange(3), [stator.index for stator in stators]] = 1.0
+    grid = np.arange(0.0, PITCH, 2.0) * UM
+    forces = []
+    for travel in grid:
+        place = np.zeros(len(model.dofs))
+        place[along] = travel
+        forces.append(picks @ model.at(place, exact=True).gradient[:, :, along] @ picks.T / 2)
+    table = scipy.interpolate.CubicSpline(
+        np.append(grid, PITCH * UM), [*forces, forces[0]], axis=0, bc_type="periodic"
+    )
+
+    def motion(time: float, state: NDArray[np.float64]) -> list[float]:
+        travel, speed = state
+        pull = levels(time) @ table(travel) @ levels(time)
+        return [speed, (pull - spring * travel - damping * speed) / mass]
+
+    times = np.linspace(0.0, 3e-3, 301)
+    reduced = scipy.integrate.solve_ivp(
+        motion, (0.0, times[-1]), [0.0, 0.0], method="DOP853", t_eval=times, rtol=1e-9, atol=1e-15
+    ).y[0]
+    sources = [Source(stator, partial(level, phase)) for phase, stator in enumerate(stators)]
+    run = rack.transient(
+        model, sources, times, TransientOptions(quality_factor=quality, tolerance=1e-5)
+    )
+    full = run.displacement[:, run.dofs.index(model.dofs[along])]
+    slip = int(np.argmax(reduced))
+    assert 0.2 * PITCH * UM < reduced[slip] < 0.8 * PITCH * UM
+    assert np.min(reduced[slip:]) < reduced[slip] - PITCH * UM / 2
+    assert abs(int(np.argmax(full)) - slip) <= 1
+    assert full[:slip] == pytest.approx(reduced[:slip], abs=2e-3 * PITCH * UM)
+    assert full == pytest.approx(reduced, abs=2e-2 * PITCH * UM)
+    assert np.max(abs(run.energy.imbalance)) < 1e-3 * np.max(run.energy.electrostatic)
 
 
 def test_waveforms_and_inputs_are_checked(plate: Structure, resistive: Structure) -> None:
