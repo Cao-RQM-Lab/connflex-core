@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 import networkx as nx
@@ -17,6 +17,7 @@ from connflex_core.electrostatics.outlines import Mesh
 from connflex_core.electrostatics.plates import Plate, find_plates
 from connflex_core.electrostatics.sidewalls import (
     Facing,
+    SidewallCapacitance,
     SidewallPlan,
     plan_sidewalls,
     solve_sidewalls,
@@ -64,6 +65,8 @@ class Cluster:
             position in ``electrodes``.
         interactions: Feature size and method of each pair of nets whose electrodes in
             the cluster lie within ``interaction_distance`` of each other.
+        anchors: Field solutions of it that the surrogate holds, equation (148); 0 when
+            ``surrogate_tolerance`` is None or no pair is solved by the field method.
     """
 
     electrodes: tuple[int, ...]
@@ -72,6 +75,7 @@ class Cluster:
     asymmetry: float
     walls: FacingWalls
     interactions: tuple[Interaction, ...]
+    anchors: int = 0
 
 
 @dataclass(frozen=True, eq=False)
@@ -120,6 +124,7 @@ class RestCluster:
         near: Pairs of its electrodes on different bodies within ``interaction_distance``
             of each other, as positions in ``electrodes``, each with the distance between
             their silicon.
+        surrogate: Field solutions kept for reuse at nearby displacements.
     """
 
     electrodes: tuple[int, ...]
@@ -129,6 +134,26 @@ class RestCluster:
     near: tuple[tuple[int, int, float], ...]
     plan: SidewallPlan
     facing: Facing
+    surrogate: _Surrogate = field(default_factory=lambda: _Surrogate())
+
+
+@dataclass(eq=False)
+class _Anchor:
+    """One field solution of a cluster, at the motion of its bodies, and how far its
+    expansion holds."""
+
+    motion: Array
+    found: SidewallCapacitance
+    radius: float
+
+
+@dataclass(eq=False)
+class _Surrogate:
+    """Field solutions of one cluster at displacements already met, equation (148)."""
+
+    anchors: list[_Anchor] = field(default_factory=list)
+    reach: Array | None = None
+    start: float = np.inf
 
 
 @dataclass(frozen=True, eq=False)
@@ -181,21 +206,25 @@ class CapacitanceModel:
     closest: tuple[int, int] | None
     rest: RestGeometry
 
-    def at(self, displacement: ArrayLike, *, progress: Progress | None = None) -> CapacitanceModel:
+    def at(
+        self, displacement: ArrayLike, *, exact: bool = False, progress: Progress | None = None
+    ) -> CapacitanceModel:
         """The model with its bodies displaced, equations (118) and (119).
 
         ``displacement`` holds one value for each degree of freedom in ``dofs``, measured
         from rest. Every matrix, the gradient, and the second derivative are those at the
-        displaced bodies. Clusters, meshes, and windows stay as found at rest. Bodies that
-        touch are an error. Stage sidewalls logs through the ``connflex_core`` logger and
-        reports to ``progress`` as it does at rest.
+        displaced bodies. Clusters, meshes, and windows stay as found at rest. With
+        ``surrogate_tolerance`` set, clusters solved by the field method come from the
+        expansion of an earlier solution where it holds, equations (148) to (150), unless
+        ``exact``. Bodies that touch are an error. Stage sidewalls logs through the
+        ``connflex_core`` logger and reports to ``progress`` as it does at rest.
         """
         moved = np.asarray(displacement, dtype=float)
         if moved.shape != (len(self.dofs),):
             raise ValueError(
                 f"displacement must hold one value for each of {len(self.dofs)} degrees of freedom"
             )
-        return _evaluate(self.rest, moved, progress)
+        return _evaluate(self.rest, moved, progress, exact)
 
     @property
     def net_matrix(self) -> Array:
@@ -358,10 +387,11 @@ def find_capacitance(
 
 
 def _evaluate(
-    rest: RestGeometry, displacement: Array, progress: Progress | None
+    rest: RestGeometry, displacement: Array, progress: Progress | None, exact: bool = True
 ) -> CapacitanceModel:
     """Capacitance model of ``rest`` with its bodies displaced."""
     structure, params = rest.structure, rest.params
+    tolerance = params.surrogate_tolerance
     count = len(structure.electrodes)
     oxide, released, sidewall = (np.zeros((count, count)) for _ in range(3))
     movable = [body.index for body in structure.bodies if not body.anchor]
@@ -411,26 +441,37 @@ def _evaluate(
                     ratio = float(regions[i].distance(regions[j])) / width
                     if ratio < clearance:
                         clearance, closest = ratio, (group.electrodes[i], group.electrodes[j])
-                facing = group.facing
-                if motion.any() and "plates" in group.plan.method:
-                    facing = facing_plates(
-                        regions, group.body, pivots, params.interaction_distance or 0.0
+                fielded = tolerance is not None and any(
+                    method != "plates" for method in group.plan.method
+                )
+                reused = None if exact or not fielded else _reuse(group, motion)
+                if reused is not None:
+                    found, plan = reused, group.plan
+                    current.advance(group.plan.windows)
+                else:
+                    facing = group.facing
+                    if motion.any() and "plates" in group.plan.method:
+                        facing = facing_plates(
+                            regions, group.body, pivots, params.interaction_distance or 0.0
+                        )
+                    mesh = _carried(
+                        group.plan.mesh, group.body, np.array([c[:2] for c in centers]), motion
                     )
-                mesh = _carried(
-                    group.plan.mesh, group.body, np.array([c[:2] for c in centers]), motion
-                )
-                found, plan = solve_sidewalls(
-                    group.body, pivots, group.plan, mesh, facing, params, quiet, current.advance
-                )
+                    found, plan = solve_sidewalls(
+                        group.body, pivots, group.plan, mesh, facing, params, quiet, current.advance
+                    )
+                    if fielded:
+                        _remember(group, motion, found, params, structure)
                 groups.append(replace(group, plan=plan))
                 clusters.append(
                     Cluster(
                         group.electrodes,
-                        len(mesh.conductor),
+                        len(group.plan.mesh.conductor),
                         found.windows,
                         found.asymmetry,
                         found.walls,
                         _interactions(group, structure, plan),
+                        len(group.surrogate.anchors),
                     )
                 )
                 held, size = group.electrodes, len(group.electrodes)
@@ -466,6 +507,84 @@ def _evaluate(
         closest=closest,
         rest=replace(rest, groups=tuple(groups)),
     )
+
+
+def _reuse(group: RestCluster, motion: Array) -> SidewallCapacitance | None:
+    """Expansion of the nearest solution whose radius reaches ``motion``, equation (149)."""
+    memo, chosen, best = group.surrogate, None, np.inf
+    for anchor in memo.anchors:
+        apart = _apart(memo, motion, anchor.motion)
+        if apart <= anchor.radius and apart < best:
+            chosen, best = anchor, apart
+    return None if chosen is None else _expand(chosen, motion)
+
+
+def _remember(
+    group: RestCluster,
+    motion: Array,
+    found: SidewallCapacitance,
+    params: ElectrostaticParams,
+    structure: Structure,
+) -> None:
+    """Keep a new solution, and set the radius of the nearest kept one from how well
+    its expansion predicted this one, equation (150)."""
+    memo = group.surrogate
+    tolerance = params.surrogate_tolerance or 0.0
+    if memo.reach is None:
+        centers = [structure.bodies[b].inertial.center[:2] for b in group.bodies]
+        reach = np.zeros(len(group.bodies))
+        for k, region in enumerate(group.regions):
+            low_x, low_y, high_x, high_y = region.bounds
+            corners = np.array([[low_x, low_y], [low_x, high_y], [high_x, low_y], [high_x, high_y]])
+            body = int(group.body[k])
+            reach[body] = max(reach[body], float(np.max(np.hypot(*(corners - centers[body]).T))))
+        memo.reach = reach
+        gaps = [width for _, _, width in group.near]
+        memo.start = np.sqrt(tolerance) * (
+            min(gaps) if gaps else params.interaction_distance or 0.0
+        )
+    radius = memo.start
+    if memo.anchors:
+        nearest = min(memo.anchors, key=lambda anchor: _apart(memo, motion, anchor.motion))
+        apart = _apart(memo, motion, nearest.motion)
+        if 0 < apart <= 4 * nearest.radius:
+            guess = _expand(nearest, motion)
+            error = max(
+                _relative(guess.capacitance, found.capacitance),
+                _relative(guess.gradient, found.gradient),
+            )
+            grown = 2 * nearest.radius
+            nearest.radius = (
+                min(grown, SAFETY * apart * np.sqrt(tolerance / error)) if error else grown
+            )
+        radius = nearest.radius
+    memo.anchors.append(_Anchor(motion.copy(), found, radius))
+
+
+def _apart(memo: _Surrogate, motion: Array, anchor: Array) -> float:
+    """Largest travel of a point of any body between two motions, equation (148)."""
+    step = motion - anchor
+    reach = memo.reach if memo.reach is not None else np.zeros(len(step))
+    return float(np.max(np.hypot(step[:, 0], step[:, 1]) + abs(step[:, 2]) * reach))
+
+
+def _expand(anchor: _Anchor, motion: Array) -> SidewallCapacitance:
+    """Second-order expansion of a kept solution at ``motion``, equation (149)."""
+    found = anchor.found
+    size, count = found.capacitance.shape[0], motion.size
+    step = (motion - anchor.motion).ravel()
+    slope = found.gradient.reshape(size, size, count)
+    turned = found.hessian.reshape(size, size, count, count) @ step
+    return replace(
+        found,
+        capacitance=found.capacitance + slope @ step + 0.5 * turned @ step,
+        gradient=(slope + turned).reshape(found.gradient.shape),
+    )
+
+
+def _relative(found: Array, truth: Array) -> float:
+    scale = float(np.linalg.norm(truth))
+    return float(np.linalg.norm(found - truth)) / scale if scale else 0.0
 
 
 def _turn(angle: float) -> Array:
@@ -540,3 +659,4 @@ def _in_plane(lever: float) -> Array:
 
 
 _BETWEEN = np.array([[1.0, -1.0], [-1.0, 1.0]])
+SAFETY = 0.8

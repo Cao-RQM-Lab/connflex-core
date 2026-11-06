@@ -74,6 +74,7 @@ keyword overrides.
 | `interaction_distance` | $d_i$ | none | Device electrodes whose silicon lies within this distance, directly or through a chain of neighbors, are taken together for sidewall capacitance, equation (110), and every pair within it is an interacting pair, equation (106). It is also the widest gap across which two walls count as a plate, equation (97), the widest overlap of a window, equation (96), and the reach of the cores of pairs solved by the field. Sidewall capacitance requires it. A few times the widest trench that should count is a starting value. |
 | `include_plates` | | true | Whether the capacitance model of a structure holds plates between device and handle electrodes. |
 | `include_sidewalls` | | true | Whether it holds sidewall capacitance between device electrodes. Without it neither `element_size` nor `interaction_distance` is needed. |
+| `surrogate_tolerance` | $\tau_c$ | none | With bodies displaced, a cluster solved by the field method reuses the nearest earlier solution of it, expanded to second order in the motion of its bodies, while the error of that expansion in capacitance and its gradient stays below this fraction, equations (148) to (150). None solves every displacement anew. `1e-4` keeps forces within a hundredth of a percent and makes transients on the field method practical. |
 
 ## `StaticOptions`
 
@@ -138,6 +139,7 @@ the field: lengths, areas, thicknesses, densities, moduli, and resistivity are p
 `ambient_permittivity >= 1`; `element_size > 0` and `interaction_distance > 0`
 when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
 `window_tolerance > 0`; `dense_cutoff >= 0` and `plates_cutoff >= dense_cutoff`;
+`0 < surrogate_tolerance < 1` when given;
 `tolerance > 0` and `max_iterations >= 1` of `StaticOptions`;
 `quality_factor > 0` and `linear_tolerance > 0` of `SmallSignalOptions`;
 `quality_factor > 0`, `tolerance > 0`, `max_step > 0` when given, and

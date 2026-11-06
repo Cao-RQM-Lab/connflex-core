@@ -221,6 +221,10 @@ class ElectrostaticParams:
             device and handle electrodes.
         include_sidewalls: Whether it holds sidewall capacitance between device
             electrodes.
+        surrogate_tolerance: With bodies displaced, a cluster solved by the field method
+            reuses the nearest earlier solution of it, expanded to second order, while
+            the error of that expansion in capacitance and its gradient stays below this
+            fraction, equations (148) to (150). None solves every displacement anew.
     """
 
     ambient_permittivity: float = 1.0
@@ -234,9 +238,14 @@ class ElectrostaticParams:
     interaction_distance: float | None = None
     include_plates: bool = True
     include_sidewalls: bool = True
+    surrogate_tolerance: float | None = None
 
     def __post_init__(self) -> None:
         require_at_least("ambient_permittivity", self.ambient_permittivity, 1)
+        if self.surrogate_tolerance is not None and not 0 < self.surrogate_tolerance < 1:
+            raise ValueError(
+                f"surrogate_tolerance must lie between 0 and 1, got {self.surrogate_tolerance}"
+            )
         if self.element_size is not None:
             require_positive("element_size", self.element_size)
         require_at_least("corner_grading", self.corner_grading, 1)

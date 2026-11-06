@@ -346,6 +346,27 @@ outlines, with the clusters, methods, mesh, and windows of the model at
 rest; one call costs about as much as the sidewalls of the model at rest. Bodies that
 touch after the motion raise an error.
 
+Equilibria and transients evaluate many displacements close to each other.
+With `surrogate_tolerance` set, a cluster solved by the field method reuses
+the nearest earlier solution of it, expanded to second order in the motion
+of its bodies, as long as that expansion stays within the tolerance in
+capacitance and its gradient; elsewhere it is solved anew and the new
+solution kept. The radius around each solution follows from how well it
+predicted the next one. `model.clusters[k].anchors` counts the solutions a
+cluster holds, and `model.at(displacement, exact=True)` solves anew
+regardless. `equilibrium` solves its result anew, so its stiffness and
+model are exact; a transient keeps the expanded values, and its energy
+ledger shows their error. The second derivative is that of the nearest
+solution, accurate to about the square root of the tolerance, which slows
+no solve and changes no result beyond the tolerance. Plates and the plates
+method are cheap and always evaluated exactly.
+
+```python
+model = structure.capacitance(cf.ElectrostaticParams(..., surrogate_tolerance=1e-4))
+run = structure.transient(model, sources, times, options)
+run.model.clusters[0].anchors  # field solutions the run needed
+```
+
 `to_dict` gives a tree for review. It lists every pair of electrodes with
 capacitance between them, split into oxide, released, and sidewall parts,
 with their nets and the change of the total with each body that moves it;

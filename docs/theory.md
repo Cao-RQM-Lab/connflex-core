@@ -2627,6 +2627,73 @@ result reports it last, with the electrodes across the closing gap.
     a step four times shorter, up to eight times; the run then ends at the
     last accepted step with a contact event.
 
+## Surrogate for displaced bodies
+
+An equilibrium or a transient evaluates the capacitance model at many
+displacements close to each other, and with the field method every
+evaluation solves each cluster anew at the cost of the solve at rest. Each
+such solution gives more than values: with $\mathbf{m}$ the in-plane motion
+of the bodies of a cluster, $(a_x, a_y, a_\psi)$ of (114) for each, it gives
+the matrix $\mathbf{c}$ and its first and second derivatives in
+$\mathbf{m}$ exactly, (81) and (84). Motions are compared by how far they
+carry any silicon of the cluster,
+
+$$
+\rho(\mathbf{m}, \mathbf{m}') = \max_B \Bigl( \bigl\| (a_x, a_y)_B - (a_x, a_y)'_B \bigr\| + R_B\, \bigl| a_{\psi,B} - a'_{\psi,B} \bigr| \Bigr), \tag{148}
+$$
+
+with $R_B$ the largest distance from the center of body $B$ to a corner of
+the bounding box of its silicon in the cluster. A solution at
+$\mathbf{m}_a$ is kept with a radius $r_a$. At a motion $\mathbf{m}$ within
+the radius of a kept solution, the nearest such one supplies the cluster
+by its expansion to second order, with $\boldsymbol{\delta} = \mathbf{m} -
+\mathbf{m}_a$:
+
+$$
+\mathbf{c}(\mathbf{m}) \approx \mathbf{c}_a + \frac{\partial \mathbf{c}_a}{\partial \mathbf{m}}\, \boldsymbol{\delta} + \tfrac{1}{2}\, \boldsymbol{\delta}^\top \frac{\partial^2 \mathbf{c}_a}{\partial \mathbf{m}^2}\, \boldsymbol{\delta}, \qquad
+\frac{\partial \mathbf{c}}{\partial \mathbf{m}}(\mathbf{m}) \approx \frac{\partial \mathbf{c}_a}{\partial \mathbf{m}} + \frac{\partial^2 \mathbf{c}_a}{\partial \mathbf{m}^2}\, \boldsymbol{\delta}, \qquad
+\frac{\partial^2 \mathbf{c}}{\partial \mathbf{m}^2}(\mathbf{m}) \approx \frac{\partial^2 \mathbf{c}_a}{\partial \mathbf{m}^2}. \tag{149}
+$$
+
+Elsewhere the cluster is solved anew and the solution kept. The gradient is
+the exact derivative of the expanded matrix, so forces within one radius
+derive from one energy. The error of the gradient grows as $\rho^2$, which
+sets the radii: when a new solution at $\mathbf{m}_b$ lies within four
+radii of the nearest kept one, the error $e$ of that one's expansion there,
+the larger of the relative errors of $\mathbf{c}$ and of its gradient in
+the Frobenius norm, resizes it, and the new solution starts with the
+result:
+
+$$
+r_a \leftarrow \min\Bigl( 2\, r_a,\; 0.8\, \rho(\mathbf{m}_b, \mathbf{m}_a) \sqrt{\tau_c / e} \Bigr), \qquad
+r_b = r_a, \qquad
+r_\text{first} = \sqrt{\tau_c}\; g_\text{min}, \tag{150}
+$$
+
+with $\tau_c$ the tolerance and $g_\text{min}$ the narrowest gap between
+electrodes of different bodies in the cluster at rest. A radius at most
+doubles per check, so it grows only as fast as evidence supports it.
+
+!!! note "Implementation choices"
+    The second derivative is held constant over a radius, so its error is
+    of the order of $\sqrt{\tau_c}$, not $\tau_c$. It enters only Newton and
+    integrator Jacobians, which change how fast a solve converges and not
+    where it ends. An equilibrium therefore solves its result anew, so its
+    stiffness and model are exact; a transient keeps the expanded values.
+
+    Moving from one kept solution to the next changes the capacitance by up
+    to about $\tau_c$ times itself. A transient's energy ledger counts that
+    change, so its imbalance reflects the tolerance of the surrogate as well
+    as that of the integrator.
+
+    Kept solutions belong to the capacitance model at rest and every model
+    evaluated from it, so a sequence of equilibria and transients built on
+    one model reuses them all. Which solution supplies a motion depends on
+    which were kept before, within the tolerance.
+
+    Clusters whose pairs are all taken as plates are cheap and evaluated
+    exactly; so are plates between device and handle.
+
 ## Symbols and parameters
 
 Every symbol below is a documented input. Full definitions, units, defaults,
@@ -2653,6 +2720,7 @@ and validation rules are on the [parameters page](parameters.md).
 | $\lambda_p$ | feature size from which a pair of nets is taken as plates | `ElectrostaticParams.plates_cutoff` |
 | $n_w$ | most elements in the core of a window | `ElectrostaticParams.window_elements` |
 | $\tau$ | change of the charge on a core below which the overlap of its window stops growing | `ElectrostaticParams.window_tolerance` |
+| $\tau_c$ | error of the second-order expansion of a field solution within which displaced clusters reuse it | `ElectrostaticParams.surrogate_tolerance` |
 | $\tau_s$ | relative size of the last Newton step at which static equilibrium is accepted | `StaticOptions.tolerance` |
 | $Q$ | quality factor of every mode about an equilibrium | `SmallSignalOptions.quality_factor` |
 | $\tau_l$ | voltage or gap ratio of a drive above which the small-signal model warns | `SmallSignalOptions.linear_tolerance` |

@@ -159,6 +159,8 @@ def equilibrium(
                 f"potentials may be beyond pull-in, or the start too far from an "
                 f"equilibrium; start from an equilibrium at nearer potentials"
             )
+    if model.rest.params.surrogate_tolerance is not None:
+        here = here.at(here.displacement, exact=True)
     reached, added = drive(here)
     both = np.ix_(kept, kept)
     tangent = system.stiffness + here.stiffness(reached) + added

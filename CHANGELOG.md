@@ -116,6 +116,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   damps every mode. A run ends at its last time or when a gap closes to
   `contact_clearance`, reported in `contact`. `Energy` is the ledger of
   stored, damped, resistive, and supplied energy at each output time.
+- `ElectrostaticParams.surrogate_tolerance` and `Cluster.anchors`: clusters
+  solved by the field method reuse their nearest earlier solution at
+  displaced bodies, expanded to second order in the motion of their bodies,
+  while the expansion stays within the tolerance; the radius around each
+  kept solution follows from how well it predicted the next.
+  `CapacitanceModel.at(..., exact=True)` solves anew, and an equilibrium
+  solves its result anew.
 
 ### Removed
 
