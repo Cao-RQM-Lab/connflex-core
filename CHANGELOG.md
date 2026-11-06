@@ -9,6 +9,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Window planning counts the elements of a trial window through the index of
   element centers rather than by testing every element of the mesh.
+- Hessian blocks are mapped onto body degrees of freedom by matrix products
+  rather than by an `einsum` over six indices.
 
 ## [0.2.0] - 2026-11-06
 

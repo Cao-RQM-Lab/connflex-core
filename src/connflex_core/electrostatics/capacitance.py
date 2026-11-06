@@ -653,9 +653,7 @@ def _add(
     curved = bend[:, :, free][:, :, :, :, free].reshape(
         size, size, local * len(free), local * len(free)
     )
-    blocks.append(
-        HessianBlock(electrodes, dofs, np.einsum("abpq,pk,ql->abkl", curved, travel, travel))
-    )
+    blocks.append(HessianBlock(electrodes, dofs, travel.T @ curved @ travel))
 
 
 def _reuse(
