@@ -12,6 +12,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   threads that solve windows, fringe cross-sections, and blocks of rows of
   one dense system, every processor by default. Sums are taken in a fixed
   order, so the count changes results only within rounding.
+- `fast` extra: with numba installed, the pair integrals of the field kernel
+  and their derivatives run compiled, one pair at a time and outside the
+  interpreter's lock; the numpy code remains the fallback, and
+  `connflex_core.electrostatics.pairs.COMPILED` tells which is in use.
 
 ### Changed
 

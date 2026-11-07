@@ -6,13 +6,15 @@ Python 3.11 or newer.
 pip install connflex-core
 ```
 
-Readers for layout files and tools are optional extras:
+Readers for layout files and tools, and compiled field kernels, are optional
+extras:
 
 | Extra | Installs | Notes |
 | --- | --- | --- |
 | `gds` | gdstk | Reads GDSII files. |
 | `klayout` | klayout | Reads KLayout layouts and cells. GPL-3 licensed. |
 | `gdsfactory` | gdsfactory | Reads gdsfactory components. Includes klayout. |
+| `fast` | numba | Compiles the field kernels, a few times faster per thread. |
 | `all` | all of the above | |
 
 ```sh

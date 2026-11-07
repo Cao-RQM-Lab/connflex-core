@@ -1528,6 +1528,10 @@ stops short of two trench widths leaves out part of the field across it.
     taken by the second, and the two differ by rounding of their
     coordinates. Sums over windows are taken in the order of their cores,
     so the number of threads changes results only within that rounding.
+    The pair integrals (67) and (69) and their derivatives (85) to (88)
+    are evaluated one pair at a time in code compiled by numba when it is
+    installed, which releases the interpreter's lock so that threads share
+    it; otherwise in numpy, in passes over blocks of pairs.
 
     The point a body turns about travels with the body, as a center of mass
     does. A second derivative for travel and rotation taken about a point

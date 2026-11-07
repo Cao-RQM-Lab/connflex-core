@@ -34,7 +34,8 @@ dependencies = [
 gds = ["gdstk>=0.9"]
 klayout = ["klayout>=0.29"]
 gdsfactory = ["gdsfactory>=9"]
-all = ["connflex-core[gds,klayout,gdsfactory]"]
+fast = ["numba>=0.61"]
+all = ["connflex-core[gds,klayout,gdsfactory,fast]"]
 dev = [
   "pytest>=8.3",
   "pytest-cov>=6.0",
@@ -91,8 +92,13 @@ strict = true
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = ["gdsfactory.*", "klayout.*"]
+module = ["gdsfactory.*", "klayout.*", "numba.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["connflex_core.electrostatics.compiled"]
+disallow_untyped_decorators = false
+disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

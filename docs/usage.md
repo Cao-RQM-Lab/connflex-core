@@ -866,6 +866,13 @@ model = structure.capacitance(params, workers=8)
 settled = structure.equilibrium(model, {2: 40.0}, workers=8)
 ```
 
+Most of the field's time goes to the integrals over pairs of elements and
+their derivatives. With the `fast` extra installed, numba compiles them, one
+pair at a time and outside the interpreter's lock, so that each thread runs a
+few times faster and threads share the machine; without it the numpy code
+runs, in passes over blocks of pairs, and gains less from threads.
+`connflex_core.electrostatics.pairs.COMPILED` tells which is in use.
+
 Planning stays serial: clusters, facing walls, meshing, and rows of identical
 cells, as do the derivatives of one dense system. A BLAS that runs its own
 threads, such as OpenBLAS, oversubscribes the machine when every worker calls

@@ -11,8 +11,8 @@ import shapely
 from numpy.typing import NDArray
 from shapely import MultiPolygon, STRtree
 
-from connflex_core.electrostatics.kernel import pair_derivatives, pair_integrals
 from connflex_core.electrostatics.outlines import Mesh
+from connflex_core.electrostatics.pairs import pair_derivatives, pair_integrals
 from connflex_core.electrostatics.translates import KEY_GRID, canonical, repivot
 
 Array = NDArray[np.float64]

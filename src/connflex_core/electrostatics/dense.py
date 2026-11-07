@@ -11,8 +11,8 @@ import numpy as np
 import scipy.linalg
 from numpy.typing import NDArray
 
-from connflex_core.electrostatics.kernel import pair_derivatives, pair_integrals
 from connflex_core.electrostatics.outlines import Mesh
+from connflex_core.electrostatics.pairs import pair_derivatives, pair_integrals
 from connflex_core.progress import Stage
 from connflex_core.workers import Workers
 
