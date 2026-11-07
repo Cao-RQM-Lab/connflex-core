@@ -57,6 +57,7 @@ report to a progress callback.
 <https://cao-rqm-lab.github.io/connflex-core/>
 
 - [Installation](https://cao-rqm-lab.github.io/connflex-core/installation/)
+- [Quick start](https://cao-rqm-lab.github.io/connflex-core/quickstart/)
 - [Usage](https://cao-rqm-lab.github.io/connflex-core/usage/)
 - [Input conventions](https://cao-rqm-lab.github.io/connflex-core/conventions/)
 - [Parameters](https://cao-rqm-lab.github.io/connflex-core/parameters/)

@@ -7,6 +7,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Quick start page: three guides on one small design, from layout to modes,
+  to capacitance and force, to equilibrium, small signal, and a transient. A
+  test runs them, as one runs the usage page's example.
 - Documentation page "Assumptions and limits": every assumption,
   idealization, and left-out effect of each stage, with what it costs and
   how to check it.

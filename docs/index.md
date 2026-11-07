@@ -33,6 +33,7 @@ Mechanical and electrostatic analyses each run on their own from one extracted
 structure. Static equilibrium, small signal, and transients take both.
 
 - [Installation](installation.md)
+- [Quick start](quickstart.md)
 - [Usage](usage.md)
 - [Input conventions](conventions.md)
 - [Parameters](parameters.md)
