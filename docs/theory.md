@@ -2771,8 +2771,9 @@ the exact derivative of the expanded matrix, so forces within one radius
 derive from one energy. The error of the gradient grows as $\rho^2$, which
 sets the radii: when a new solution at $\mathbf{m}_b$ lies within four
 radii of the nearest kept one, the error $e$ of that one's expansion there,
-the larger of the relative errors of $\mathbf{c}$ and of its gradient in
-the Frobenius norm, resizes it, and the new solution starts with the
+the largest of the relative errors of $\mathbf{c}$ and of its gradient in
+the Frobenius norm, and of the fringe matrix and its gradient when the
+fringe is kept, resizes it, and the new solution starts with the
 result:
 
 $$
@@ -2783,7 +2784,12 @@ $$
 
 with $\tau_c$ the tolerance and $g_\text{min}$ the narrowest gap between
 electrodes of different bodies in the cluster at rest. A radius at most
-doubles per check, so it grows only as fast as evidence supports it.
+doubles per check, so it grows only as fast as evidence supports it, and
+a check along a step without motion in the plane can shrink a radius but
+never grows it: rise and tilt leave the sidewalls unchanged and say nothing
+about their expansion in the plane. A solution at a motion where one is
+already kept, as an exact evaluation or an equilibrium solved anew makes,
+replaces the kept one and keeps its radius.
 
 !!! note "Implementation choices"
     The second derivative is held constant over a radius, so its error is

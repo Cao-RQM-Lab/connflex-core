@@ -97,6 +97,39 @@ def test_surrogate_follows_field_solution_within_its_tolerance(
     assert exact.clusters[0].anchors == 0
 
 
+def test_surrogate_holds_its_tolerance_after_rise_and_tilt(shuttle: Structure) -> None:
+    """Rise and tilt change the fringe but not the sidewalls: steps out of the plane must
+    not grow a radius that later admits in-plane steps beyond the tolerance."""
+    tolerance = 1e-4
+    field = replace(FIELD, include_plates=True, interaction_distance=20 * UM)
+    exact = shuttle.capacitance(field)
+    model = shuttle.capacitance(replace(field, surrogate_tolerance=tolerance))
+    places = []
+    for rise in (-0.1, -0.2, -0.3, -0.4):  # each within four radii of the last
+        place = np.zeros(len(exact.dofs))
+        place[2], place[3] = rise * UM, 1e-4
+        places.append(place)
+    place = places[-1].copy()
+    place[0] = 0.2 * UM  # within the radius that the rise steps would have grown
+    places.append(place)
+    for place in places:
+        found, truth = model.at(place), exact.at(place)
+        assert relative(found.matrix, truth.matrix) < 3 * tolerance
+        assert relative(found.gradient, truth.gradient) < 3 * tolerance
+        assert relative(found.fringe, truth.fringe) < 3 * tolerance
+
+
+def test_solution_at_a_kept_motion_replaces_the_kept_one(shuttle: Structure) -> None:
+    model = shuttle.capacitance(replace(FIELD, surrogate_tolerance=1e-2))
+    assert model.clusters[0].anchors == 1
+    rest = np.zeros(len(model.dofs))
+    assert model.at(rest, exact=True).clusters[0].anchors == 1
+    place = path()[-1]
+    kept = model.at(place).clusters[0].anchors
+    assert model.at(place, exact=True).clusters[0].anchors == kept
+    assert model.at(place, exact=True).clusters[0].anchors == kept
+
+
 def test_exact_evaluation_bypasses_surrogate(shuttle: Structure, exact: CapacitanceModel) -> None:
     model = shuttle.capacitance(replace(FIELD, surrogate_tolerance=1e-2))
     place = path()[-1]

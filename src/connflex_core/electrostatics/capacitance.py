@@ -718,7 +718,12 @@ def _remember(
     structure: Structure,
 ) -> None:
     """Keep a new solution, and set the radius of the nearest kept one from how well
-    its expansion predicted this one, equation (150)."""
+    its expansion, sidewalls and fringe, predicted this one, equation (150).
+
+    A step without motion in the plane can shrink the radius but never grows it: rise
+    and tilt leave the sidewalls unchanged and say nothing about their expansion in the
+    plane. A solution at a kept motion replaces it.
+    """
     memo = group.surrogate
     tolerance = params.surrogate_tolerance or 0.0
     if memo.reach is None:
@@ -738,13 +743,24 @@ def _remember(
     if memo.anchors:
         nearest = min(memo.anchors, key=lambda anchor: _apart(memo, motion, anchor.motion))
         apart = _apart(memo, motion, nearest.motion)
-        if 0 < apart <= 4 * nearest.radius:
-            guess = _expand(nearest, motion)
-            error = max(
+        if apart == 0:  # solved anew where a solution is kept: the new one stands for it
+            nearest.found, nearest.fringe = found, fringe
+            return
+        if apart <= 4 * nearest.radius:
+            guess, shell = _expand(nearest, motion), _expand_fringe(nearest, motion)
+            errors = [
                 _relative(guess.capacitance, found.capacitance),
                 _relative(guess.gradient, found.gradient),
-            )
-            grown = 2 * nearest.radius
+            ]
+            if shell is not None and fringe is not None:
+                errors += [
+                    _relative(shell.capacitance, fringe.capacitance),
+                    _relative(shell.gradient, fringe.gradient),
+                ]
+            error = max(errors)
+            bodies = found.gradient.shape[2]
+            in_plane = bool((motion[:bodies, :3] != nearest.motion[:bodies, :3]).any())
+            grown = 2 * nearest.radius if in_plane else nearest.radius
             nearest.radius = (
                 min(grown, SAFETY * apart * np.sqrt(tolerance / error)) if error else grown
             )

@@ -22,6 +22,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The surrogate's radius counts the error of the expanded fringe as well as
+  of the sidewalls, and a step without motion in the plane can shrink it but
+  not grow it, so rise and tilt no longer widen a radius that then reuses a
+  solution for in-plane steps beyond `surrogate_tolerance`.
+- A field solution at a motion already kept by the surrogate replaces the
+  kept one instead of being kept twice; `Cluster.anchors` counts distinct
+  motions.
 - Rows of identical cells are found on combs at any angle to the layout axes
   and at any pitch: the period is the translation as drawn rather than rounded
   to a grid, and the body opening drops the vertices a few femtometers off a
