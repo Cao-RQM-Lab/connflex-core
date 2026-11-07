@@ -467,3 +467,20 @@ def test_constant_load_settles_to_the_static_deflection_and_max_step_is_honored(
     )
     assert capped.steps >= 0.9 * 30 * 50
     assert capped.steps > run.steps
+
+
+def test_max_step_longer_than_the_run_or_a_segment_is_allowed(plate: Structure) -> None:
+    """A step limit longer than the run, or than a waveform segment between breakpoints,
+    leaves the first step to the integrator instead of failing."""
+    natural = plate_mode(plate)[2]
+    model = plate.capacitance(HANDLE_ALONE)
+    period = 2 * np.pi / natural
+    load = {1: [0.0, 0.0, -1e-7, 0.0, 0.0, 0.0]}
+    times = np.linspace(0.0, 2 * period, 11)
+    options = TransientOptions(quality_factor=2.0, max_step=10 * period)
+    run = plate.transient(model, [], times, options, loads=load)
+    assert run.displacement.shape == (11, len(model.dofs))
+    pad = plate.electrode_at((-300 * UM, 0.0), "device")
+    switched = Source(pad, 1.0, resistance=1e6, switch=Switch([period / 100]))
+    run = plate.transient(model, [switched], times, options, loads=load)
+    assert run.times == pytest.approx(times)

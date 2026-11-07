@@ -30,6 +30,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `TransientOptions.max_step` longer than the run, or than a waveform segment
+  between breakpoints, failed inside the integrator; the first step is now left
+  to it, capped by `max_step`.
 - The header of a SPICE netlist counts the modes it writes; a mode that no
   node couples to was counted and then left out.
 - The transient stage advances once for the frame of a contact event too, so

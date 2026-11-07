@@ -537,7 +537,6 @@ def _solver(
         atol=scale,  # type: ignore[arg-type]
         jac=run.jac,
         max_step=limit,
-        first_step=None if np.isinf(limit) else limit,
     )
 
 
