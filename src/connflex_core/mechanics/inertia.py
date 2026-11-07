@@ -33,6 +33,17 @@ class AreaMoments:
     yy: float
     xy: float
 
+    def about(self, x: float, y: float) -> AreaMoments:
+        """These moments about the point (x, y), by the shift of equation (11c)."""
+        return AreaMoments(
+            self.area,
+            self.x - x * self.area,
+            self.y - y * self.area,
+            self.xx - 2 * x * self.x + x * x * self.area,
+            self.yy - 2 * y * self.y + y * y * self.area,
+            self.xy - x * self.y - y * self.x + x * y * self.area,
+        )
+
     def __sub__(self, other: AreaMoments) -> AreaMoments:
         return AreaMoments(
             self.area - other.area,
@@ -105,14 +116,7 @@ def area_moments(geometry: MultiPolygon) -> AreaMoments:
     signs = role * np.sign(per_ring[0])
     area, x, y, xx, yy, xy = (float(value) for value in per_ring @ signs)
     sx, sy = (float(value) for value in shift)
-    return AreaMoments(
-        area=area,
-        x=x + sx * area,
-        y=y + sy * area,
-        xx=xx + 2 * sx * x + sx * sx * area,
-        yy=yy + 2 * sy * y + sy * sy * area,
-        xy=xy + sx * y + sy * x + sx * sy * area,
-    )
+    return AreaMoments(area, x, y, xx, yy, xy).about(-sx, -sy)
 
 
 def mass_properties(
@@ -160,10 +164,8 @@ def mass_properties(
     for rho, (top, bottom), m in zip(densities, extents, moments, strict=True):
         if m.area == 0:
             continue
-        sx, sy = m.x - cx * m.area, m.y - cy * m.area
-        sxx = m.xx - 2 * cx * m.x + cx * cx * m.area
-        syy = m.yy - 2 * cy * m.y + cy * cy * m.area
-        sxy = m.xy - cx * m.y - cy * m.x + cx * cy * m.area
+        shifted = m.about(cx, cy)
+        sx, sy, sxx, syy, sxy = shifted.x, shifted.y, shifted.xx, shifted.yy, shifted.xy
         zt, zb = top - cz, bottom - cz
         dz, z2, z3 = zt - zb, (zt * zt - zb * zb) / 2, (zt**3 - zb**3) / 3
         inertia[0, 0] += rho * (dz * syy + z3 * m.area)

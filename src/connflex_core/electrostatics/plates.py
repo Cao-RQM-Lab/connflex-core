@@ -201,13 +201,8 @@ def find_plates(
 
 def _about(moments: AreaMoments, origin: Array) -> Array:
     """Moment matrix of equation (48) about ``origin``, by the shift of equation (11c)."""
-    x, y = (float(value) for value in origin[:2])
-    m = moments
-    sx, sy = m.x - x * m.area, m.y - y * m.area
-    sxx = m.xx - 2 * x * m.x + x * x * m.area
-    syy = m.yy - 2 * y * m.y + y * y * m.area
-    sxy = m.xy - x * m.y - y * m.x + x * y * m.area
-    return np.array([[m.area, sx, sy], [sx, sxx, sxy], [sy, sxy, syy]])
+    m = moments.about(float(origin[0]), float(origin[1]))
+    return np.array([[m.area, m.x, m.y], [m.x, m.xx, m.xy], [m.y, m.xy, m.yy]])
 
 
 def _crossings(
