@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 import shapely
 from numpy.typing import NDArray
-from shapely import GeometryCollection, MultiPolygon, Polygon
-from shapely.geometry.base import BaseGeometry
+from shapely import Polygon
 
 from connflex_core.adapters.shapely_ import from_shapely
+from connflex_core.geometry.heal import polygon_parts
 from connflex_core.layout import ROLES, LayerMap, Layout, PolygonInput
 
 if TYPE_CHECKING:
@@ -53,7 +53,7 @@ def load_gds(path: str | PathLike[str], *, layers: LayerMap, cell: str | None = 
                     f"polygon {index} on {role} layer {spec} in cell {top.name!r} of {path} "
                     f"has area {areas[index]:g} after repair but {expected[index]:g} in the file"
                 )
-            polygons = [part for shape in repaired for part in _polygons(shape)]
+            polygons = [part for shape in repaired for part in polygon_parts(shape)]
         if polygons:
             roles[role] = polygons
         elif role in ("device", "handle"):
@@ -85,11 +85,3 @@ def _repair(shapes: NDArray[np.object_]) -> NDArray[np.object_]:
             shapes[invalid], method="structure", keep_collapsed=False
         )
     return shapes
-
-
-def _polygons(geometry: BaseGeometry) -> list[Polygon]:
-    if isinstance(geometry, Polygon):
-        return [] if geometry.is_empty else [geometry]
-    if isinstance(geometry, MultiPolygon | GeometryCollection):
-        return [polygon for part in geometry.geoms for polygon in _polygons(part)]
-    return []

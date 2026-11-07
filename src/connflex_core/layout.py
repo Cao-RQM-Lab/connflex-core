@@ -11,6 +11,8 @@ from numpy.typing import NDArray
 from shapely import MultiPolygon, Polygon, STRtree
 from shapely.validation import explain_validity
 
+from connflex_core.geometry.heal import polygon_parts
+
 ROLES = ("device", "handle", "release", "vias")
 
 PolygonInput = Polygon | MultiPolygon | Iterable[Polygon | MultiPolygon]
@@ -88,14 +90,7 @@ def normalize(role: str, polygons: PolygonInput, unit: float) -> MultiPolygon:
     items = [polygons] if isinstance(polygons, Polygon | MultiPolygon) else list(polygons)
     for index in np.flatnonzero(~shapely.is_valid(np.array(items, dtype=object))):
         raise ValueError(f"{role} polygon {index} is invalid: {explain_validity(items[index])}")
-    parts = np.array(
-        [
-            part
-            for part in shapely.get_parts(items)
-            if isinstance(part, Polygon) and not part.is_empty
-        ],
-        dtype=object,
-    )
+    parts = np.array(polygon_parts(np.array(items, dtype=object)), dtype=object)
     if parts.size == 0:
         raise ValueError(f"{role} has no polygons")
     scaled = shapely.transform(_merge_touching(parts), lambda coords: coords * unit)
@@ -109,6 +104,5 @@ def _merge_touching(parts: NDArray[np.object_]) -> NDArray[np.object_]:
         return parts
     keep = np.ones(parts.size, dtype=bool)
     keep[touching] = False
-    merged = shapely.get_parts(shapely.union_all(parts[touching]))
-    merged = np.array([part for part in merged if isinstance(part, Polygon)], dtype=object)
+    merged = np.array(polygon_parts(shapely.union_all(parts[touching])), dtype=object)
     return np.concatenate([parts[keep], merged])

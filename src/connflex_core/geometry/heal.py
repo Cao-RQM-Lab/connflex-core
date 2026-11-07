@@ -11,14 +11,18 @@ from shapely.geometry.base import BaseGeometry
 RESIDUE = 1e-12
 
 
-def as_multipolygon(geometry: BaseGeometry | NDArray[np.object_]) -> MultiPolygon:
-    """Collect polygonal parts of a geometry, or of an array of geometries, into a MultiPolygon."""
-    parts = [
+def polygon_parts(geometry: BaseGeometry | NDArray[np.object_]) -> list[Polygon]:
+    """Polygonal parts of a geometry, or of an array of geometries, the empty left out."""
+    return [
         part
         for part in shapely.get_parts(geometry)
         if isinstance(part, Polygon) and not part.is_empty
     ]
-    return MultiPolygon(parts)
+
+
+def as_multipolygon(geometry: BaseGeometry | NDArray[np.object_]) -> MultiPolygon:
+    """Collect polygonal parts of a geometry, or of an array of geometries, into a MultiPolygon."""
+    return MultiPolygon(polygon_parts(geometry))
 
 
 def heal(geometry: MultiPolygon, distance: float, tolerance: float) -> MultiPolygon:
