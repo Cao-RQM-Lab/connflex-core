@@ -152,6 +152,14 @@ missing. A stub, such as a comb finger, is also attached to its body: it moves
 with it and adds mass and inertia but no stiffness, and it is listed in
 `body.stubs` rather than in `body.device`. A junction adds nothing.
 
+Only straight beams are supported. A candidate that touches two bodies is
+taken as a straight strip of uniform width, whatever its shape: a bent,
+forked, or stepped candidate, such as a folded flexure whose fold is
+narrower than `body_min_width`, becomes one straight beam along the chord
+between its attachment points, with the width its area gives, and nothing
+flags it. Draw each bend as a block wider than `body_min_width`, so that it
+is a body and each straight leg is a beam of its own.
+
 Polygons in `body.device`, `body.stubs`, and `electrode.region` are filled:
 release openings are modeled as perforations and are kept apart in
 `structure.openings`, one disjoint polygon per opening. Mass properties
