@@ -1,5 +1,22 @@
 # Usage
 
+This page goes through every input the library takes and every result it
+returns, in the order of a complete analysis. The [quick start](quickstart.md)
+shows the same path in three short scripts; this page is the reference to
+read next to one of them.
+
+| To | Read |
+| --- | --- |
+| read a layout from a file, a tool, or polygons | [Load a layout](#load-a-layout) |
+| describe the layers and set the extraction parameters | [Describe the process](#describe-the-process), [Choose parameters](#choose-parameters) |
+| get bodies, beams, nets, and electrodes | [Extract the structure](#extract-the-structure), [Electrical nets](#electrical-nets), [Electrodes and links](#electrodes-and-links) |
+| find capacitances, forces, and electrostatic stiffness | [Capacitance model](#capacitance-model), [Capacitance to the handle](#capacitance-to-the-handle), [Sidewall capacitance](#sidewall-capacitance) |
+| find resonant modes or a static deflection | [Solve](#solve) |
+| find where the structure rests under voltage, and pull-in | [Static equilibrium](#static-equilibrium) |
+| linearize about a bias: admittance, motional branches, a SPICE netlist | [Small signal](#small-signal) |
+| follow motion in time under sources and a circuit | [Transient](#transient) |
+| use every processor, and watch progress | [Workers](#workers), [Progress and logging](#progress-and-logging) |
+
 All quantities are SI. GDS, KLayout, and gdsfactory readers apply the unit
 stored in the file or database; the shapely reader takes a `unit` scale
 factor, for example `unit=1e-6` for polygons drawn in micrometers.

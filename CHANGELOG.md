@@ -9,7 +9,7 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Quick start page: three guides on one small design, from layout to modes,
   to capacitance and force, to equilibrium, small signal, and a transient. A
-  test runs them, as one runs the usage page's example.
+  test runs them.
 - Docs tests: the quick start and the usage example run, the theory equations
   form one numbered sequence across their pages, and every equation cited on
   a docs page exists.
@@ -137,6 +137,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pages. Each page opens with what it computes and ends with its symbols
   against their names in the code, and the implementation notes are titled by
   subject.
+- The usage page opens with a table of tasks against its sections, and the
+  home page describes each page.
 - A beam candidate with less than `STRAIGHT_FILL` = 0.9 of its area in the
   straight strip of its mean width along the chord between its attachments,
   as a folded or stepped flexure has, is rejected with that reason instead
