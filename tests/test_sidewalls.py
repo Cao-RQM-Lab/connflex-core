@@ -373,3 +373,12 @@ def test_inputs_that_cannot_be_solved_are_rejected() -> None:
         sidewall_capacitance(squares, params(1.0), bodies=[0, 2])
     with pytest.raises(ValueError, match="centers"):
         sidewall_capacitance(squares, params(1.0), centers=[[0.0, 0.0]])
+
+
+def test_vertices_a_rounding_apart_make_no_element() -> None:
+    """Healing can leave two vertices a rounding apart; an element that short is noise."""
+    sliver = Polygon([(0, 0), (10, 0), (10 + 1e-12, 1e-12), (10, 10), (0, 10)])
+    mesh = mesh_outlines([MultiPolygon([um(sliver)])], 2 * UM, 4.0)
+    assert np.hypot(*(mesh.end - mesh.start).T).min() > 1e-3 * UM
+    square = mesh_outlines([MultiPolygon([um(box(0, 0, 10, 10))])], 2 * UM, 4.0)
+    assert len(mesh.conductor) == len(square.conductor)

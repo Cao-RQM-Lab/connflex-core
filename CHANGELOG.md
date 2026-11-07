@@ -17,6 +17,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   interpreter's lock; the numpy code remains the fallback, and
   `connflex_core.electrostatics.pairs.COMPILED` tells which is in use.
 
+### Fixed
+
+- Two consecutive outline vertices within `1e-6` of `element_size` of each
+  other, as healing can leave them, no longer make a boundary element of that
+  length, whose row of the field matrix was noise.
+
 ### Changed
 
 - Window planning counts the elements of a trial window through the index of

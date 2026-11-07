@@ -32,12 +32,16 @@ class Mesh:
         return cls(np.zeros((0, 2)), np.zeros((0, 2)), np.zeros(0, dtype=np.intp))
 
 
+VANISHING = 1e-6
+
+
 def mesh_outlines(conductors: Sequence[MultiPolygon], size: float, grading: float) -> Mesh:
     """Divide outlines of ``conductors`` into elements, equations (72) to (74).
 
     Elements are at most ``size`` long and shorten toward convex corners, down to
-    ``size / grading`` at a right angle or sharper. A hole is meshed only when it holds
-    another polygon: an empty cavity in a conductor holds no field.
+    ``size / grading`` at a right angle or sharper. A vertex within ``VANISHING`` times
+    ``size`` of the next, as rounding leaves them, is dropped. A hole is meshed only
+    when it holds another polygon: an empty cavity in a conductor holds no field.
     """
     polygons = [polygon for conductor in conductors for polygon in conductor.geoms]
     owner = [index for index, conductor in enumerate(conductors) for _ in conductor.geoms]
@@ -72,7 +76,7 @@ def _ring_nodes(
     ``role`` is 1 for an exterior ring and -1 for a hole, where silicon lies outside.
     """
     vertex = coordinates[:-1, 0] + 1j * coordinates[:-1, 1]
-    vertex = vertex[np.roll(vertex, -1) != vertex]
+    vertex = vertex[np.abs(np.roll(vertex, -1) - vertex) > VANISHING * size]
     edge = np.roll(vertex, -1) - vertex
     twice_area = np.sum(
         vertex.real * np.roll(vertex.imag, -1) - np.roll(vertex.real, -1) * vertex.imag

@@ -1131,7 +1131,9 @@ of thickness $t$ is $t\, \mathbf{c}$.
 Charge density is smooth along a straight sidewall, diverges at a convex
 corner of a conductor, as $r^{-1/3}$ at a right angle, and vanishes at a
 concave one. Elements are therefore at most $h$ long and shorten toward
-convex corners. Let a vertex turn the outline by the angle $\theta$ toward
+convex corners. A vertex within $10^{-6} h$ of the next, as rounding leaves
+them, is dropped first: an element that short has a row of noise, since its
+integrals divide by its length. Let a vertex turn the outline by the angle $\theta$ toward
 the conductor, so that $\theta > 0$ at a convex corner and $\theta = \pi/2$
 at a right angle. The length asked for at the vertex is
 
