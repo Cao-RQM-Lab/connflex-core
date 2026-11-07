@@ -367,8 +367,9 @@ def find_capacitance(
     below the device layer along every wall adds to sidewalls, equations (157) to (163),
     for clusters and for device electrodes alone over the handle. Derivatives are in the
     six degrees of freedom of every movable body.
-    ``workers`` threads solve windows, cross-sections, and blocks of rows of one dense
-    system, every processor by default; sums are taken in a fixed order, so the count
+    ``workers`` threads solve windows, cut and solve cross-sections of the fringe, and
+    assemble blocks of rows of one dense system, every processor by default; sums are
+    taken in a fixed order, so the count
     changes results only within rounding, and the model keeps it for evaluation at
     displaced bodies.
     Stages plates, clusters, and sidewalls log through the

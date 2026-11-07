@@ -852,7 +852,8 @@ as the solve at rest with the field method. Formulas are in
 ## Workers
 
 Solving the field is many independent pieces: the windows of a cluster, the
-cross-sections of its fringe, and the blocks of rows of one dense system.
+cuts of its fringe across the outlines and their cross-sections, and the
+blocks of rows of one dense system.
 `capacitance`, `at`, `equilibrium`, `transient`, and `sidewall_capacitance`
 take `workers=`, the number of threads that run them: every processor of the
 machine by default, and `workers=1` runs them one after another. Sums are

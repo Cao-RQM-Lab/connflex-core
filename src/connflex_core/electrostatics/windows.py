@@ -75,8 +75,11 @@ def cut_cores(
 
 
 def center_tree(mesh: Mesh) -> STRtree:
-    """Index of element centers, for the elements within a box."""
-    return STRtree(np.asarray(shapely.points((mesh.start + mesh.end) / 2)))
+    """Index of element centers, for the elements within a box, built here so that
+    threads may query it."""
+    tree = STRtree(np.asarray(shapely.points((mesh.start + mesh.end) / 2)))
+    tree.query(shapely.Point(0.0, 0.0))
+    return tree
 
 
 def smallest_window(
