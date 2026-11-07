@@ -127,14 +127,20 @@ class StaticOptions:
             below this fraction, squared, of the strain energy of the displacement, or
             one step after it is below this fraction itself.
         max_iterations: Most Newton iterations. Reaching it raises ``NoEquilibriumError``.
+        patience: Newton steps in a row that are halved or no smaller than the smallest
+            step so far before the iteration gives up with ``NoEquilibriumError``. Beyond
+            pull-in steps grow without end and a small value ends the attempt early;
+            steps also grow for a while from a start close to a gap.
     """
 
     tolerance: float = 1e-9
     max_iterations: int = 30
+    patience: int = 8
 
     def __post_init__(self) -> None:
         require_positive("tolerance", self.tolerance)
         require_at_least("max_iterations", self.max_iterations, 1)
+        require_at_least("patience", self.patience, 1)
 
 
 @dataclass(frozen=True)

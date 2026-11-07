@@ -7,6 +7,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `StaticOptions.patience`: Newton steps in a row that are halved or do not
+  shrink before `equilibrium` gives up, 8 by default; the count was fixed at 4,
+  which cut off iterations started close to a gap that converge after more.
 - `workers=` on `Structure.capacitance`, `CapacitanceModel.at`,
   `Structure.equilibrium`, `Structure.transient`, and `sidewall_capacitance`:
   threads that solve windows, cut and solve fringe cross-sections, and

@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 Array = NDArray[np.float64]
 
 HALVINGS = 12
-PATIENCE = 4
 
 
 class NoEquilibriumError(ValueError):
@@ -222,7 +221,7 @@ def _settle(
 
     ``drive`` gives electrode potentials at a displacement and the stiffness that held
     charge adds. Only degrees of freedom marked in ``kept`` move. The model is None when
-    iteration does not converge: after ``PATIENCE`` steps in a row that are halved or are
+    iteration does not converge: after ``patience`` steps in a row that are halved or are
     no smaller than the smallest so far, after ``HALVINGS`` halvings of one step, on a
     singular tangent, or on a force or stiffness that is not finite.
     """
@@ -259,6 +258,6 @@ def _settle(
         settling = whole and size <= options.tolerance * strain
         idle = 0 if whole and size < smallest else idle + 1
         smallest = min(smallest, size)
-        if idle == PATIENCE:
+        if idle == options.patience:
             return None, iteration
     return None, options.max_iterations

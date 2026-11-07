@@ -268,6 +268,33 @@ def test_body_that_no_beam_holds_stays_at_rest(plate: Structure) -> None:
     assert result.softest == pytest.approx(alone.softest)
 
 
+def test_start_near_the_gap_converges_while_its_steps_grow(plate: Structure) -> None:
+    """Started where the tangent is steep, Newton steps grow for several iterations
+    before they shrink; the iteration waits ``patience`` such steps before giving up."""
+    spring, area = plate.modal().stiffness[2, 2], (SIDE * UM) ** 2
+    pull_in = np.sqrt(8 * spring * BOX**3 / (27 * EPS0 * area))
+    model = plate.capacitance(HANDLE_ALONE)
+    handle = net_at(plate, 0, 0, "handle")
+    volts = 0.9 * pull_in
+
+    def unbalance(rise: float) -> float:
+        return float(spring * rise + 0.5 * EPS0 * area * volts**2 / (BOX + rise) ** 2)
+
+    roots = [
+        scipy.optimize.brentq(unbalance, -BOX / 3, 0.0, xtol=1e-18),
+        scipy.optimize.brentq(unbalance, -0.999 * BOX, -BOX / 3, xtol=1e-18),
+    ]
+    start = np.zeros(len(model.dofs))
+    start[2] = -0.95 * BOX
+    result = plate.equilibrium(model, {handle: volts}, start=start)
+    assert min(abs(result.displacement[2] - root) for root in roots) < 1e-8 * BOX
+    assert result.iterations > 4
+    with pytest.raises(NoEquilibriumError):
+        plate.equilibrium(model, {handle: volts}, start=start, options=StaticOptions(patience=2))
+    with pytest.raises(ValueError, match="patience"):
+        StaticOptions(patience=0)
+
+
 def test_iteration_that_meets_no_finite_force_finds_no_equilibrium(
     plate: Structure, monkeypatch: pytest.MonkeyPatch
 ) -> None:

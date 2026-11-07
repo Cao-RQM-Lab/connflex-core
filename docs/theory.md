@@ -2276,7 +2276,8 @@ every floating net has capacitance to a driven one.
     equilibrium.
 
     An iteration that has not ended after `max_iterations`, whose steps
-    were halved or did not shrink four times in a row, whose step closed a
+    were halved or did not shrink `patience` times in a row, eight by
+    default, whose step closed a
     gap through all twelve halvings, whose tangent stiffness is singular, or
     that meets a force or stiffness that is not finite, as a model evaluated
     far beyond its range can return, finds no

@@ -83,7 +83,8 @@ keyword overrides.
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
 | `tolerance` | $\tau_s$ | 1e-9 | Newton iteration for static equilibrium stops when the strain energy of its last step is below this fraction, squared, of the strain energy of the displacement, equation (122), or one step after it is below this fraction itself. |
-| `max_iterations` | | 30 | Most Newton iterations of one solve. Reaching it raises `NoEquilibriumError`, as do steps that stop shrinking, a singular tangent, and a force that is not finite (theory, Implementation choices of static equilibrium). |
+| `max_iterations` | | 30 | Most Newton iterations of one solve. Reaching it raises `NoEquilibriumError`, as do a singular tangent and a force that is not finite (theory, Implementation choices of static equilibrium). |
+| `patience` | | 8 | Newton steps in a row that are halved or no smaller than the smallest step so far before the iteration gives up with `NoEquilibriumError`. Beyond pull-in steps grow without end, so a small value ends the attempt early; steps also grow for a while from a start close to a gap, which a larger value waits out. |
 
 ## `SmallSignalOptions`
 
@@ -183,7 +184,7 @@ the field: lengths, areas, thicknesses, densities, moduli, and resistivity are p
 when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
 `window_tolerance > 0`; `dense_cutoff >= 0` and `plates_cutoff >= dense_cutoff`;
 `periodic_min_cells >= 2` and `0 < surrogate_tolerance < 1` when given;
-`tolerance > 0` and `max_iterations >= 1` of `StaticOptions`;
+`tolerance > 0`, `max_iterations >= 1`, and `patience >= 1` of `StaticOptions`;
 `quality_factor > 0` and `linear_tolerance > 0` of `SmallSignalOptions`;
 `quality_factor > 0`, `tolerance > 0`, `max_step > 0` when given, and
 `0 < contact_clearance < 1` of `TransientOptions`; `resistance >= 0` of a
