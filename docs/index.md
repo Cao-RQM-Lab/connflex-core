@@ -32,11 +32,16 @@ around the structure.
 Mechanical and electrostatic analyses each run on their own from one extracted
 structure. Static equilibrium, small signal, and transients take both.
 
-- [Installation](installation.md)
-- [Quick start](quickstart.md)
-- [Usage](usage.md)
-- [Input conventions](conventions.md)
-- [Parameters](parameters.md)
-- [Theory of operation](theory.md)
-- [Assumptions and limits](assumptions.md)
+- [Installation](installation.md): pip, optional readers, compiled kernels.
+- [Quick start](quickstart.md): three short guides on one small design, from
+  layout to modes, to capacitance and force, to equilibrium, small signal,
+  and a transient.
+- [Usage](usage.md): every input and result, with sequences such as ramps
+  and pull-in searches.
+- [Input conventions](conventions.md): layer roles, positive polygons, units.
+- [Parameters](parameters.md): every field, its default, and its effect.
+- [Theory of operation](theory/index.md): the equations behind each stage, one
+  page per block, with the symbols of each against the names in the code.
+- [Assumptions and limits](assumptions.md): what each idealization costs and
+  how to check it.
 - [API reference](api/index.md)

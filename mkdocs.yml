@@ -38,7 +38,26 @@ nav:
   - Usage: usage.md
   - Input conventions: conventions.md
   - Parameters: parameters.md
-  - Theory of operation: theory.md
+  - Theory of operation:
+      - Overview: theory/index.md
+      - Mechanical:
+          - Layout, release, and beams: theory/extraction.md
+          - Mass, stiffness, and modes: theory/mechanics.md
+      - Electrical and electrostatic:
+          - Electrodes and links: theory/electrical.md
+          - Plates between device and handle: theory/plates.md
+          - Sidewall capacitance: theory/sidewalls.md
+          - Facing plates and the method for each pair: theory/methods.md
+          - Capacitance of a structure: theory/capacitance.md
+      - Electromechanical:
+          - Static equilibrium: theory/equilibrium.md
+          - Small signal: theory/small-signal.md
+          - Transient: theory/transient.md
+      - Field methods in depth:
+          - Field solutions over travel: theory/motion.md
+          - Fringe above and below the device layer: theory/fringe.md
+          - Windows and rows over travel: theory/travel.md
+      - Symbols and parameters: theory/symbols.md
   - Assumptions and limits: assumptions.md
   - API reference: api/index.md
   - Contributing: contributing.md

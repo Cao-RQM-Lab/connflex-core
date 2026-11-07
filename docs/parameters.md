@@ -16,7 +16,7 @@ structure, so the library does not guess them.
 
 ## `ExtractionParams`
 
-Symbols refer to the [theory of operation](theory.md).
+Symbols refer to the [theory pages](theory/index.md); the [symbols page](theory/symbols.md) lists every one against its field.
 
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
@@ -71,7 +71,7 @@ keyword overrides.
 | `window_elements` | $n_w$ | 500 | Most boundary elements in the core of a window. Each window is one dense solution of its core and the elements around it, and supplies the charge on its core, equation (92). Smaller cores mean more and smaller solutions. |
 | `window_tolerance` | $\tau$ | 0.001 | The overlap of a window around its core doubles until the charge on the core changes by less than this fraction, equation (96), or the overlap reaches `interaction_distance`. |
 | `dense_cutoff` | $\lambda_d$ | 10 | Pairs of nets whose feature size, the length of their facing walls in units of the gap between them, equation (105), is below this are solved by the field method in one dense system, equation (106). Below ten gaps fringe field carries from an eighth to most of the capacitance. |
-| `plates_cutoff` | $\lambda_p$ | 100 | Pairs whose feature size is at least this take their facing walls as parallel plates, equations (97) to (103); pairs between the two cutoffs are solved by the field method in windows, within about 2 percent where the facing walls are no longer than a few `interaction_distance`, 3 to 4.5 percent low between pads several times longer. At or above a hundred gaps plates are within about 3.5 percent in capacitance and 1 percent in pull and side spring; see [accuracy and defaults](theory.md#accuracy-and-defaults). Lower it to trade accuracy for time: 15 takes as plates combs whose fingers overlap more than about fifteen gaps. 0 for both cutoffs puts every pair on plates, infinity for both every pair in one dense system. |
+| `plates_cutoff` | $\lambda_p$ | 100 | Pairs whose feature size is at least this take their facing walls as parallel plates, equations (97) to (103); pairs between the two cutoffs are solved by the field method in windows, within about 2 percent where the facing walls are no longer than a few `interaction_distance`, 3 to 4.5 percent low between pads several times longer. At or above a hundred gaps plates are within about 3.5 percent in capacitance and 1 percent in pull and side spring; see [accuracy and defaults](theory/methods.md#accuracy-and-defaults). Lower it to trade accuracy for time: 15 takes as plates combs whose fingers overlap more than about fifteen gaps. 0 for both cutoffs puts every pair on plates, infinity for both every pair in one dense system. |
 | `interaction_distance` | $d_i$ | none | Device electrodes whose silicon lies within this distance, directly or through a chain of neighbors, are taken together for sidewall capacitance, equation (110), and every pair within it is an interacting pair, equation (106). It is also the widest gap across which two walls count as a plate, equation (97), the widest overlap of a window, equation (96), and the reach of the cores of pairs solved by the field. Sidewall capacitance requires it. A few times the widest trench that should count is a starting value. |
 | `include_plates` | | true | Whether the capacitance model of a structure holds plates between device and handle electrodes. |
 | `include_sidewalls` | | true | Whether it holds sidewall capacitance between device electrodes. Without it neither `element_size` nor `interaction_distance` is needed. |

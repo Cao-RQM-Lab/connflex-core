@@ -138,7 +138,7 @@ structure.stack, structure.params  # layer stack and parameters of the extractio
 structure.to_dict()  # JSON-serializable tree with GeoJSON-style polygons
 ```
 
-Stages follow the [theory of operation](theory.md): release holes are filled,
+Stages follow the [theory of extraction](theory/extraction.md): release holes are filled,
 device and handle layers are healed and simplified, cavities that healing
 closes are filled as well, the holes and the `release` layer give the
 surviving buried oxide, an anchor handle polygon is selected, polygons with no connection to it through the stack are dropped,
@@ -267,7 +267,7 @@ extraction parameters: one value for every via, whatever its area, and
 0 $\Omega$ unless set, for example `cf.ExtractionParams(..., via_resistance=2.0)`.
 Bridges are ideal, and resistance inside an electrode is neglected. Exact
 definitions are in
-[electrodes and links](theory.md#electrodes-and-links).
+[electrodes and links](theory/electrical.md).
 
 ## Capacitance model
 
@@ -329,7 +329,7 @@ fringe of 5 to 15 percent; 0 for both cutoffs puts every pair on plates,
 infinity for both solves every pair in one dense system, and
 `dense_cutoff=0` with `plates_cutoff=float("inf")` every pair in windows.
 The accuracy of windows is a measurement on the geometries of
-[accuracy and defaults](theory.md#accuracy-and-defaults), not a bound: on
+[accuracy and defaults](theory/methods.md#accuracy-and-defaults), not a bound: on
 a pair of concern, compare against `dense_cutoff=float("inf")`, or raise
 `interaction_distance` until the result settles.
 Pairs asked to be dense whose problem needs more than `max_elements`
@@ -338,8 +338,8 @@ boundary elements are solved in windows instead: cores of at most
 it, out to an overlap that doubles until the charge on the core settles
 within `window_tolerance` or the overlap reaches `interaction_distance`.
 A window that is a translate of one already solved takes its solution.
-Measured accuracy is in [accuracy and defaults](theory.md#accuracy-and-defaults)
-and what plates miss in [what plates leave out](theory.md#what-plates-leave-out).
+Measured accuracy is in [accuracy and defaults](theory/methods.md#accuracy-and-defaults)
+and what plates miss in [what plates leave out](theory/methods.md#what-plates-leave-out).
 
 Combs repeat one cell many times, and windows then solve near copies of one
 window again and again. A row of at least `periodic_min_cells`, 8 by
@@ -352,7 +352,7 @@ so congruent rows leave windows that are translates, each solved once.
 Capacitance, forces, and springs come out closer to one solution of the
 whole than windows give; `periodic_min_cells=None` solves every row in
 windows. Formulas are in
-[rows of identical cells](theory.md#rows-of-identical-cells).
+[rows of identical cells](theory/motion.md#rows-of-identical-cells).
 
 Walls end at the top and bottom of the device layer, and the field that
 wraps around those ends adds to what the layout plane holds: across gaps,
@@ -367,7 +367,7 @@ layer is thin against its gaps; a cut repeated anywhere in the structure is
 solved once, and `model.clusters[k].sections` counts the distinct ones a
 cluster's walls took. `include_fringe=False` keeps the layout plane alone, and
 with `include_plates=False` the cuts have no handle. Formulas are in
-[fringe above and below the device layer](theory.md#fringe-above-and-below-the-device-layer).
+[fringe above and below the device layer](theory/fringe.md).
 
 Each cluster reports `interactions`, the feature size and method of every
 pair of its nets, `windows`, the field solutions planned for it, `asymmetry`,
@@ -438,7 +438,7 @@ Either part can be left out, and then needs none of its parameters:
 `cf.ElectrostaticParams(include_sidewalls=False)` gives plates to the handle
 alone with no element size or interaction distance, and
 `include_plates=False` gives sidewalls alone. Definitions
-are in [capacitance of a structure](theory.md#capacitance-of-a-structure).
+are in [capacitance of a structure](theory/capacitance.md).
 
 ## Capacitance to the handle
 
@@ -474,7 +474,7 @@ generalized force on the two bodies and `-0.5 * V**2 * hessian` the stiffness
 it adds. A plate whose electrodes move with one body cannot change:
 evaluated with the same motion for both, it returns its rest value. Beams and
 bridges belong to no electrode and are not counted. Definitions and limits
-are in [plates between device and handle](theory.md#plates-between-device-and-handle).
+are in [plates between device and handle](theory/plates.md).
 
 ## Sidewall capacitance
 
@@ -541,8 +541,8 @@ is dense and the mesh holds at most `max_elements`, it is one dense
 solution; otherwise pairs solved by the field are solved in windows, as for
 the capacitance model, and `asymmetry` measures the mismatch of overlapping
 windows. Formulas are in
-[sidewall capacitance](theory.md#sidewall-capacitance) and
-[sidewalls as facing plates](theory.md#sidewalls-as-facing-plates).
+[sidewall capacitance](theory/sidewalls.md) and
+[sidewalls as facing plates](theory/methods.md#sidewalls-as-facing-plates).
 
 ## Solve
 
@@ -560,7 +560,8 @@ displacement = structure.static({1: [1e-6, 0, 0, 0, 0, 0]})  # fx, fy, fz, tx, t
 ```
 
 Matrices are assembled from body mass matrices and effective beam stiffness,
-equations (33) to (35), with the anchor's rows and columns dropped. The dense
+equations (33) to (35) of [mass, stiffness, and modes](theory/mechanics.md),
+with the anchor's rows and columns dropped. The dense
 solver returns all modes or the lowest `n_modes`; the sparse solver uses
 shift-invert iteration about `sigma` and needs `n_modes` below the number of
 degrees of freedom. Static loads act at the named body's center of mass.
@@ -573,7 +574,7 @@ included, however far the bodies travel. A beam held at both ends stiffens
 as soon as its deflection is no longer small against its width, and any
 beam once its deflection or turn is no longer small against its length;
 nothing warns when a result has gone that far. See
-[beams stay linear](theory.md#assemble-and-solve).
+[beams stay linear](theory/mechanics.md#assemble-and-solve).
 
 ## Static equilibrium
 
@@ -669,7 +670,7 @@ period sets bodies ringing, and where they settle then depends on inertia
 and damping. If `plates_cutoff` is lowered so far that teeth standing tip
 to tip are taken as plates, the iteration fails at any voltage; that is the
 cusp of the plates method and not pull-in. Formulas are in
-[static equilibrium](theory.md#static-equilibrium).
+[static equilibrium](theory/equilibrium.md).
 
 ## Small signal
 
@@ -779,7 +780,7 @@ error.
 capacitors and resistors between nodes and one series branch per mode,
 coupled to the nodes through controlled sources. Every mode that couples to
 a node is included unless `modes` lists some, and the header counts those
-written; a mode left out also takes its compliance below resonance with it. Formulas are in [small signal](theory.md#small-signal).
+written; a mode left out also takes its compliance below resonance with it. Formulas are in [small signal](theory/small-signal.md).
 
 ## Transient
 
@@ -877,7 +878,7 @@ check on `tolerance`. Each time step evaluates the capacitance model about
 ten times, and each output once more: fractions of a millisecond with
 plates to the handle, a few milliseconds with the plates method, and as long
 as the solve at rest with the field method. Formulas are in
-[transient](theory.md#transient).
+[transient](theory/transient.md).
 
 ## Workers
 

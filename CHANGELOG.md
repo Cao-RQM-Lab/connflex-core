@@ -10,6 +10,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Quick start page: three guides on one small design, from layout to modes,
   to capacitance and force, to equilibrium, small signal, and a transient. A
   test runs them, as one runs the usage page's example.
+- Docs tests: the quick start and the usage example run, the theory equations
+  form one numbered sequence across their pages, and every equation cited on
+  a docs page exists.
 - Documentation page "Assumptions and limits": every assumption,
   idealization, and left-out effect of each stage, with what it costs and
   how to check it.
@@ -125,6 +128,15 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The theory of operation is split into pages by block: layout and beams,
+  mechanics, electrodes and links, plates, sidewall capacitance, facing
+  plates and the method for each pair, capacitance of a structure, static
+  equilibrium, small signal, transient, field solutions over travel, fringe,
+  windows and rows over travel, and symbols, under an overview that maps pages to equations and entry
+  points. Equation numbers are unchanged and run in one sequence across the
+  pages. Each page opens with what it computes and ends with its symbols
+  against their names in the code, and the implementation notes are titled by
+  subject.
 - A beam candidate with less than `STRAIGHT_FILL` = 0.9 of its area in the
   straight strip of its mean width along the chord between its attachments,
   as a folded or stepped flexure has, is rejected with that reason instead

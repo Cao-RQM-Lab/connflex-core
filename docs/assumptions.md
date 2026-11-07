@@ -2,8 +2,8 @@
 
 What the model takes for granted, where each assumption enters, what it
 costs, and how to check it. Equation numbers refer to the
-[theory of operation](theory.md); parameters are those of the
-[parameters page](parameters.md). Each entry gives the assumption, its
+[theory pages](theory/index.md), whose overview says which page holds which
+numbers; parameters are those of the [parameters page](parameters.md). Each entry gives the assumption, its
 consequence, and a way to check or mitigate it.
 
 ## Layout and extraction

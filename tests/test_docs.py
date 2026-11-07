@@ -1,4 +1,5 @@
-"""The documentation runs: the quick start and the usage example execute."""
+"""The documentation runs and stays consistent: the quick start and the usage example
+execute, theory equations form one numbered sequence, and every citation of one exists."""
 
 import re
 import textwrap
@@ -57,3 +58,31 @@ def test_usage_example_extracts_a_movable_body_and_its_modes() -> None:
     result = structure.modal(namespace["options"])
     assert result.frequencies_hz.shape == (6,)
     assert result.frequencies_hz[0] > 0
+
+
+def theory_pages_in_order() -> list[Path]:
+    nav = (DOCS.parent / "mkdocs.yml").read_text()
+    return [DOCS / name for name in re.findall(r"(theory/[\w-]+\.md)", nav)]
+
+
+def test_theory_equations_form_one_sequence_across_the_pages() -> None:
+    pages = theory_pages_in_order()
+    assert {page.name for page in pages} == {page.name for page in (DOCS / "theory").glob("*.md")}
+    tags: list[str] = []
+    for page in pages:
+        tags += re.findall(r"\\tag\{(\d+[a-c]?)\}", page.read_text())
+    assert len(tags) == len(set(tags))
+    numbers = [int(re.match(r"\d+", tag).group()) for tag in tags]  # type: ignore[union-attr]
+    assert numbers == sorted(numbers)
+    assert set(numbers) == set(range(1, max(numbers) + 1))
+
+
+def test_every_cited_equation_exists() -> None:
+    tags: set[str] = set()
+    for page in theory_pages_in_order():
+        tags |= set(re.findall(r"\\tag\{(\d+[a-c]?)\}", page.read_text()))
+    for page in [*DOCS.glob("*.md"), *(DOCS / "theory").glob("*.md")]:
+        cited = set(re.findall(r"\((\d{1,3}[a-c]?)\)", page.read_text()))
+        numbered = {tag for tag in cited if 1 <= int(re.match(r"\d+", tag).group()) <= 200}  # type: ignore[union-attr]
+        missing = numbered - tags
+        assert not missing, (page.name, sorted(missing))
