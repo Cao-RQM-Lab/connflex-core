@@ -22,6 +22,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `transient` from a `start` at which bodies already touch raises the model's
+  `ValueError`, as `equilibrium` does, instead of a private error without a
+  message.
 - `equilibrium` at a fold where the tangent stiffness is singular in a
   direction without unbalance, as at the symmetric loss of stability of a
   centered comb, no longer leaks scipy's `LinAlgWarning`: the result there is

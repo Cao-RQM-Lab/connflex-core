@@ -421,6 +421,10 @@ def test_waveforms_and_inputs_are_checked(plate: Structure, resistive: Structure
         plate.transient(model, [Source(pad, 1.0)], [1e-6, 0.0], options)
     with pytest.raises(ValueError, match="another structure"):
         resistive.transient(model, [], [0.0, 1e-6], options)
+    closed = np.zeros(len(model.dofs))
+    closed[2] = -BOX
+    with pytest.raises(ValueError, match="closes"):
+        plate.transient(model, [Source(pad, 1.0)], [0.0, 1e-6], options, start=closed)
 
     with pytest.raises(ValueError, match="ascending"):
         Switch([2.0, 1.0])

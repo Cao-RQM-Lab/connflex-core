@@ -324,7 +324,8 @@ def transient(
     zero volts on every electrode. ``loads`` are constant forces on bodies, as for
     ``static``. The run starts at ``times[0]`` from rest or from the displacement of
     ``start``, at zero velocity, with the potentials that the sources hold without
-    current at that time, equation (147), and ends at ``times[-1]`` or at contact.
+    current at that time, equation (147), and ends at ``times[-1]`` or at contact. A
+    start at which bodies touch is refused with the model's error.
     Integration restarts where a waveform or switch changes. ``workers`` threads
     evaluate the model, as many as at rest by default. Stages assemble and transient
     log through the ``connflex_core`` logger and report to ``progress``, which advances
@@ -456,6 +457,10 @@ def transient(
         duration=float(stamps[-1] - stamps[0]),
     )
     start_place = origin[kept]
+    try:
+        run.at(start_place)
+    except _ClosedError as exc:  # the model says what closes at this start
+        raise ValueError(str(exc.__cause__)) from exc.__cause__
     y = np.concatenate(
         [start_place, np.zeros(run.count), _rest_charge(run, start_place, stamps[0]), np.zeros(3)]
     )
