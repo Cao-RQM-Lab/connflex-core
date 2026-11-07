@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import cached_property
 
 import numpy as np
 import shapely
@@ -30,6 +31,11 @@ class Mesh:
     @classmethod
     def empty(cls) -> Mesh:
         return cls(np.zeros((0, 2)), np.zeros((0, 2)), np.zeros(0, dtype=np.intp))
+
+    @cached_property
+    def center(self) -> Array:
+        """N by 2 midpoints of the elements."""
+        return (self.start + self.end) / 2
 
     def subset(self, elements: NDArray[np.intp], present: NDArray[np.intp]) -> Mesh:
         """Mesh of ``elements`` alone, their conductors renumbered by rank in ``present``."""

@@ -14,6 +14,7 @@ from shapely import MultiPolygon, STRtree
 from connflex_core.electrostatics.outlines import Mesh
 from connflex_core.electrostatics.pairs import pair_derivatives, pair_integrals
 from connflex_core.electrostatics.translates import KEY_GRID, canonical, repivot, taylor
+from connflex_core.electrostatics.windows import around, center_tree
 
 Array = NDArray[np.float64]
 Complex = NDArray[np.complex128]
@@ -228,7 +229,7 @@ def find_rows(regions: Sequence[MultiPolygon], mesh: Mesh, reach: float, fewest:
                         shift = -shift
                     key = (round(shift[0] / GRID), round(shift[1] / GRID))
                     runs.setdefault(key, []).append((conductor, points, shift))
-    center = (mesh.start + mesh.end) / 2
+    center = mesh.center
     tree = STRtree(np.asarray(shapely.points(center)))
     arrays: list[Row] = []
     for found in runs.values():
@@ -416,7 +417,7 @@ def near_rows(rows: Sequence[Row], mesh: Mesh, elements: Index, reach: float) ->
     another, and those beside its cells groups as long as the fewest whole cells that
     span ``reach``, counted from the first. Elements near no row form the last group.
     """
-    center = (mesh.start + mesh.end) / 2
+    center = mesh.center
     points = center[elements]
     tree = STRtree(np.asarray(shapely.points(points)))
     nearest = np.full(len(elements), np.inf)
@@ -463,7 +464,7 @@ def interior_cells(
     runs less ``reach`` at both ends, equation (165); ``mesh``, ``rest``, and ``body`` as
     for ``solve_rows``."""
     turn = _turns_of(mesh, rest, body)
-    center = (mesh.start + mesh.end) / 2
+    center = mesh.center
     kept = []
     for row in rows:
         along = row.period / np.linalg.norm(row.period)
@@ -516,6 +517,7 @@ def solve_rows(
     capacitance, gradient, hessian, charge = totals
     turn = _turns_of(mesh, rest, body)
     counted = kept if kept is not None else [np.ones(len(row.cells), dtype=bool) for row in rows]
+    tree = center_tree(mesh)
     families: dict[bytes, list[tuple[Row, NDArray[np.bool_]]]] = {}
     for row, mask in zip(rows, counted, strict=True):
         middle = row.cells[row.middle]
@@ -536,7 +538,7 @@ def solve_rows(
             for b in np.unique(body[mesh.conductor[first.cells[pick]]]).tolist()
         }
         found, order, present, moving = _cell(
-            mesh, first.cells[pick], body, spots, first, reach, cache
+            mesh, tree, first.cells[pick], body, spots, first, reach, cache
         )
         held, flat, curve, cell_charge = found
         size, rigid = len(present), len(moving)
@@ -590,6 +592,7 @@ def _placed(turn: dict[int, tuple[float, complex, complex]], b: int, point: comp
 
 def _cell(
     mesh: Mesh,
+    tree: STRtree,
     middle: Index,
     body: Index,
     spots: dict[int, complex],
@@ -599,11 +602,12 @@ def _cell(
 ) -> tuple[tuple[Array, ...], Index, Index, Index]:
     """Capacitance, gradient, Hessian, and element charges of the middle cell in an order
     that congruent cells share, with that order, its conductors, and its bodies; the
-    derivatives in turn come from a window around it, equation (155)."""
+    derivatives in turn come from a window around it, equation (155). ``tree`` indexes
+    the element centers of ``mesh``."""
     from connflex_core.electrostatics.dense import charge_derivatives, solve_charges
     from connflex_core.progress import quiet
 
-    center = (mesh.start + mesh.end) / 2
+    center = mesh.center
     reference = center[middle].mean(axis=0)
     order, present, moving, kinds, key = canonical(mesh, middle, body, reference, spots)
     key += np.round(np.asarray(row.period) / KEY_GRID).astype(np.int64).tobytes()
@@ -615,8 +619,7 @@ def _cell(
         cache[key] = (charges.capacitance, slope, bend, charges.charge)
     held, slope, bend, charge = cache[key]
     overlap = max(reach, 2 * float(np.linalg.norm(row.period)))
-    low, high = center[middle].min(axis=0) - overlap, center[middle].max(axis=0) + overlap
-    inside = np.flatnonzero(np.all((center >= low) & (center <= high), axis=1))
+    inside = around(tree, center, middle, overlap)
     ordered, near, moving_near, kinds_near, window_key = canonical(
         mesh, inside, body, reference, spots
     )

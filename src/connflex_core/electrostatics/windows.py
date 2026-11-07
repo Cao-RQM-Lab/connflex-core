@@ -57,7 +57,7 @@ def cut_cores(
     around a group, until that window holds at most twice ``most``. Centers are ordered
     as rounded for keys of translates, so that groups that are translates are cut alike.
     """
-    center = (mesh.start + mesh.end) / 2
+    center = mesh.center
     every = np.arange(len(mesh.conductor)) if elements is None else np.asarray(elements)
     cores, pending = [], [every]
     while pending:
@@ -77,9 +77,16 @@ def cut_cores(
 def center_tree(mesh: Mesh) -> STRtree:
     """Index of element centers, for the elements within a box, built here so that
     threads may query it."""
-    tree = STRtree(np.asarray(shapely.points((mesh.start + mesh.end) / 2)))
+    tree = STRtree(np.asarray(shapely.points(mesh.center)))
     tree.query(shapely.Point(0.0, 0.0))
     return tree
+
+
+def around(tree: STRtree, center: Array, core: Index, overlap: float) -> Index:
+    """Elements whose centers lie within ``overlap`` of the bounding box of the centers
+    of ``core``, ascending; ``tree`` indexes ``center`` as ``center_tree`` builds it."""
+    low, high = center[core].min(axis=0), center[core].max(axis=0)
+    return np.sort(tree.query(shapely.box(*(low - overlap), *(high + overlap))))
 
 
 def smallest_window(
@@ -87,10 +94,8 @@ def smallest_window(
 ) -> int:
     """Number of elements in the first window that ``solve_windows`` tries around
     ``core``; ``tree`` indexes the centers of ``mesh`` as ``center_tree`` builds it."""
-    center = (mesh.start[core] + mesh.end[core]) / 2
-    low, high = center.min(axis=0), center.max(axis=0)
     overlap = FIRST_OVERLAP * size if reach is None else min(FIRST_OVERLAP * size, reach)
-    return len(tree.query(shapely.box(*(low - overlap), *(high + overlap))))
+    return len(around(tree, mesh.center, core, overlap))
 
 
 class _Window(NamedTuple):
@@ -168,7 +173,7 @@ def solve_windows(
     and the sets of elements of the windows. ``advance`` is called once per core.
     """
     count, conductors, rigid = len(mesh.conductor), len(body), len(pivots)
-    center = (mesh.start + mesh.end) / 2
+    center = mesh.center
     tree = center_tree(mesh)
     capacitance = np.zeros((conductors, conductors))
     gradient = np.zeros((conductors, conductors, rigid, 3))
@@ -183,16 +188,12 @@ def solve_windows(
         on = np.isin(pairs, np.unique(mesh.conductor[core])).any(axis=1)
         return bool(np.any(np.isin(pairs, present).all(axis=1) & on))
 
-    def around(core: Index, overlap: float) -> Index:
-        low, high = center[core].min(axis=0), center[core].max(axis=0)
-        return np.sort(tree.query(shapely.box(*(low - overlap), *(high + overlap))))
-
     def follow(key: Hashable, core: Index, sets: WindowSets) -> Index:
         """Set of elements that window ``key`` takes where the bodies are now."""
         options = sets.sets.setdefault(key, [])
 
         def holds(elements: Index, overlap: float) -> bool:
-            needed = around(core, (1 - TRAVEL_MARGIN) * overlap)
+            needed = around(tree, center, core, (1 - TRAVEL_MARGIN) * overlap)
             if len(elements):
                 return bool(np.isin(needed, elements).all())
             return not useful(np.unique(mesh.conductor[needed]), core)
@@ -203,10 +204,10 @@ def solve_windows(
                 sets.last[key] = k
                 return options[k][0]
         overlap = sets.overlap.setdefault(key, FIRST_OVERLAP * size if reach is None else reach)
-        inside = around(core, overlap)
+        inside = around(tree, center, core, overlap)
         while len(inside) > limit and overlap > FIRST_OVERLAP * size:
             overlap /= 2
-            inside = around(core, overlap)
+            inside = around(tree, center, core, overlap)
         if len(inside) > limit:
             raise ValueError(
                 f"a window needs {len(inside)} boundary elements where the bodies are, more "
@@ -245,7 +246,7 @@ def solve_windows(
             if len(elements):
                 held = solve(elements, core)
         while windows is None:
-            inside = around(core, overlap)
+            inside = around(tree, center, core, overlap)
             if len(inside) > limit:
                 if smallest:
                     raise ValueError(

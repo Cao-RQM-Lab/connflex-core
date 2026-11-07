@@ -103,7 +103,7 @@ def solve_section(cut: Cut, thickness: float, box: float, reach: float, grading:
         rectangles.append((-margin, -2 * box, margin, -box, devices, 0.0))
     mesh = _rectangles(rectangles, flat, upright, grading)
     tolerance = 1e-9 * reach
-    middle = (mesh.start + mesh.end) / 2
+    middle = mesh.center
     own = mesh.conductor == 0
     upright_wall = (
         own & (np.abs(mesh.start[:, 0]) <= tolerance) & (np.abs(mesh.end[:, 0]) <= tolerance)
