@@ -1,9 +1,11 @@
 # Parameters
 
 Every tunable is a named field on a parameter object or an input object.
-There are no hidden constants. A test checks that this page and the fields agree. Each
-object is built in Python from keyword arguments and passed to the function
-that uses it; the library reads no settings files.
+The fixed numerical constants of the methods, which no field changes, are
+listed at the end of this page with their values. A test checks that this
+page, the fields, and the constants agree. Each object is built in Python
+from keyword arguments and passed to the function that uses it; the library
+reads no settings files.
 
 Lengths are in meters, areas in square meters, densities in kilograms per
 cubic meter, moduli in pascals, resistivities in ohm meters, resistances in
@@ -18,7 +20,7 @@ Symbols refer to the [theory of operation](theory.md).
 
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
-| `heal_distance` | $r_h$ | 10 nm | Buffer out then in on device and handle layers to close hairline gaps, equation (1). Beam candidates narrower than $r_h$ are dropped as slivers of the body opening. |
+| `heal_distance` | $r_h$ | 10 nm | Buffer out then in on device and handle layers to close hairline gaps, equation (1). Beam candidates narrower than $r_h$ are dropped as slivers of the body opening. The default assumes a process whose drawing artifacts lie below 10 nm and whose features lie far above; the simplification that follows moves a drawn arc inward by up to this. |
 | `simplify_tolerance` | $r_h$ | = `heal_distance` | Douglas–Peucker tolerance applied after healing. |
 | `release_hole_max_area` | $A_\text{min}$ | **required** | Holes inside device polygons at or below this area are release holes: they enter the release estimate, are removed from device-layer mass, and are filled for connectivity and beam extraction. Holes are identified before healing and once more after it. |
 | `release_distance` | $d$ | **required** | Isotropic undercut of the surviving buried oxide, equation (2). |
@@ -41,7 +43,7 @@ stiffness uses the device-layer material.
 | `Layer.thickness` | $t_l$ | **required** | Layer thickness, equations (5) and (8). |
 | `Material.density` | $\rho_l$ | silicon 2330, oxide 2200 | Mass density, equation (5). |
 | `Material.youngs_modulus` | $E$ | 169 GPa for silicon | Young's modulus. Silicon's default is the in-plane $\langle 110 \rangle$ value; beams along $\langle 100 \rangle$ see about 130 GPa. |
-| `Material.poisson_ratio` | $\nu$ | 0.28 | Used to derive $G = E / (2(1 + \nu))$ when `shear_modulus` is not given. |
+| `Material.poisson_ratio` | $\nu$ | 0.28 | Used to derive $G = E / (2(1 + \nu))$ when `shear_modulus` is not given. Silicon is cubic, not isotropic: the derived 66 GPa lies between its 79.6 GPa through the thickness and 50.9 GPa in the plane for a $\langle 110 \rangle$ beam, so pass `shear_modulus` for the orientation when torsion matters. |
 | `Material.shear_modulus` | $G$ | derived | Shear modulus for the torsional term, equation (19). |
 | `Material.torsion_beta` | $\beta$ | 0.63 | Short-beam torsional stiffening coefficient, equation (21). Zero disables the correction. |
 | `Material.resistivity` | $\rho_e$ | none | Electrical resistivity. Sets resistance of beam links, equation (41); without it that resistance is unknown. Only the device layer's value is used. |
@@ -64,7 +66,7 @@ keyword overrides.
 | --- | --- | --- | --- |
 | `ambient_permittivity` | $\varepsilon_a$ | 1 | Relative permittivity of the medium that fills released gaps and trenches, equations (43) and (61). |
 | `element_size` | $h$ | none | Longest boundary element on conductor outlines, equation (73). Required when a pair of nets is solved by the field method, in one dense system or in windows; a structure whose pairs are all taken as plates needs none. Half of the narrowest trench is a starting value: computed capacitance rises toward the exact one as it shrinks. |
-| `corner_grading` | $g$ | 16 | Ratio of `element_size` to the element length asked for at a convex corner of a right angle or sharper, equation (72). 1 disables refinement. |
+| `corner_grading` | $g$ | 16 | Ratio of `element_size` to the element length asked for at a convex corner of a right angle or sharper, equation (72). 1 disables refinement. Also grades the elements of fringe cross-sections toward the corners of each block, equations (157) to (159). |
 | `max_elements` | | 8000 | Most boundary elements solved as one dense system. Memory grows with its square and time with its cube. Pairs asked to be dense whose problem needs more are solved in windows, equations (91) to (96), and reported as windowed; no window grows past this number. |
 | `window_elements` | $n_w$ | 500 | Most boundary elements in the core of a window. Each window is one dense solution of its core and the elements around it, and supplies the charge on its core, equation (92). Smaller cores mean more and smaller solutions. |
 | `window_tolerance` | $\tau$ | 0.001 | The overlap of a window around its core doubles until the charge on the core changes by less than this fraction, equation (96), or the overlap reaches `interaction_distance`. |
@@ -160,7 +162,7 @@ points are breakpoints of the integration.
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
 | `times` | | **required** | Times of the points in seconds, strictly ascending. |
-| `values` | | **required** | Value at each time, in volts for a source. |
+| `values` | | **required** | Value at each time, in volts for a `Source`, amperes for a `CurrentSource`. |
 
 ## `Wire`
 
@@ -177,7 +179,11 @@ A connection made off the die between two pads, passed to `extract` in
 
 Each object validates itself on construction and raises `ValueError` naming
 the field: lengths, areas, thicknesses, densities, moduli, and resistivity are positive;
+`0 <= poisson_ratio < 0.5`; `beam_width_min >= 0` and
 `beam_width_min < beam_width_max`; `beam_overlap_margin < body_min_width / 2`;
+`buffer_resolution >= 1`; `precision_grid > 0` when given; `anchor` a
+nonnegative index or an `(x, y)` pair when given; `n_modes >= 1` when given
+and `method` one of `"dense"`, `"sparse"` of `SolveOptions`;
 `torsion_beta >= 0`; `via_resistance >= 0`; `relative_permittivity >= 1`;
 `ambient_permittivity >= 1`; `element_size > 0` and `interaction_distance > 0`
 when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
@@ -189,7 +195,51 @@ when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
 `0 < contact_clearance < 1` of `TransientOptions`; `resistance >= 0` of a
 `Source`, and `resistance > 0` when it has a `switch`; `resistance > 0` of a
 `Resistor` and `capacitance > 0` of a `Capacitor`; `Switch` and
-`PiecewiseLinear` times strictly ascending, as many values as times for the
-latter; a `Wire` end is `(x, y)` or `(x, y, layer)` with layer
-`"device"` or `"handle"`, and its `resistance >= 0`; every stack layer has a
-thickness.
+`PiecewiseLinear` times finite and strictly ascending, at least one point and
+as many values as times for the latter; a `Wire` end is `(x, y)` or
+`(x, y, layer)` with layer `"device"` or `"handle"`, and its
+`resistance >= 0`; every stack layer has a thickness.
+
+## Constants
+
+Fixed constants of the methods, none of them a field. Each is a count, a
+ratio of lengths, or a rounding grid far below any feature, so none ties the
+library to a process; the theory page states the role of each where it
+enters, and the synthetic tests that set it. A test checks the values.
+
+| Constant | Value | Role |
+| --- | --- | --- |
+| `electrostatics.VACUUM_PERMITTIVITY` | 8.8541878188e-12 | Permittivity of free space, farads per meter. |
+| `electrostatics.kernel.SERIES_ORDER` | 7 | Terms of the far-field series of the pair integral, equation (69). |
+| `electrostatics.kernel.SERIES_REACH` | 0.125 | Pairs whose center distance is at least the sum of their lengths over twice this use the series; the remainder is about $2 \times 10^{-16}$ of $L_i L_j$. |
+| `electrostatics.dense.PAIRS_PER_PASS` | 250000 | Element pairs integrated per pass of the numpy kernel, for memory. |
+| `electrostatics.dense.DERIVATIVE_PAIRS_PER_PASS` | 40000 | Element pairs differentiated per pass of the numpy kernel, for memory. |
+| `electrostatics.outlines.VANISHING` | 1e-06 | Fraction of `element_size` below which two consecutive outline vertices are one, equation (72). |
+| `electrostatics.translates.KEY_GRID` | 1e-11 | Grid in meters that coordinates are rounded to in the keys of translates and in the cutting of cores, equation (91). |
+| `electrostatics.windows.FIRST_OVERLAP` | 4.0 | First overlap of a window in element sizes, $4 h$, equation (96). |
+| `electrostatics.windows.TRAVEL_MARGIN` | 0.25 | Fraction $\mu$ of its overlap that a window gives up to travel before it takes a new set of elements, equation (164). |
+| `electrostatics.facing.STEEPEST` | 10.0 | Slope of a wall seen from another above which it counts as open rather than as a plate, equation (101). |
+| `electrostatics.facing.RUN_JUMP` | 0.5 | Fraction of a gap within which consecutive pieces join into one run for the feature size, equation (105). |
+| `electrostatics.facing.SERIES_TERMS` | 13 | Terms of the series for the second factor of (102) below `SERIES_BELOW`. |
+| `electrostatics.facing.SERIES_BELOW` | 0.25 | Argument of (102) below which its second factor is summed from its series. |
+| `electrostatics.facing.PIECES_PER_PASS` | 8000 | Facing pieces integrated per pass, for memory. |
+| `electrostatics.periodic.LONGEST_MOTIF` | 16 | Most edges in the repeating unit of an outline that is found as a row, equation (153). |
+| `electrostatics.periodic.GRID` | 1e-10 | Grid in meters on which edges are compared and runs are grouped for rows. |
+| `electrostatics.periodic.IMAGES` | 2 | Copies $K$ on either side that enter the periodic kernel through the exact pair integral, equation (152). |
+| `electrostatics.periodic._SMALL` | 0.25 | Argument below which the remainder of (152) is summed from its series. |
+| `electrostatics.periodic._FAR` | 20.0 | Imaginary part of the argument beyond which the remainder of (152) takes its asymptotic form. |
+| `electrostatics.section.WALL_ELEMENTS` | 8 | Elements over the height of a wall in a cross-section, equation (157). |
+| `electrostatics.section.HANDLE_MARGIN` | 4.0 | Device thicknesses the handle slab of a cross-section reaches past the cut, equation (157). |
+| `electrostatics.fringe.KEY_STEPS` | 4 | Fraction of the smallest of thickness, box, and narrowest gap that cuts are rounded to, equation (160). |
+| `electrostatics.fringe.ITEMS_PER_PASS` | 400 | Cuts assembled per pass, for memory. |
+| `electrostatics.capacitance.SAFETY` | 0.8 | Factor on the radius that the expansion error of a kept solution allows, equation (150). |
+| `geometry.heal.RESIDUE` | 1e-12 | Distance in meters from the line through its neighbors below which a vertex left by the body opening is dropped, equation (3). |
+| `coupled.static.HALVINGS` | 12 | Most halvings of one Newton step that would close a gap, equation (121). |
+| `coupled.transient.RETRIES` | 8 | Most retries of a step that closed a gap, each four times shorter, before a contact event. |
+| `coupled.transient.CACHE` | 16 | Displacements whose capacitance model a transient keeps for repeats. |
+
+Comparisons of coordinates allow $10^{-9}$ of a length or of the reach in
+several places, and cuts of the fringe $10^{-6}$ of the reach; the transient
+takes a node as leaking when its conductance exceeds $10^{-9}$ of the
+largest, differentiates a callable waveform over $10^{-7}$ of the run, and
+finds a contact time to $10^{-12}$ of a step.

@@ -1,6 +1,7 @@
 """Parameters page and configuration classes must list the same fields."""
 
 import dataclasses
+import importlib
 import re
 from pathlib import Path
 
@@ -106,3 +107,14 @@ def test_every_field_is_described_in_the_class_docstring(cls: type) -> None:
     attributes = doc.split("Attributes:")[1]
     described = set(re.findall(r"^\s+(\w+):", attributes, flags=re.M))
     assert described == field_names(cls)
+
+
+def test_constants_match_the_modules() -> None:
+    sections = re.split(r"^## ", PAGE.read_text(), flags=re.M)
+    section = next(s for s in sections if s.startswith("Constants"))
+    rows = re.findall(r"^\| `([\w.]+)` \| ([^|]+) \|", section, flags=re.M)
+    assert len(rows) >= 25
+    for name, value in rows:
+        module, attr = name.rsplit(".", 1)
+        found = getattr(importlib.import_module("connflex_core." + module), attr)
+        assert float(found) == float(value), name
