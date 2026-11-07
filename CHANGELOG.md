@@ -22,6 +22,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The expansion of a rounded fringe cut carries the body a wall faces by the
+  gap ahead of the wall, as the rate it is given assumes, also where that
+  body has silicon nearer behind the wall; the rounding residual was taken
+  from the nearer end there, which made the error first order in the grid.
 - The clearance of a tilted plate, equation (126), is the gap at the corner
   of its overlap that comes closest, found over the vertices of the overlap's
   hull, where it was the gap at a corner of the bounding box of the overlap:

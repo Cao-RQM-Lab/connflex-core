@@ -3053,8 +3053,9 @@ y_b)$ the center of body $b$, as a plate does at its reference point (46).
 
 Every piece of wall that faces another conductor, (99) to (101), is cut at its
 middle and counts with its length $L$; the offset of the body it faces is the
-gap of (103) at that middle, and those of other bodies their travel along the
-cut, as if their walls were square to it. A piece whose ends are ends of its
+gap of (102) at that middle, measured to the end of its silicon ahead of the
+wall even where that body has silicon nearer behind it, and those of other
+bodies their travel along the cut, as if their walls were square to it. A piece whose ends are ends of its
 own edge, from 0 to $a$ along it, and of the edge it faces, from $b_1$ to
 $b_2$, has its length rounded over $\lambda = g_0$ where ends pass,
 

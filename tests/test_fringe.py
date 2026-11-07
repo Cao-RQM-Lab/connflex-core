@@ -14,6 +14,7 @@ from connflex_core import (
     Structure,
     extract,
 )
+from connflex_core.electrostatics import fringe
 from connflex_core.electrostatics.section import Cut, solve_section
 
 UM = 1e-6
@@ -140,6 +141,19 @@ def test_fringe_derivatives_are_slopes_of_the_model(comb: Structure) -> None:
             softening = -(ahead.force(potentials) - behind.force(potentials)) / (2 * step[dof])
             scale = np.sqrt(abs(np.diag(stiffness) * stiffness[dof, dof]))
             assert np.all(abs(stiffness[:, dof] - softening) < 2e-3 * abs(softening) + 1e-5 * scale)
+
+
+def test_faced_body_is_carried_by_the_gap_ahead_of_the_wall() -> None:
+    """A cut across a wall facing a finger whose own silicon lies nearer behind the wall:
+    the faced body is expanded from the end of its silicon ahead, whose rate the
+    expansion applies, not from its nearest end, equation (160)."""
+    plan = fringe.FringePlan((), np.zeros(0, dtype=np.intp), 25 * UM, BOX, 30 * UM, 16.0)
+    spans = [[-5.4 * UM, -3.4 * UM, 1], [-2 * UM, 0.0, 0], [4.4 * UM, 6.4 * UM, 1]]
+    cutting = fringe._keyed(spans, 0, 1, np.array([0, 1]), -1, plan, 2)
+    assert cutting.faced == 1
+    assert cutting.position[1] == pytest.approx(4.4 * UM)
+    assert cutting.offset[1] == pytest.approx(-0.1 * UM)
+    assert cutting.position[0] == 0.0  # the wall itself
 
 
 def test_handle_lifts_fingers_and_alignment_holds_without_it(comb: Structure) -> None:

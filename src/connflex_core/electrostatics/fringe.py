@@ -425,6 +425,14 @@ def _keyed(
         for actual, rounded in ((low[k], rounded_low[k]), (high[k], rounded_high[k])):
             if abs(abs(actual) - reach) > 1e-6 * reach and abs(actual) < nearest[slot]:
                 nearest[slot], position[slot], offset[slot] = abs(actual), actual, actual - rounded
+    if faced >= 0 and faced in labels:
+        # The faced body is carried by the gap ahead, equation (160), wherever its
+        # nearest silicon lies: the rate of that variable is the gap's.
+        ahead = [k for k, span in enumerate(spans) if int(span[2]) == faced and low[k] > 0]
+        if ahead:
+            k = min(ahead, key=lambda k: low[k])
+            slot = bodies[int(body[faced])]
+            nearest[slot], position[slot], offset[slot] = low[k], low[k], low[k] - rounded_low[k]
     label = np.array([labels[int(span[2])] for span in spans], dtype=np.intp)
     body_label = np.array([bodies[b] for b in owned], dtype=np.intp)
     cut = Cut(rounded_low, rounded_high, label, body_label, handle >= 0, faced >= 0)
