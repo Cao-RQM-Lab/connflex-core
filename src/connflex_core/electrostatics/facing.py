@@ -222,10 +222,7 @@ def _pieces(
     for each piece the slot of each of its four bodies, how many slots it uses, and the
     body in each slot."""
     start, end, conductor, outward = outline_edges(regions)
-    along = end - start
-    length = np.hypot(along[:, 0], along[:, 1])
-    tangent = along / length[:, None]
-    normal = outward[:, None] * np.stack([tangent[:, 1], -tangent[:, 0]], axis=1)
+    length, tangent, normal = edge_frames(start, end, outward)
     pieces = _visible(start, end, conductor, length, tangent, normal, reach)
 
     # Bodies of a piece: of its edge, of the edge it faces, and of the edges that set
@@ -279,8 +276,19 @@ def maxwell(between: Array) -> Array:
     return matrix
 
 
+def edge_frames(start: Array, end: Array, outward: Array) -> tuple[Array, Array, Array]:
+    """Length, unit tangent, and outward unit normal of edges from ``start`` to ``end``
+    whose outward side ``outward`` gives as the sign of the right-hand normal."""
+    along = end - start
+    length = np.hypot(along[:, 0], along[:, 1])
+    tangent = along / length[:, None]
+    normal = outward[:, None] * np.stack([tangent[:, 1], -tangent[:, 0]], axis=1)
+    return length, tangent, normal
+
+
 def outline_edges(regions: Sequence[MultiPolygon]) -> tuple[Array, Array, Index, Array]:
-    """Start, end, conductor, and side of the outward normal of every outline edge."""
+    """Start, end, conductor, and side of the outward normal of every outline edge, the
+    edges of zero length left out."""
     starts, ends, owners, sides = [], [], [], []
     for index, region in enumerate(regions):
         rings, polygon_of = shapely.get_rings(shapely.get_parts(region), return_index=True)

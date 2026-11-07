@@ -13,6 +13,7 @@ from shapely import MultiPolygon, Polygon, STRtree
 from shapely.geometry.base import BaseGeometry
 
 from connflex_core.electrostatics import VACUUM_PERMITTIVITY
+from connflex_core.electrostatics.facing import edge_frames, outline_edges
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.geometry.release import openings_within
 from connflex_core.mechanics.inertia import AreaMoments, area_moments
@@ -218,22 +219,10 @@ def _crossings(
 
     Returns start points, end points, and the unit normal out of ``under`` of each piece.
     """
-    rings, polygon_of = shapely.get_rings(shapely.get_parts(under), return_index=True)
-    coords, ring_of = shapely.get_coordinates(rings, return_index=True)
-    edge = ring_of[:-1] == ring_of[1:]
-    start, end, ring = coords[:-1][edge], coords[1:][edge], ring_of[:-1][edge]
-    cross = start[:, 0] * end[:, 1] - end[:, 0] * start[:, 1]
-    exterior = np.ones(rings.size, dtype=bool)
-    exterior[1:] = polygon_of[1:] != polygon_of[:-1]
-    counterclockwise = np.bincount(ring, weights=cross, minlength=rings.size) > 0
-    outward = np.where(exterior == counterclockwise, 1.0, -1.0)[ring]
-    along = end - start
-    length = np.hypot(along[:, 0], along[:, 1])
-    kept = length > 0
-    normals = outward[kept, None] * np.stack([along[kept, 1], -along[kept, 0]], axis=1)
-    normals /= length[kept, None]
+    start, end, _, outward = outline_edges([under])
+    _, _, normals = edge_frames(start, end, outward)
 
-    lines = np.asarray(shapely.linestrings(np.stack([start[kept], end[kept]], axis=1)))
+    lines = np.asarray(shapely.linestrings(np.stack([start, end], axis=1)))
     shapely.prepare(silicon)
     inside = np.flatnonzero(shapely.intersects(lines, silicon))
     pieces = np.asarray(shapely.intersection(lines[inside], silicon))

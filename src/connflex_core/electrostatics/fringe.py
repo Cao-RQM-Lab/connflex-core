@@ -11,7 +11,7 @@ import shapely
 from numpy.typing import NDArray
 from shapely import MultiPolygon, Polygon, STRtree
 
-from connflex_core.electrostatics.facing import facing_runs, outline_edges
+from connflex_core.electrostatics.facing import edge_frames, facing_runs, outline_edges
 from connflex_core.electrostatics.jets import Jet
 from connflex_core.electrostatics.section import Cut, Section, solve_section
 from connflex_core.electrostatics.translates import KEY_GRID
@@ -139,10 +139,7 @@ def find_fringe(
     count = devices + len(plan.handle)
     runs = facing_runs(regions, body, pivots, plan.reach, plan.box)
     start, end, conductor, outward = outline_edges(regions)
-    along = end - start
-    length = np.hypot(along[:, 0], along[:, 1])
-    tangent = along / length[:, None]
-    normal = outward[:, None] * np.stack([tangent[:, 1], -tangent[:, 0]], axis=1)
+    length, tangent, normal = edge_frames(start, end, outward)
     middle = (start + end) / 2
 
     # Edges carried back to rest with the body of their conductor.
