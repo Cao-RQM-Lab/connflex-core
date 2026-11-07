@@ -76,8 +76,10 @@ def solve_section(cut: Cut, thickness: float, box: float, reach: float, grading:
     Every interval is a block of silicon of the full thickness; the handle is a slab
     under all of them that reaches ``HANDLE_MARGIN`` times ``thickness`` past the cut
     of ``reach`` on either side. Elements are at most a ``WALL_ELEMENTS``-th of the
-    thickness on walls and no longer than ``box`` on faces, and shorten toward corners
-    by ``grading``.
+    thickness on walls and on faces away from features, at most the smaller of that
+    and ``box`` on faces where they pass the wall or the edge of a block, and shorten
+    toward corners by ``grading``. The slab is so meshed under every block edge, and
+    the derivatives hold that mesh where it is.
     """
     devices = int(np.max(cut.label)) + 1
     conductors = cut.conductors
@@ -98,7 +100,7 @@ def solve_section(cut: Cut, thickness: float, box: float, reach: float, grading:
     ]
     if cut.handle:
         margin = reach + HANDLE_MARGIN * thickness
-        rectangles.append((-margin, -2 * box, margin, -box, devices, None))
+        rectangles.append((-margin, -2 * box, margin, -box, devices, 0.0))
     mesh = _rectangles(rectangles, flat, upright, grading)
     tolerance = 1e-9 * reach
     middle = (mesh.start + mesh.end) / 2
@@ -191,25 +193,31 @@ def _rectangles(
     grading: float,
 ) -> Mesh:
     """Elements on the outlines of axis-aligned rectangles, counterclockwise, at most
-    ``flat`` long on horizontal sides and ``upright`` on vertical ones, shortening to
-    the smaller over ``grading`` at corners. A rectangle with a split point gets a node
-    there on its top and bottom."""
+    ``upright`` long on vertical sides and on horizontal sides away from features, at
+    most ``flat`` long on horizontal sides where they pass under or over the edge of
+    another rectangle or a split point, and shortening to the smaller over ``grading``
+    at corners. A rectangle with a split point gets a node there on its top and bottom.
+    Blocks do not overlap, so only a slab that spans them is meshed to their edges."""
     corner = min(flat, upright) / grading
+    edges = sorted({u for low_u, _, high_u, *_ in rectangles for u in (low_u, high_u)})
     starts, ends, owners = [], [], []
     for low_u, low_z, high_u, high_z, owner, split in rectangles:
-        stops = [low_u, high_u] if split is None else [low_u, split, high_u]
+        inner = {u for u in edges if low_u < u < high_u}
+        if split is not None:
+            inner.add(split)
+        stops = [low_u, *sorted(inner), high_u]
         bottom = list(pairwise(stops))
         top = [(b, a) for a, b in reversed(bottom)]
         ends_of = (low_u, high_u)
-        sides = [((a, low_z), (b, low_z), flat, a in ends_of, b in ends_of) for a, b in bottom]
-        sides.append(((high_u, low_z), (high_u, high_z), upright, True, True))
-        sides += [((a, high_z), (b, high_z), flat, a in ends_of, b in ends_of) for a, b in top]
-        sides.append(((low_u, high_z), (low_u, low_z), upright, True, True))
-        for first, last, size, left, right in sides:
+        sides = [((a, low_z), (b, low_z), a in ends_of, b in ends_of) for a, b in bottom]
+        sides.append(((high_u, low_z), (high_u, high_z), True, True))
+        sides += [((a, high_z), (b, high_z), a in ends_of, b in ends_of) for a, b in top]
+        sides.append(((low_u, high_z), (low_u, low_z), True, True))
+        for first, last, left, right in sides:
             begin, finish = np.array(first), np.array(last)
             length = float(np.linalg.norm(finish - begin))
             fractions = edge_fractions(
-                length, corner if left else size, corner if right else size, size
+                length, corner if left else flat, corner if right else flat, upright
             )
             nodes = begin + fractions[:, None] * (finish - begin)
             starts.append(nodes[:-1])

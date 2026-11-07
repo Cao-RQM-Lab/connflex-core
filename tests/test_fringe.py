@@ -14,7 +14,7 @@ from connflex_core import (
     Structure,
     extract,
 )
-from connflex_core.electrostatics import fringe
+from connflex_core.electrostatics import fringe, section
 from connflex_core.electrostatics.section import Cut, solve_section
 
 UM = 1e-6
@@ -89,22 +89,47 @@ def test_cross_section_excess_stays_bounded_as_walls_grow_tall() -> None:
 
 
 def test_cross_section_derivatives_match_finite_differences() -> None:
-    """Travel of the far wall along the normal and rise of the near one, with the
-    handle beneath; without it the field is even about mid-height and pulls no way."""
+    """Travel of the far wall along the normal and rise of the near one, without the
+    handle, where the field is even about mid-height and pulls no way, and with it. The
+    slab beneath is meshed finely under every block edge, so a finite difference that
+    moves a block also moves that mesh, by about a percent of the derivative; the
+    derivatives hold the mesh where it is."""
     level = solve_section(walls(False), 25 * UM, BOX, 30 * UM, 16.0)
     assert level.gradient[:, 0, 1] == pytest.approx(0.0, abs=1e-9 * np.max(abs(level.gradient)))
     assert level.hessian[1, 0, 1, 0, 1] > 0
-    base = solve_section(walls(True), 25 * UM, BOX, 30 * UM, 16.0)
     step = 1e-3
-    ahead = solve_section(walls(True, step), 25 * UM, BOX, 30 * UM, 16.0)
-    behind = solve_section(walls(True, -step), 25 * UM, BOX, 30 * UM, 16.0)
-    step *= UM
-    slope = (ahead.value - behind.value) / (2 * step)
-    assert base.gradient[:, 1, 0] == pytest.approx(slope, rel=1e-6, abs=1e-9 * np.max(abs(slope)))
-    bend = (ahead.gradient - behind.gradient) / (2 * step)
-    assert base.hessian[:, :, :, 1, 0] == pytest.approx(
-        bend, rel=1e-5, abs=1e-8 * np.max(abs(bend))
+    for handle, tolerance, curvature in ((False, 1e-6, 1e-5), (True, 2e-2, 5e-2)):
+        base = solve_section(walls(handle), 25 * UM, BOX, 30 * UM, 16.0)
+        ahead = solve_section(walls(handle, step), 25 * UM, BOX, 30 * UM, 16.0)
+        behind = solve_section(walls(handle, -step), 25 * UM, BOX, 30 * UM, 16.0)
+        slope = (ahead.value - behind.value) / (2 * step * UM)
+        assert base.gradient[:, 1, 0] == pytest.approx(
+            slope, rel=tolerance, abs=tolerance * np.max(abs(slope))
+        )
+        bend = (ahead.gradient - behind.gradient) / (2 * step * UM)
+        assert base.hessian[:, :, :, 1, 0] == pytest.approx(
+            bend, rel=curvature, abs=curvature * np.max(abs(bend))
+        )
+
+
+def test_cross_section_faces_coarsen_away_from_features() -> None:
+    """A thin box under a thick layer once meshed every face at the box height along
+    the whole slab; faces now coarsen away from the wall and the block edges, and the
+    excess is that of the fine mesh to a few tenths of a percent."""
+    found = solve_section(walls(True), 200 * UM, 0.3 * UM, 30 * UM, 16.0)
+    assert -found.value[1] == pytest.approx(0.5109, rel=1e-2)  # every face at the box height
+    assert -found.value[2] == pytest.approx(1.9359, rel=1e-2)
+    mesh = section._rectangles(
+        [
+            (-30 * UM, 0.0, 0.0, 200 * UM, 0, -15 * UM),
+            (4 * UM, 0.0, 26 * UM, 200 * UM, 1, None),
+            (-230 * UM, -0.6 * UM, 230 * UM, -0.3 * UM, 2, 0.0),
+        ],
+        0.3 * UM,
+        25 * UM,
+        16.0,
     )
+    assert len(mesh.conductor) < 400
 
 
 def test_fringe_is_a_symmetric_part_of_the_matrix(comb: Structure) -> None:

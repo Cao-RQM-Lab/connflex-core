@@ -82,6 +82,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   element centers rather than by testing every element of the mesh.
 - Hessian blocks are mapped onto body degrees of freedom by matrix products
   rather than by an `einsum` over six indices.
+- Cross-section faces are meshed at the box height only where they pass the
+  wall or the edge of a block, and coarsen to an eighth of the device
+  thickness away from them; the handle slab is so meshed under every block
+  edge. A cut with a thin box under a thick layer takes a few hundred
+  elements instead of thousands, at a few tenths of a percent of its excess.
 - Fringe cuts are keyed on a grid of a quarter of the smallest of device
   thickness, released gap, and narrowest sidewall gap of their group, from a
   sixteenth of the smaller of the first two; their expansion carries the
