@@ -12,7 +12,7 @@ from shapely import MultiPolygon, Polygon, STRtree
 
 from connflex_core.electrostatics import VACUUM_PERMITTIVITY
 from connflex_core.electrostatics.dense import Enter, charge_derivatives, solve_charges
-from connflex_core.electrostatics.facing import FacingWalls, facing_plates, feature_sizes
+from connflex_core.electrostatics.facing import FacingWalls, facing_plates, feature_sizes, maxwell
 from connflex_core.electrostatics.outlines import Mesh, mesh_outlines
 from connflex_core.electrostatics.periodic import (
     Row,
@@ -389,9 +389,9 @@ def solve_sidewalls(
         feature[a, b] = feature[b, a] = plan.feature_size[k]
         method[a, b] = method[b, a] = plan.method[k]
     result = SidewallCapacitance(
-        capacitance=permittivity * _maxwell(between),
-        gradient=permittivity * _maxwell(slopes),
-        hessian=permittivity * _maxwell(bends),
+        capacitance=permittivity * maxwell(between),
+        gradient=permittivity * maxwell(slopes),
+        hessian=permittivity * maxwell(bends),
         centers=pivots,
         feature_size=feature,
         method=method,
@@ -431,14 +431,6 @@ def _reach(params: ElectrostaticParams) -> float:
     if params.interaction_distance is None:
         raise ValueError("interaction_distance is required for sidewall capacitance")
     return params.interaction_distance
-
-
-def _maxwell(between: Array) -> Array:
-    """Capacitance matrix from capacitances between pairs, equation (108)."""
-    matrix = -between
-    diagonal = np.arange(len(between))
-    matrix[diagonal, diagonal] = between.sum(axis=1)
-    return matrix
 
 
 def _arranged(

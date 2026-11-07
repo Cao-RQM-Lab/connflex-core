@@ -141,9 +141,9 @@ def facing_plates(
                         )
     walls = _walls(edges, pieces, left, right, gap)
     return (
-        _maxwell(between),
-        _maxwell(slopes).reshape(count, count, rigid, 3),
-        _maxwell(bends).reshape(count, count, rigid, 3, rigid, 3),
+        maxwell(between),
+        maxwell(slopes).reshape(count, count, rigid, 3),
+        maxwell(bends).reshape(count, count, rigid, 3, rigid, 3),
         walls,
     )
 
@@ -270,8 +270,9 @@ def _walls(
     )
 
 
-def _maxwell(between: Array) -> Array:
-    """Capacitance matrix from capacitances between pairs: negated, diagonal the row sums."""
+def maxwell(between: Array) -> Array:
+    """Capacitance matrix from capacitances between pairs, equation (108): negated, with
+    the row sums on the diagonal."""
     matrix = -between
     diagonal = np.arange(len(between))
     matrix[diagonal, diagonal] = between.sum(axis=1)
