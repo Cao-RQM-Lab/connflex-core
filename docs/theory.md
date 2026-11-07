@@ -2933,6 +2933,14 @@ which are solved once.
     capacitance $5 \times 10^{-4}$ high and windows of 30 micrometers $1.5
     \times 10^{-3}$.
 
+    Across the row, $R_K$ and its derivatives are evaluated from $\ln \sin$
+    directly while $|\operatorname{Im}(\pi w / p)| \le 20$, and from the
+    asymptotic forms $\ln |\sin x| = |\operatorname{Im} x| - \ln 2$,
+    $\cot x = -i \operatorname{sign}(\operatorname{Im} x)$, and
+    $1 / \sin^2 x = 0$ beyond, which hold there to rounding; the sine itself
+    would overflow a few hundred periods across, where a body carried far
+    out of its row would otherwise return no finite capacitance.
+
     Rows cost least where windows would solve many copies of one window:
     a row is one cell, and translated windows are one solution. With
     bodies turned, windows that were translates at rest no longer are and

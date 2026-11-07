@@ -247,16 +247,21 @@ class CapacitanceModel:
         rows of identical cells follow travel, equations (164) and (165). With
         ``surrogate_tolerance`` set, clusters solved by the field method come from the
         expansion of an earlier solution where it holds, equations (148) to (150), unless
-        ``exact``. Bodies that touch are an error. ``workers`` threads solve the pieces,
-        as many as at rest by default. Stage sidewalls logs through the ``connflex_core``
-        logger and reports to ``progress`` as it does at rest.
+        ``exact``. Bodies that touch are an error, and so is a displacement at which the
+        model is not finite. ``workers`` threads solve the pieces, as many as at rest by
+        default. Stage sidewalls logs through the ``connflex_core`` logger and reports to
+        ``progress`` as it does at rest.
         """
         moved = np.asarray(displacement, dtype=float)
         if moved.shape != (len(self.dofs),):
             raise ValueError(
                 f"displacement must hold one value for each of {len(self.dofs)} degrees of freedom"
             )
-        return _evaluate(self.rest, moved, progress, exact, workers)
+        model = _evaluate(self.rest, moved, progress, exact, workers)
+        finite = np.isfinite(model.matrix).all() and np.isfinite(model.gradient).all()
+        if not finite or not all(np.isfinite(block.values).all() for block in model.blocks):
+            raise ValueError("capacitance is not finite at this displacement")
+        return model
 
     @property
     def net_matrix(self) -> Array:

@@ -14,9 +14,10 @@ from connflex_core import (
     extract,
     sidewall_capacitance,
 )
-from connflex_core.electrostatics import windows
+from connflex_core.electrostatics import periodic, windows
 from connflex_core.electrostatics.dense import Charges, charge_derivatives, solve_charges
 from connflex_core.electrostatics.outlines import Mesh
+from connflex_core.electrostatics.periodic import _remainder
 from connflex_core.progress import quiet
 from test_equilibrium import EXTRACTION, STACK, net_at
 
@@ -180,6 +181,40 @@ def test_periodic_row_matches_whole_solution_at_rest_and_displaced(long_comb: St
             assert found.stiffness(potentials)[k, k] == pytest.approx(
                 truth.stiffness(potentials)[k, k], rel=5e-3
             )
+
+
+def test_remainder_stays_finite_far_across_the_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Across the row the periodic kernel grows without bound while sine overflows;
+    beyond a few periods the remainder takes its asymptotic form, which agrees with
+    the direct one where both can be evaluated."""
+    reach = PITCH * UM
+    for sign in (1.0, -1.0):
+        point = np.array([0.3 + sign * 18j], dtype=np.complex128) * reach / np.pi
+        direct = _remainder(point, reach)
+        monkeypatch.setattr(periodic, "_FAR", 10.0)
+        asymptotic = _remainder(point, reach)
+        monkeypatch.setattr(periodic, "_FAR", 20.0)
+        for close, beyond in zip(direct, asymptotic, strict=True):
+            assert beyond[0] == pytest.approx(close[0], rel=1e-10)
+        apart = np.array([0.3 + sign * 800j], dtype=np.complex128) * reach / np.pi
+        value, slope, curve = _remainder(apart, reach)
+        assert np.isfinite(value).all()
+        assert np.isfinite(slope).all()
+        assert np.isfinite(curve).all()
+        assert value[0] > 700
+        assert slope[0] == pytest.approx(-sign * 1j * np.pi / reach, rel=1e-2)
+        assert abs(curve[0]) < 1e-3 * (np.pi / reach) ** 2
+
+
+def test_row_evaluated_far_across_itself_stays_finite(long_comb: Structure) -> None:
+    periodic = long_comb.capacitance(WINDOWS)
+    stator, shuttle = net_at(long_comb, 0, 200), net_at(long_comb, 0, 20)
+    place = np.zeros(len(periodic.dofs))
+    place[periodic.dofs.index((1, "uy"))] = -120 * PITCH * UM
+    found = periodic.at(place)
+    assert np.isfinite(found.matrix).all()
+    assert np.isfinite(found.gradient).all()
+    assert abs(found.net_matrix[stator, shuttle]) < 1e-2 * abs(periodic.net_matrix[stator, shuttle])
 
 
 def test_windows_beside_translated_rows_are_solved_once(monkeypatch: pytest.MonkeyPatch) -> None:

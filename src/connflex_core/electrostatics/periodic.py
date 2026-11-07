@@ -27,6 +27,7 @@ _NODES, _WEIGHTS = np.polynomial.legendre.leggauss(4)
 _SPOTS = (_NODES + 1) / 2
 _SHARES = _WEIGHTS / 2
 _SMALL = 0.25
+_FAR = 20.0
 
 
 def periodic_integrals(
@@ -136,34 +137,48 @@ def _integrate(values: Array) -> Array:
 
 def _remainder(w: Complex, reach: float) -> tuple[Array, Complex, Complex]:
     """Value, slope, and curvature of the remainder of equation (152) at ``w``, the
-    separation of two points turned so that the period lies along the real axis."""
+    separation of two points turned so that the period lies along the real axis.
+
+    Below ``_SMALL`` the terms take their series in x = pi w / p; beyond ``_FAR`` across
+    the row, where the sine would overflow, they take their asymptotic form, which is
+    exact to rounding there: ln|sin x| is |Im x| - ln 2, cot x is -i sign(Im x), and
+    1 / sin^2 x vanishes.
+    """
     x = np.pi * w / reach
     small = np.abs(x) < _SMALL
-    safe = np.where(small, 1.0, x)
+    far = np.abs(x.imag) > _FAR
+    safe = np.where(small | far, 1.0, x)
     x2 = np.where(small, x * x, 0.0)
+    across = np.where(far, x, 1.0)
     log_sinc = np.where(
         small,
         -x2 / 6 - x2**2 / 180 - x2**3 / 2835 - x2**4 / 37800,
-        np.log(np.sin(safe) / safe),
+        np.where(
+            far,
+            np.abs(across.imag) - np.log(2) - np.log(np.abs(across)),
+            np.log(np.sin(safe) / safe),
+        ),
     )
     cot_less = np.where(
         small,
         -x / 3 - x * x2 / 45 - 2 * x * x2**2 / 945 - x * x2**3 / 4725,
-        np.cos(safe) / np.sin(safe) - 1 / safe,
+        np.where(
+            far, -1j * np.sign(across.imag) - 1 / across, np.cos(safe) / np.sin(safe) - 1 / safe
+        ),
     )
     csc_less = np.where(
         small,
         -1 / 3 - x2 / 15 - 2 * x2**2 / 189 - x2**3 / 675,
-        1 / safe**2 - 1 / np.sin(safe) ** 2,
+        np.where(far, 1 / across**2, 1 / safe**2 - 1 / np.sin(safe) ** 2),
     )
     value: Array = np.asarray(log_sinc.real, dtype=np.float64)
     slope: Complex = np.asarray(np.pi / reach * cot_less, dtype=np.complex128)
     curve: Complex = np.asarray((np.pi / reach) ** 2 * csc_less, dtype=np.complex128)
     for k in range(1, IMAGES + 1):
-        far = (k * reach) ** 2
-        value = value - np.log(np.abs(1 - w * w / far))
-        slope = slope + 2 * w / (far - w * w)
-        curve = curve + 2 * (far + w * w) / (far - w * w) ** 2
+        square = (k * reach) ** 2
+        value = value - np.log(np.abs(1 - w * w / square))
+        slope = slope + 2 * w / (square - w * w)
+        curve = curve + 2 * (square + w * w) / (square - w * w) ** 2
     return value, slope, curve
 
 

@@ -22,6 +22,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A body carried more than about a hundred pitches across a row of identical
+  cells no longer overflows the periodic kernel into a capacitance model of
+  infinities: the remainder of (152) takes its asymptotic form far across the
+  row, and `CapacitanceModel.at` refuses a displacement at which the model
+  is not finite.
 - `transient` from a `start` at which bodies already touch raises the model's
   `ValueError`, as `equilibrium` does, instead of a private error without a
   message.
