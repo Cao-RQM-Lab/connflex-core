@@ -570,3 +570,52 @@ def test_released_electrode_alone_over_the_handle_keeps_its_fringe() -> None:
         ElectrostaticParams(interaction_distance=30 * UM, include_fringe=False)
     )
     assert not alone.fringe.any()
+
+
+def facing_pads() -> Structure:
+    """Two released pads 40 um apart, each on a beam to its own anchor, hanging over a
+    gap in the handle so that neither has handle beneath; they are in no cluster at
+    an interaction distance of 10 um."""
+    device = [
+        box(-500, -100, -300, 100),
+        box(-300, -5, -100, 5),
+        box(-100, -50, 0, 50),
+        box(40, -50, 140, 50),
+        box(140, -5, 340, 5),
+        box(340, -100, 540, 100),
+    ]
+    handle = Polygon(box(-600, -200, 600, 200).exterior, [box(-280, -150, 320, 150).exterior])
+    layout = Layout.from_shapely(device=device, handle=[handle], unit=UM)
+    stack = Stack(
+        device=Layer(thickness=THICKNESS, material=Material.silicon()),
+        box=Layer(thickness=BOX, material=Material.oxide()),
+        handle=Layer(thickness=400 * UM, material=Material.silicon()),
+    )
+    undercut = ExtractionParams(
+        release_hole_max_area=100 * UM * UM, release_distance=7 * UM, body_min_width=20 * UM
+    )
+    return extract(layout, stack, undercut)
+
+
+def test_bodies_of_different_clusters_closing_on_each_other_are_seen() -> None:
+    """Electrodes farther apart than the interaction distance at rest are in no cluster,
+    yet their gap counts in the clearance once they come within reach, and touching
+    raises as within a cluster."""
+    pads = facing_pads()
+    model = pads.capacitance(ElectrostaticParams(interaction_distance=10 * UM))
+    left = pads.electrode_at((-50 * UM, 0.0), "device")
+    right = pads.electrode_at((90 * UM, 0.0), "device")
+    assert model.clusters == ()
+    assert model.clearance == 1.0
+    toward = model.dofs.index((left.body, "ux"))
+    place = np.zeros(len(model.dofs))
+    place[toward] = 15 * UM
+    far = model.at(place)
+    assert far.clearance == 1.0  # still beyond reach
+    place[toward] = 32 * UM
+    near = model.at(place)
+    assert near.clearance == pytest.approx(8 / 40)
+    assert near.closest == tuple(sorted((left.index, right.index)))
+    place[toward] = 41 * UM
+    with pytest.raises(ValueError, match="touch"):
+        model.at(place)

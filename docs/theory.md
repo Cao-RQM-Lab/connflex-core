@@ -2277,10 +2277,12 @@ The first runs over plates between two bodies, with the rise $h_0$ and
 slopes $h_x$, $h_y$ of (45) and $V_{ab}$ the vertices of the convex hull of
 the overlap $G_{ab}$, measured from the reference point: the gap (45) is a
 plane, so over the overlap it is smallest at one of them, and its numerator
-is the gap at that corner. The second runs over pairs of
-device electrodes of one cluster that move with different bodies and lie
-within $d_i$ of each other at rest, with the outlines carried by (118), and
-is the exact distance between their silicon. The model at every
+is the gap at that corner. The second runs over pairs of device electrodes
+that move with different bodies and lie within $d_i$ of each other at rest
+or at $\mathbf{q}$, with the outlines carried by (118), and is the exact
+distance between their silicon; a pair that was not within $d_i$ at rest is
+in no cluster, so its capacitance is not in the model, but its gap is.
+Electrodes that touch are an error. The model at every
 equilibrium carries $\chi$ and the two electrodes across that gap; how
 small a clearance to accept is the caller's judgment.
 

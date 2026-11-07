@@ -30,6 +30,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The clearance of a displaced model counted only gaps within one cluster,
+  so electrodes farther apart than `interaction_distance` at rest could close
+  on each other or touch unseen; every pair of device electrodes on different
+  bodies within reach where the bodies are now counts, against its gap at
+  rest, and touching raises.
 - The usage, parameters, and theory pages stated windows within 2 percent at
   any size while the theory page measured 3 to 4.5 percent between long pads;
   they now give both figures, with the geometries each was measured on.

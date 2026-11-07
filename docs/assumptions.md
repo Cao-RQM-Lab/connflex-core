@@ -205,8 +205,10 @@ consequence, and a way to check or mitigate it.
   loose bodies are kept at rest.
 - **Nothing describes bodies that touch**: clearance (126) is the gap at the
   closest corner of a plate's overlap or the exact distance between carried
-  outlines of electrodes of one cluster; electrodes farther apart than $d_i$
-  at rest are never checked. A transient ends at `contact_clearance` and
+  outlines of device electrodes on different bodies within $d_i$ of each
+  other at rest or where the bodies are; a pair that comes within $d_i$ only
+  when displaced has its gap measured but no capacitance in the model, which
+  keeps the clusters of rest. A transient ends at `contact_clearance` and
   misses a bounce through it within one step.
 - **The capacitance model at displaced bodies** keeps the clusters, meshes,
   cores, and methods of rest: sidewalls depend on in-plane motion alone,
