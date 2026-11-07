@@ -1902,7 +1902,10 @@ pairs whose walls are at least a hundred gaps long, where every geometry
 measured is within 3.5 percent in capacitance and 1 percent in pull and
 side spring. Below ten gaps fringe carries from an eighth to most of the
 capacitance and a pair gets one dense system. Pairs between take windows,
-within 2 percent at any size. A caller trades accuracy for time with the
+within 2 percent on the geometries measured above, whose facing walls are
+no longer than a few $d_i$; between pads several times longer than $d_i$
+windows drop the far field and are 3 to 4.5 percent low, as the note
+below measures. A caller trades accuracy for time with the
 two cutoffs: $\lambda_p$ of 15 puts on plates combs whose fingers overlap
 more than about fifteen gaps. At twenty gaps such a comb is 7 to 9 percent
 low in capacitance, within 3 percent in side spring, and up to 8 percent

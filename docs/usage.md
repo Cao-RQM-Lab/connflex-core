@@ -318,7 +318,7 @@ gap, a toothed motor its tooth width over the gap at the tips.
 | Feature size | Method | Accuracy against one dense system |
 | --- | --- | --- |
 | below `dense_cutoff`, 10 | field in one dense system | reference |
-| up to `plates_cutoff`, 100 | field in windows | within about 2 percent |
+| up to `plates_cutoff`, 100 | field in windows | within about 2 percent where the facing walls are no longer than about `interaction_distance`; 3 to 4.5 percent low between pads several times longer than it |
 | from `plates_cutoff` | facing walls as parallel plates | within about 3.5 percent in capacitance and 1 percent in pull and side spring at 100 gaps, better beyond |
 
 Plates cost a small part of a field solution and leave out all fringe
@@ -327,6 +327,10 @@ field, which is why they take only long walls by default. Lower
 fringe of 5 to 15 percent; 0 for both cutoffs puts every pair on plates,
 infinity for both solves every pair in one dense system, and
 `dense_cutoff=0` with `plates_cutoff=float("inf")` every pair in windows.
+The accuracy of windows is a measurement on the geometries of
+[accuracy and defaults](theory.md#accuracy-and-defaults), not a bound: on
+a pair of concern, compare against `dense_cutoff=float("inf")`, or raise
+`interaction_distance` until the result settles.
 Pairs asked to be dense whose problem needs more than `max_elements`
 boundary elements are solved in windows instead: cores of at most
 `window_elements` elements, each solved together with the elements around

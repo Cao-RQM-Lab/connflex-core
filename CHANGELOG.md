@@ -30,6 +30,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The usage, parameters, and theory pages stated windows within 2 percent at
+  any size while the theory page measured 3 to 4.5 percent between long pads;
+  they now give both figures, with the geometries each was measured on.
 - The assumptions page advised lowering `dense_cutoff` against window
   truncation; lowering it sends more pairs to windows, raising it fewer.
 - The Shapely example on the usage page drew every pad over the handle and a
