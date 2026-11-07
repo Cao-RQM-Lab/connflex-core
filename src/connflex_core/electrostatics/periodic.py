@@ -520,7 +520,7 @@ def solve_rows(
     for row, mask in zip(rows, counted, strict=True):
         middle = row.cells[row.middle]
         reference = ((rest.start[middle] + rest.end[middle]) / 2).mean(axis=0)
-        order, present, moving, key = canonical(rest, middle, body, reference, {})
+        order, present, moving, _, key = canonical(rest, middle, body, reference, {})
         key += present.tobytes() + np.asarray(row.period).tobytes()
         if mask.any():
             families.setdefault(key, []).append((row, mask))
@@ -605,14 +605,11 @@ def _cell(
 
     center = (mesh.start + mesh.end) / 2
     reference = center[middle].mean(axis=0)
-    order, present, moving, key = canonical(mesh, middle, body, reference, spots)
+    order, present, moving, kinds, key = canonical(mesh, middle, body, reference, spots)
     key += np.round(np.asarray(row.period) / KEY_GRID).astype(np.int64).tobytes()
-    place = {int(g): k for k, g in enumerate(present)}
-    ranks = np.array([place[int(g)] for g in mesh.conductor[middle[order]]], dtype=np.intp)
     turning = np.array([[spots[int(b)].real, spots[int(b)].imag] for b in moving])
-    kinds = np.array([list(moving).index(b) for b in body[present]])
     if key not in cache:
-        cell = Mesh(mesh.start[middle[order]], mesh.end[middle[order]], ranks)
+        cell = mesh.subset(middle[order], present)
         charges = solve_charges(cell, len(present), quiet, period=row.period)
         slope, bend = charge_derivatives(charges, kinds, turning, quiet)
         cache[key] = (charges.capacitance, slope, bend, charges.charge)
@@ -620,25 +617,23 @@ def _cell(
     overlap = max(reach, 2 * float(np.linalg.norm(row.period)))
     low, high = center[middle].min(axis=0) - overlap, center[middle].max(axis=0) + overlap
     inside = np.flatnonzero(np.all((center >= low) & (center <= high), axis=1))
-    ordered, near, kinds_near, window_key = canonical(mesh, inside, body, reference, spots)
+    ordered, near, moving_near, kinds_near, window_key = canonical(
+        mesh, inside, body, reference, spots
+    )
     window_key += np.isin(inside[ordered], middle).tobytes() + key
     if window_key not in cache:
         elements = inside[ordered]
-        within = {int(g): k for k, g in enumerate(near)}
-        window = Mesh(
-            mesh.start[elements],
-            mesh.end[elements],
-            np.array([within[int(g)] for g in mesh.conductor[elements]], dtype=np.intp),
+        solved = solve_charges(
+            mesh.subset(elements, near), len(near), quiet, np.isin(elements, middle)
         )
-        solved = solve_charges(window, len(near), quiet, np.isin(elements, middle))
-        bodies_near = [int(b) for b in kinds_near]
+        bodies_near = [int(b) for b in moving_near]
         pivot_near = np.array(
             [[spots[b].real, spots[b].imag] if b in spots else list(reference) for b in bodies_near]
         )
-        window_slope, window_bend = charge_derivatives(
-            solved, np.array([bodies_near.index(int(body[g])) for g in near]), pivot_near, quiet
-        )
-        mine = np.array([within[int(g)] for g in present])
+        window_slope, window_bend = charge_derivatives(solved, kinds_near, pivot_near, quiet)
+        within = np.zeros(int(np.max(near)) + 1, dtype=np.intp)
+        within[near] = np.arange(len(near))
+        mine = within[present]
         theirs = np.array([bodies_near.index(int(b)) for b in moving])
         pick = np.ix_(mine, mine)
         cache[window_key] = (

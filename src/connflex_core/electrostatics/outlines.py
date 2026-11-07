@@ -31,6 +31,12 @@ class Mesh:
     def empty(cls) -> Mesh:
         return cls(np.zeros((0, 2)), np.zeros((0, 2)), np.zeros(0, dtype=np.intp))
 
+    def subset(self, elements: NDArray[np.intp], present: NDArray[np.intp]) -> Mesh:
+        """Mesh of ``elements`` alone, their conductors renumbered by rank in ``present``."""
+        rank = np.zeros(int(np.max(self.conductor, initial=-1)) + 1, dtype=np.intp)
+        rank[present] = np.arange(len(present))
+        return Mesh(self.start[elements], self.end[elements], rank[self.conductor[elements]])
+
 
 VANISHING = 1e-6
 

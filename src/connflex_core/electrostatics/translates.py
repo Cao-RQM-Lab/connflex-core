@@ -15,10 +15,11 @@ KEY_GRID = 1e-11
 
 def canonical(
     mesh: Mesh, elements: Index, body: Index, reference: Array, spots: dict[int, complex]
-) -> tuple[Index, Index, Index, bytes]:
+) -> tuple[Index, Index, Index, Index, bytes]:
     """An order of ``elements`` that translates share, their conductors and bodies by
-    first appearance in it, and a key of that geometry relative to ``reference``, with
-    the point ``spots`` gives a body, if any, as part of it."""
+    first appearance in it, the rank among those bodies of each conductor's body, and a
+    key of that geometry relative to ``reference``, with the point ``spots`` gives a
+    body, if any, as part of it."""
     spans = np.round(
         np.hstack([mesh.start[elements] - reference, mesh.end[elements] - reference]) / KEY_GRID
     ).astype(np.int64)
@@ -30,6 +31,7 @@ def canonical(
     _, first_body = np.unique(owned, return_index=True)
     moving = owned[np.sort(first_body)]
     labels = {int(g): k for k, g in enumerate(present)}
+    kinds = np.array([list(moving).index(b) for b in owned], dtype=np.intp)
     turned = np.array(
         [
             (
@@ -45,10 +47,10 @@ def canonical(
     key = (
         spans[order].tobytes()
         + np.array([labels[int(g)] for g in owners], dtype=np.int64).tobytes()
-        + np.array([list(moving).index(b) for b in owned], dtype=np.int64).tobytes()
+        + kinds.astype(np.int64).tobytes()
         + turned.tobytes()
     )
-    return order, present, moving, key
+    return order, present, moving, kinds, key
 
 
 def taylor(value: Array, slope: Array, bend: Array, step: Array) -> tuple[Array, Array]:

@@ -95,11 +95,13 @@ def smallest_window(
 
 class _Window(NamedTuple):
     """Elements of a window in an order that translates share, its conductors and bodies
-    by first appearance in that order, and which elements are its core."""
+    by first appearance in that order, the body rank of each conductor, and which
+    elements are its core."""
 
     elements: Index
     present: Index
     moving: Index
+    kinds: Index
     mine: NDArray[np.bool_]
 
 
@@ -218,14 +220,11 @@ def solve_windows(
         return inside
 
     def charges_of(elements: Index, present: Index, mine: NDArray[np.bool_]) -> Charges:
-        rank = np.zeros(conductors, dtype=np.intp)
-        rank[present] = np.arange(len(present))
-        part = Mesh(mesh.start[elements], mesh.end[elements], rank[mesh.conductor[elements]])
-        return solve_charges(part, len(present), quiet, mine)
+        return solve_charges(mesh.subset(elements, present), len(present), quiet, mine)
 
     def solve(inside: Index, core: Index) -> tuple[_Window, _Solved]:
         corner = center[core].min(axis=0)
-        order, present, moving, key = canonical(mesh, inside, body, corner, {})
+        order, present, moving, kinds, key = canonical(mesh, inside, body, corner, {})
         elements = inside[order]
         mine = np.isin(elements, core)
         key += mine.tobytes()
@@ -234,7 +233,7 @@ def solve_windows(
             charges = charges_of(elements, present, mine)
             return _Solved(charges.capacitance, charges.charge[mine], charges, corner)
 
-        return _Window(elements, present, moving, mine), known.get(key, compute)
+        return _Window(elements, present, moving, kinds, mine), known.get(key, compute)
 
     def window_of(number: int, core: Index) -> _Found:
         overlap = FIRST_OVERLAP * size if reach is None else min(FIRST_OVERLAP * size, reach)
@@ -277,15 +276,13 @@ def solve_windows(
             overlap = 2 * overlap if reach is None else min(2 * overlap, reach)
         if held is None:
             return _Found(taken, np.zeros(0, dtype=np.intp), None)
-        (elements, present, moving, mine), solved = held
+        (elements, present, moving, kinds, mine), solved = held
         corner, here, turning = center[core].min(axis=0), len(present), 3 * len(moving)
         with solved.lock:
             if solved.derivatives is None:
                 charges, about = solved.charges, solved.corner
                 if charges is None:
                     charges, about = charges_of(elements, present, mine), corner
-                place = {int(b): j for j, b in enumerate(moving)}
-                kinds = np.array([place[int(b)] for b in body[present]], dtype=np.intp)
                 slope, bend = charge_derivatives(
                     charges, kinds, np.tile(about, (len(moving), 1)), quiet
                 )
