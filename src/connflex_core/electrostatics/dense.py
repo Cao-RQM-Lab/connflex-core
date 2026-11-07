@@ -173,9 +173,14 @@ def charge_derivatives(
     swing = np.zeros((count, conductors, 3 * rigid))
     counter = swing if whole else np.zeros_like(swing)
     pairs = [(k, other) for k in range(rigid) for other in range(k + 1, rigid)]
+    if charges.period is not None:
+        # copies of one body turn about different points, so its own pairs enter the
+        # derivatives in turn; each pair appears twice in a body's block, hence the half
+        pairs += [(k, k) for k in range(rigid)]
     with enter("derivatives", total=len(pairs)) as current:
         for k, other in pairs:
             mine, theirs = carried[k], carried[other]
+            share = 0.5 if k == other else 1.0
             freedom = np.r_[3 * k : 3 * k + 3, 3 * other : 3 * other + 3]
             rows = max(1, DERIVATIVE_PAIRS_PER_PASS // max(theirs.size, 1))
             for first in range(0, mine.size if theirs.size else 0, rows):
@@ -189,6 +194,7 @@ def charge_derivatives(
                     slopes, bends = periodic_derivatives(
                         *ends, pivot[k], pivot[other], charges.period
                     )
+                    slopes, bends = share * slopes, share * bends
                 for p, slope in enumerate(slopes):
                     onto, back = slope @ right[theirs], slope.T @ right[part]
                     gradient[:, :, freedom[p]] += left[part].T @ onto

@@ -30,6 +30,15 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The torque of a row of identical cells, taken from a window, was not the
+  derivative of the row's capacitance, taken from the periodic cell, which
+  misses the shift of the cells across the row under a turn: 7.7 percent
+  apart on a comb of 40 cells. Each cell's capacitance now carries the
+  window's excess over the periodic solution integrated over the turn from
+  rest, equation (154), so the two agree to second order in the turn. The
+  periodic cell's own derivatives in turn left out the pairs of elements of
+  one body, whose copies turn about different points; they enter now, with
+  a kernel-level test against finite differences.
 - The clearance of a displaced model counted only gaps within one cluster,
   so electrodes farther apart than `interaction_distance` at rest could close
   on each other or touch unseen; every pair of device electrodes on different

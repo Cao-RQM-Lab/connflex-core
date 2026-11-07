@@ -184,6 +184,27 @@ def test_periodic_row_matches_whole_solution_at_rest_and_displaced(long_comb: St
             )
 
 
+def test_row_torque_is_the_derivative_of_its_capacitance(long_comb: Structure) -> None:
+    """The turn entries of the gradient come from a window while the capacitance comes
+    from the periodic cell; the correction of (154) makes the one the derivative of the
+    other, to second order in the turn."""
+    periodic = long_comb.capacitance(WINDOWS)
+    stator = net_at(long_comb, 0, 200)
+    turn = periodic.dofs.index((1, "tz"))
+    potentials = np.where(periodic.net == stator, 50.0, 0.0)
+
+    def energy(place: np.ndarray) -> float:
+        return float(0.5 * potentials @ periodic.at(place).matrix @ potentials)
+
+    place = _moved(periodic, turn)
+    torque = float(0.5 * potentials @ periodic.at(place).gradient[:, :, turn] @ potentials)
+    step = 2e-6
+    up, down = place.copy(), place.copy()
+    up[turn] += step
+    down[turn] -= step
+    assert torque == pytest.approx((energy(up) - energy(down)) / (2 * step), rel=1e-3)
+
+
 def two_sided_comb(
     offset: tuple[float, float], angle: float = 0.0, pitch: float = 6.0
 ) -> Structure:
@@ -380,3 +401,30 @@ def test_rows_can_be_left_to_the_windows(long_comb: Structure) -> None:
     )
     with pytest.raises(ValueError, match="periodic_min_cells"):
         replace(WINDOWS, periodic_min_cells=1)
+
+
+def test_periodic_turn_derivatives_match_finite_differences() -> None:
+    """A turn of the shuttle about a pivot, with every copy turned about the copy of
+    that pivot, keeps the row periodic too; its derivative includes the pairs of
+    elements of the shuttle itself, whose copies turn about different points. The
+    second derivative is not compared: where a wall crosses the cell boundary the
+    copies slide against each other and it is logarithmically singular."""
+    period = np.array([PITCH * UM, 0.0])
+    stator, shuttle = comb_cell(0.0, 2.0)
+    for center in (complex(8.0, 15.0), complex(12.0, 20.0)):
+        pivots = np.array([[center.real, center.imag]] * 2) * UM
+
+        def capacitance(angle: float = 0.0, center: complex = center) -> float:
+            spin = np.exp(1j * angle)
+            moved = [
+                (center + spin * (a - center), center + spin * (b - center)) for a, b in shuttle
+            ]
+            solved = solve_charges(mesh_of([stator, moved]), 2, quiet, period=period)
+            return float(solved.capacitance[0, 1])
+
+        charges = solve_charges(mesh_of([stator, shuttle]), 2, quiet, period=period)
+        gradient, hessian = charge_derivatives(charges, np.array([0, 1]), pivots, quiet)
+        step = 1e-4
+        turning = (capacitance(step) - capacitance(-step)) / (2 * step)
+        assert gradient[0, 1, 1, 2] == pytest.approx(turning, rel=1e-4)
+        assert np.isfinite(hessian).all()

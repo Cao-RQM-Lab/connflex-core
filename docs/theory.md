@@ -2907,9 +2907,17 @@ a cell. The copies enter through the closed form (67) and its derivatives,
 and $R_K$, analytic for $|\operatorname{Re} w| < (K+1)\,p$, by four-point
 Gauss-Legendre quadrature on each element of a pair, with its
 first and second derivatives from those of $\ln \sin$. Every copy of an
-element moves with it and turns about the copy of its pivot. The matrix of
-(64) for one cell is symmetric but not always definite, and is factored
-with pivoting.
+element moves with it and turns about the copy of its pivot, so the pairs
+of elements of one body enter its derivatives in turn, which (84) leaves
+out: the copies of a body turn about different points and move against
+each other, while under travel they move together and those terms cancel.
+Where a wall crosses the cell boundary, the elements on either side of it
+are copies that slide against each other under such a turn, so the second
+derivative of one cell in turn is logarithmically singular there; the
+closed form gives a finite value, which enters only the second-order term
+of (154), since the Hessian in turn comes from the window.
+The matrix of (64) for one cell is symmetric but not always definite, and
+is factored with pivoting.
 
 A row is found in the outlines. Where an outline repeats its edges,
 translated by a vector $\mathbf{t}$, over at least $n_p$ motifs, the corners
@@ -2941,9 +2949,15 @@ by $\boldsymbol{\delta}_{kB} = \bigl( \mathbf{R}(\psi_B) - \mathbf{I} \bigr)
 rest, and holds
 
 $$
-\mathbf{c}_k \approx \mathbf{c} + \mathbf{g}\, \boldsymbol{\delta}_k + \tfrac{1}{2}\, \boldsymbol{\delta}_k^\top \mathbf{H}\, \boldsymbol{\delta}_k, \qquad
-\frac{\partial \mathbf{c}_k}{\partial \boldsymbol{\ell}} \approx \mathbf{g} + \mathbf{H}\, \boldsymbol{\delta}_k. \tag{154}
+\mathbf{c}_k \approx \mathbf{c} + \mathbf{g}\, \boldsymbol{\delta}_k + \tfrac{1}{2}\, \boldsymbol{\delta}_k^\top \mathbf{H}\, \boldsymbol{\delta}_k + \boldsymbol{\psi}^\top \bigl( \Delta\mathbf{g} + \Delta\mathbf{H}\, \boldsymbol{\delta}_k \bigr) - \tfrac{1}{2}\, \boldsymbol{\psi}^\top \Delta\mathbf{H}\, \boldsymbol{\psi}, \qquad
+\frac{\partial \mathbf{c}_k}{\partial \boldsymbol{\ell}} \approx \mathbf{g} + \mathbf{H}\, \boldsymbol{\delta}_k + \mathbf{P}_\tau\, \Delta\mathbf{H}\, \boldsymbol{\psi}, \tag{154}
 $$
+
+with $\boldsymbol{\psi}$ the turns of the bodies from rest on the entries
+of $\boldsymbol{\ell}$ in turn and zero on those in travel,
+$\Delta\mathbf{g}$ and $\Delta\mathbf{H}$ the excess of the window over
+the periodic solution described below, and $\mathbf{P}_\tau$ the
+projection on the entries in travel.
 
 The row holds the sum over its cells. A rigid motion of body $B$ about its
 pivot $\mathbf{P}_B$, travel $\mathbf{u}_B$ then turn $\psi_B$, moves the
@@ -2963,13 +2977,28 @@ $$
 with $\mathbf{J}_k$ the Jacobian of the local parameters in the body motions.
 
 One cell cannot carry the derivatives in turn. A body that turns rigidly
-about a cell center also shifts the copies of that cell along the row, each
+about a cell center also shifts the copies of that cell across the row, each
 by its distance times the turn; no motion of a single periodic cell does
 that. For the derivatives in $\psi_B$, $\mathbf{g}$ and $\mathbf{H}$
 therefore take their entries from a window around the middle cell, of
 $d_i$ or two periods, whichever is larger, which counts charge on that
 cell and turns its bodies rigidly about the cell center. The periodic
-solution keeps the capacitance and the derivatives in travel.
+solution keeps the capacitance and the derivatives in travel. Its
+capacitance misses those same shifts: solved at the bodies where they are,
+it has every copy turned about its own center, so with the bodies turned
+by $\boldsymbol{\psi}$ from rest it is short of the capacitance whose
+derivative the window gives by the integral over the turn of the excess
+$\Delta\mathbf{g}$ of the window's $\mathbf{g}$ over the periodic one on
+the entries in turn. The last two terms of (154) restore that integral to
+second order, with $\Delta\mathbf{H}$ the same excess in $\mathbf{H}$ on
+the entries with an index in turn, so that the derivative of $\mathbf{c}_k$
+in $\boldsymbol{\psi}$ is $\mathbf{g} + \mathbf{H}\, \boldsymbol{\delta}_k$
+to second order in $\boldsymbol{\psi}$ and the torque is the derivative of
+the energy; the term $\mathbf{P}_\tau \Delta\mathbf{H}\, \boldsymbol{\psi}$
+is the derivative in travel of $\boldsymbol{\psi}^\top \Delta\mathbf{g}$.
+On a comb of 40 cells turned by $10^{-4}$ the torque was 7.7 percent off
+the derivative of the capacitance without them, and the capacitance
+changed with the turn by as much against one dense solution.
 
 What a row leaves to the windows repeats with it: congruent rows have
 congruent ends, and the walls beside their cells repeat with the cells.

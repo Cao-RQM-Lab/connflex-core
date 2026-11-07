@@ -515,7 +515,10 @@ def solve_rows(
     of a family with one, solved with the periodic kernel, gives capacitance and its
     derivatives in travel; a window of ``reach`` around it, with its bodies turned
     rigidly about the cell center, gives those in turn. Every counted cell of the family
-    is that cell moved by the turn of its bodies, carried to second order.
+    is that cell moved by the turn of its bodies, carried to second order, and its
+    capacitance carries the window's excess over the periodic solution in turn,
+    integrated over the turn of its bodies from rest, so that the derivatives are those
+    of the capacitance, equation (154).
     """
     capacitance, gradient, hessian, charge = totals
     turn = turns_of(mesh, rest, body) if turns is None else turns
@@ -543,10 +546,17 @@ def solve_rows(
         found, order, present, moving = _cell(
             mesh, tree, first.cells[pick], body, spots, first, reach, cache
         )
-        held, flat, curve, cell_charge = found
+        held, flat, curve, cell_charge, lift, bow = found
         size, rigid = len(present), len(moving)
         flat = flat.reshape(size, size, 3 * rigid)
         curve = curve.reshape(size, size, 3 * rigid, 3 * rigid)
+        lift = lift.reshape(size, size, 3 * rigid)
+        bow = bow.reshape(size, size, 3 * rigid, 3 * rigid)
+        turned = np.zeros(3 * rigid)
+        turned[2::3] = [turn[int(b)][0] for b in moving]
+        slide = bow @ turned  # derivative in travel of the turn times the excess
+        slide[:, :, 2::3] = 0.0
+        settled = lift @ turned - 0.5 * (bow @ turned) @ turned
         total = np.zeros((size, size))
         tilt = np.zeros((size, size, 3 * rigid))
         swing = np.zeros((size, size, 3 * rigid, 3 * rigid))
@@ -562,7 +572,8 @@ def solve_rows(
                     arm = _placed(turn, int(b), complex(*center)) - complex(*pivots[b])
                     arms[j] = arm.real, arm.imag
                 value, slope = taylor(held, flat, curve, step)
-                total += value
+                total += value + settled + slide @ step
+                slope = slope + slide
                 moved_slope, moved_bend = repivot(slope, curve, arms)
                 tilt += moved_slope
                 swing += moved_bend
@@ -606,10 +617,12 @@ def _cell(
     reach: float,
     cache: dict[bytes, tuple[Array, ...]],
 ) -> tuple[tuple[Array, ...], Index, Index, Index]:
-    """Capacitance, gradient, Hessian, and element charges of the middle cell in an order
-    that congruent cells share, with that order, its conductors, and its bodies; the
-    derivatives in turn come from a window around it, equation (155). ``tree`` indexes
-    the element centers of ``mesh``."""
+    """Capacitance, gradient, Hessian, element charges, and the window's excess over
+    the periodic solution in gradient and Hessian, of the middle cell in an order that
+    congruent cells share, with that order, its conductors, and its bodies; the
+    derivatives in turn come from a window around it, equation (155), and the excess
+    corrects the capacitance by (154). ``tree`` indexes the element centers of
+    ``mesh``."""
     from connflex_core.electrostatics.dense import charge_derivatives, solve_charges
     from connflex_core.progress import quiet
 
@@ -650,8 +663,10 @@ def _cell(
             window_bend[pick][:, :, theirs][:, :, :, :, theirs],
         )
     window_slope, window_bend = cache[window_key]
+    own_slope, own_bend = slope, bend
     slope, bend = slope.copy(), bend.copy()
     slope[:, :, :, 2] = window_slope[:, :, :, 2]
     bend[:, :, :, 2] = window_bend[:, :, :, 2]
     bend[:, :, :, :, :, 2] = window_bend[:, :, :, :, :, 2]
-    return (held, slope, bend, charge), order, present, moving
+    excess = (slope - own_slope, bend - own_bend)
+    return (held, slope, bend, charge, *excess), order, present, moving
