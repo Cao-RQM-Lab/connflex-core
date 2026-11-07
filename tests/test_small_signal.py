@@ -298,3 +298,38 @@ def test_inputs_outside_small_signal_are_rejected(plate: Structure, resistive: S
     assert not unstable.stable
     with pytest.raises(ValueError, match="stable"):
         plate.small_signal(unstable, [pad], options)
+
+
+def test_wire_with_resistance_makes_its_far_pad_an_inner_node() -> None:
+    """A resistive wire between two stators leaves the far one a node of the same net
+    behind the port; an ideal wire makes the two one node."""
+    from connflex_core import Wire
+
+    walls = ElectrostaticParams(
+        dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=10 * UM, include_plates=False
+    )
+    bond = Wire((-250 * UM, 0.0), (250 * UM, 0.0), resistance=0.1)
+    bonded = extract(shuttle_layout(), STACK, EXTRACTION, wires=[bond])
+    model = bonded.capacitance(replace(walls, include_fringe=False))
+    left = bonded.electrode_at((-250 * UM, 0.0), "device")
+    right = bonded.electrode_at((250 * UM, 0.0), "device")
+    bias = bonded.equilibrium(model, {left.net: 20.0})
+    signal = bonded.small_signal(bias, [left], SmallSignalOptions(quality_factor=QUALITY))
+    assert signal.nodes[0] == (left.index,)
+    assert (right.index,) in signal.nodes[1:]
+    far = signal.nodes.index((right.index,))
+    assert signal.conductance[0, far] == pytest.approx(-1 / bond.resistance)
+    assert signal.conductance[0, 0] == pytest.approx(1 / bond.resistance)
+    assert np.isfinite(signal.admittance([1e3, 1e5])).all()
+    with pytest.raises(ValueError, match="does not exist"):
+        signal.netlist("comb", modes=[99])
+
+    ideal = extract(
+        shuttle_layout(), STACK, EXTRACTION, wires=[Wire((-250 * UM, 0.0), (250 * UM, 0.0))]
+    )
+    model = ideal.capacitance(replace(walls, include_fringe=False))
+    left = ideal.electrode_at((-250 * UM, 0.0), "device")
+    right = ideal.electrode_at((250 * UM, 0.0), "device")
+    bias = ideal.equilibrium(model, {left.net: 20.0})
+    with pytest.raises(ValueError, match="one node"):
+        ideal.small_signal(bias, [left, right], SmallSignalOptions(quality_factor=QUALITY))

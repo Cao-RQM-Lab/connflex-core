@@ -448,3 +448,22 @@ def test_waveforms_and_inputs_are_checked(plate: Structure, resistive: Structure
             circuit=[Capacitor(handle, None, 1e-12)],
             charges={handle.net: 0.0},
         )
+
+
+def test_constant_load_settles_to_the_static_deflection_and_max_step_is_honored(
+    plate: Structure,
+) -> None:
+    spring, _, natural = plate_mode(plate)
+    model = plate.capacitance(HANDLE_ALONE)
+    period = 2 * np.pi / natural
+    load = {1: [0.0, 0.0, -1e-7, 0.0, 0.0, 0.0]}
+    times = np.linspace(0.0, 30 * period, 61)
+    run = plate.transient(model, [], times, TransientOptions(quality_factor=2.0), loads=load)
+    assert run.displacement[-1] == pytest.approx(
+        plate.static(load), rel=1e-3, abs=1e-6 * 1e-7 / spring
+    )
+    capped = plate.transient(
+        model, [], times, TransientOptions(quality_factor=2.0, max_step=period / 50), loads=load
+    )
+    assert capped.steps >= 0.9 * 30 * 50
+    assert capped.steps > run.steps

@@ -367,3 +367,16 @@ def _moved(model: CapacitanceModel, turn: int) -> np.ndarray:
 
 def model_net(model: CapacitanceModel, net: int) -> np.ndarray:
     return np.flatnonzero(model.net == net)
+
+
+def test_rows_can_be_left_to_the_windows(long_comb: Structure) -> None:
+    periodic = long_comb.capacitance(WINDOWS)
+    windowed = long_comb.capacitance(replace(WINDOWS, periodic_min_cells=None))
+    assert rows_of(periodic)
+    assert not rows_of(windowed)
+    stator, shuttle = net_at(long_comb, 0, 200), net_at(long_comb, 0, 20)
+    assert windowed.net_matrix[stator, shuttle] == pytest.approx(
+        periodic.net_matrix[stator, shuttle], rel=4e-3
+    )
+    with pytest.raises(ValueError, match="periodic_min_cells"):
+        replace(WINDOWS, periodic_min_cells=1)

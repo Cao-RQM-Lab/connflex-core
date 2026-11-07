@@ -66,3 +66,18 @@ def test_via_without_a_handle_conductor_is_ignored_with_a_warning(
         )
     assert structure.nets.count == 2
     assert structure.nets.graph.number_of_edges() == 0
+
+
+def test_find_nets_takes_bare_polygons() -> None:
+    from connflex_core import Wire, find_nets
+
+    device = [box(0, 0, 100e-6, 100e-6), box(300e-6, 0, 400e-6, 100e-6)]
+    handle = [box(-50e-6, -50e-6, 450e-6, 150e-6)]
+    nets = find_nets(device, handle)
+    assert nets.count == 3
+    joined = find_nets(device, handle, wires=[Wire((50e-6, 50e-6), (350e-6, 50e-6))])
+    assert joined.count == 2
+    assert joined.conductors[0].net == joined.conductors[1].net
+    through = find_nets(device, handle, vias=[box(40e-6, 40e-6, 60e-6, 60e-6)])
+    assert through.count == 2
+    assert through.conductors[0].net == through.conductors[2].net

@@ -549,3 +549,24 @@ def test_derivatives_about_the_core_corner_are_those_of_a_translate() -> None:
 
     for mine, theirs in zip(copy(0.0), copy(37.0), strict=True):
         assert mine == pytest.approx(theirs, rel=1e-9, abs=1e-12 * np.max(abs(theirs)))
+
+
+def test_released_electrode_alone_over_the_handle_keeps_its_fringe() -> None:
+    """A device electrode with no neighbor within reach forms no cluster, but with the
+    handle beneath its walls still carry fringe to it, which pulls it down."""
+    from test_equilibrium import plate_on_beams
+
+    plate = plate_on_beams()
+    model = plate.capacitance(ElectrostaticParams(interaction_distance=30 * UM))
+    over = plate.electrode_at((50 * UM, 50 * UM), "device")
+    under = plate.electrode_at((50 * UM, 50 * UM), "handle")
+    assert model.clusters == ()
+    assert -model.fringe[over.index, under.index] > 0
+    assert -model.fringe[over.index, under.index] < -model.released[over.index, under.index]
+    up = model.dofs.index((over.body, "uz"))
+    assert model.fringe[over.index, under.index] != 0
+    assert model.gradient[over.index, under.index, up] != 0
+    alone = plate.capacitance(
+        ElectrostaticParams(interaction_distance=30 * UM, include_fringe=False)
+    )
+    assert not alone.fringe.any()

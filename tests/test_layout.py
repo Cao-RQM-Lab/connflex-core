@@ -60,3 +60,24 @@ def test_polygons_are_stored_in_canonical_vertex_order() -> None:
     first = Layout.from_shapely(device=[drawn], handle=handle, unit=1.0)
     second = Layout.from_shapely(device=[redrawn], handle=handle, unit=1.0)
     assert first.device.equals_exact(second.device, 0)
+
+
+def test_registered_and_entry_point_adapters_are_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake(source: object, **options: object) -> Layout:
+        return Layout.from_shapely(device=box(0, 0, 1, 1), handle=box(0, 0, 1, 1), unit=1.0)
+
+    monkeypatch.setitem(adapters._REGISTRY, "fake", fake)
+    assert "fake" in adapters.available()
+    assert adapters.get("fake") is fake
+
+    class Entry:
+        name = "plugged"
+
+        def load(self) -> object:
+            return fake
+
+    monkeypatch.setattr(adapters, "entry_points", lambda group: [Entry()])
+    monkeypatch.setattr(adapters, "_discovered", False)
+    monkeypatch.delitem(adapters._REGISTRY, "plugged", raising=False)
+    assert adapters.get("plugged") is fake
+    assert "plugged" in adapters.available()

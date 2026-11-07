@@ -200,3 +200,14 @@ def test_region_touching_no_body_is_an_electrode_of_the_body_whose_oxide_carries
     assert on_trace.net != on_pad_b.net
     assert [e.layer for e in structure.electrodes] == ["device"] * 3 + ["handle"] * 2
     assert len(nets_joined_by_links(structure)) == structure.nets.count
+
+
+def test_via_wholly_on_a_beam_reaches_the_nearest_electrode_of_its_conductor(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    via = box(150, 46, 160, 54)
+    structure = extract(layout_um([PAD_A, BEAM, PAD_B], [HANDLE_AB], vias=[via]), stack, params())
+    pad_a = structure.electrode_at((50 * UM, 50 * UM), "device")
+    handle = structure.electrode_at((200 * UM, 120 * UM), "handle")
+    (link,) = [link for link in structure.links if link.kind == "via"]
+    assert link.electrodes == tuple(sorted((pad_a.index, handle.index)))
