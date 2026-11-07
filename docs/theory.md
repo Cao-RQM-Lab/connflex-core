@@ -2823,7 +2823,7 @@ fringe is kept, resizes it, and the new solution starts with the
 result:
 
 $$
-r_a \leftarrow \min\Bigl( 2\, r_a,\; 0.8\, \rho(\mathbf{m}_b, \mathbf{m}_a) \sqrt{\tau_c / e} \Bigr), \qquad
+r_a \leftarrow \min\Bigl( 2\, r_a,\; 0.5\, \rho(\mathbf{m}_b, \mathbf{m}_a) \sqrt{\tau_c / e} \Bigr), \qquad
 r_b = r_a, \qquad
 r_\text{first} = \sqrt{\tau_c}\; g_\text{min}, \tag{150}
 $$
@@ -2840,6 +2840,16 @@ already kept, as an exact evaluation or an equilibrium solved anew makes,
 replaces the kept one and keeps its radius.
 
 !!! note "Implementation choices"
+    The tolerance is a target, not a bound. The radius rule assumes the
+    error of an expansion grows as $\rho^2$ in every direction from the
+    one it measured, and the factor of one half leaves room for directions
+    in which it grows faster; a radius is never tested against an exact
+    solution before it is used. On a comb that closes its side gaps by a
+    fifth the gradient stays within 0.6 of the tolerance at $\tau_c =
+    10^{-2}$ and within a quarter of it at $10^{-3}$; with the factor at
+    0.8 it reached 1.4 times the tolerance. A caller who needs a bound
+    evaluates with `exact=True` where it matters.
+
     The second derivative is held constant over a radius, so its error is
     of the order of $\sqrt{\tau_c}$, not $\tau_c$. It enters only Newton and
     integrator Jacobians, which change how fast a solve converges and not

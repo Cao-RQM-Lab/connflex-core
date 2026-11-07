@@ -236,9 +236,11 @@ class ElectrostaticParams:
             cell for the row, equations (151) to (155). None leaves every row to the
             windows.
         surrogate_tolerance: With bodies displaced, a cluster solved by the field method
-            reuses the nearest earlier solution of it, expanded to second order, while
-            the error of that expansion in capacitance and its gradient stays below this
-            fraction, equations (148) to (150). None solves every displacement anew.
+            reuses the nearest earlier solution of it, expanded to second order, with
+            radii sized to keep the error of that expansion in capacitance and its
+            gradient within this fraction, equations (148) to (150): a target the radius
+            rule aims at from the errors it has measured, not a bound. None solves every
+            displacement anew.
     """
 
     ambient_permittivity: float = 1.0

@@ -77,7 +77,7 @@ keyword overrides.
 | `include_sidewalls` | | true | Whether it holds sidewall capacitance between device electrodes. Without it neither `element_size` nor `interaction_distance` is needed. |
 | `include_fringe` | | true | Whether sidewalls carry the field above and below the device layer, found in cuts across each wall, equations (157) to (163): to other device electrodes and, with `include_plates`, to the handle beneath, which also lifts fingers over it. Cross-sections are solved once each and reused wherever a cut repeats. Needs `include_sidewalls`. |
 | `periodic_min_cells` | $n_p$ | 8 | Rows of at least this many identical cells, in a field problem solved in windows, take their interior from one cell solved with the periodic kernel, equations (151) to (155), and the derivatives in turn from one window around it; what they leave to the windows is cut in the frame of each row, equation (156). Against one dense solution, capacitance, forces, and springs come out closer than windows give, in a fraction of the time where cells repeat. None leaves every row to the windows. |
-| `surrogate_tolerance` | $\tau_c$ | none | With bodies displaced, a cluster solved by the field method reuses the nearest earlier solution of it, expanded to second order in the motion of its bodies, while the error of that expansion in capacitance and its gradient stays below this fraction, equations (148) to (150). None solves every displacement anew. `1e-4` keeps forces within a hundredth of a percent and makes transients on the field method practical. |
+| `surrogate_tolerance` | $\tau_c$ | none | With bodies displaced, a cluster solved by the field method reuses the nearest earlier solution of it, expanded to second order in the motion of its bodies, with radii sized to keep the error of that expansion in capacitance and its gradient within this fraction, equations (148) to (150). The fraction is a target that the radius rule aims at from the errors it has measured, not a bound: on a comb that closes its side gaps by a fifth the gradient stays within 0.6 of it. None solves every displacement anew. `1e-4` keeps forces within a hundredth of a percent and makes transients on the field method practical. |
 
 ## `StaticOptions`
 
@@ -232,7 +232,7 @@ enters, and the synthetic tests that set it. A test checks the values.
 | `electrostatics.section.HANDLE_MARGIN` | 4.0 | Device thicknesses the handle slab of a cross-section reaches past the cut, equation (157). |
 | `electrostatics.fringe.KEY_STEPS` | 4 | Fraction of the smallest of thickness, box, and narrowest gap that cuts are rounded to, equation (160). |
 | `electrostatics.fringe.ITEMS_PER_PASS` | 400 | Cuts assembled per pass, for memory. |
-| `electrostatics.capacitance.SAFETY` | 0.8 | Factor on the radius that the expansion error of a kept solution allows, equation (150). |
+| `electrostatics.capacitance.SAFETY` | 0.5 | Factor on the radius that the expansion error of a kept solution allows, equation (150). |
 | `geometry.heal.RESIDUE` | 1e-12 | Distance in meters from the line through its neighbors below which a vertex left by the body opening is dropped, equation (3). |
 | `coupled.static.HALVINGS` | 12 | Most halvings of one Newton step that would close a gap, equation (121). |
 | `coupled.transient.RETRIES` | 8 | Most retries of a step that closed a gap, each four times shorter, before a contact event. |

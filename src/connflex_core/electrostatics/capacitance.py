@@ -905,4 +905,4 @@ def _in_plane(lever: float) -> Array:
 
 _BETWEEN = np.array([[1.0, -1.0], [-1.0, 1.0]])
 _RISE = np.eye(6)[2:5]
-SAFETY = 0.8
+SAFETY = 0.5

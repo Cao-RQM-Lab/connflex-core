@@ -76,8 +76,8 @@ def test_surrogate_follows_field_solution_within_its_tolerance(
     shuttle: Structure, exact: CapacitanceModel
 ) -> None:
     """Along a path that closes side gaps by a fifth, the expansion of the nearest field
-    solution gives gradient and capacitance within the tolerance, from fewer solutions
-    the looser the tolerance."""
+    solution keeps gradient and capacitance within the tolerance, which is a target the
+    radius rule aims at, from fewer solutions the looser the tolerance."""
     truths = [exact.at(place) for place in path()]
     anchors = {}
     for tolerance in (1e-2, 3e-4):
@@ -92,7 +92,7 @@ def test_surrogate_follows_field_solution_within_its_tolerance(
             )
             assert found.clearance == pytest.approx(truth.clearance)
         anchors[tolerance] = found.clusters[0].anchors
-        assert worst < 3 * tolerance
+        assert worst < tolerance
     assert 1 <= anchors[1e-2] < anchors[3e-4] < len(path())
     assert exact.clusters[0].anchors == 0
 
