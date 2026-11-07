@@ -6,6 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from connflex_core.materials import Material
+from connflex_core.mechanics.kinematics import skew
 from connflex_core.model import Beam
 
 Matrix = NDArray[np.float64]
@@ -110,7 +111,6 @@ def _rotation6(alpha: float) -> Matrix:
 
 
 def _offset(d: Matrix) -> Matrix:
-    skew = np.array([[0.0, -d[2], d[1]], [d[2], 0.0, -d[0]], [-d[1], d[0], 0.0]])
     s = np.eye(6)
-    s[3:, :3] = skew
+    s[3:, :3] = skew(d)
     return s

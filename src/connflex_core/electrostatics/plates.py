@@ -17,6 +17,7 @@ from connflex_core.electrostatics.facing import edge_frames, outline_edges
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.geometry.release import openings_within
 from connflex_core.mechanics.inertia import AreaMoments, area_moments
+from connflex_core.mechanics.kinematics import point_jacobian
 from connflex_core.params import ElectrostaticParams
 from connflex_core.progress import Progress, stage
 
@@ -255,15 +256,9 @@ def _edge_integrals(start: Array, end: Array, normal: Array, origin: Array) -> A
 
 
 def _local(origin: Array, center: Array) -> Array:
-    """Jacobian of travel, rise, and slopes at ``origin`` for a body with ``center``, (46)."""
-    dx, dy, dz = origin - center
-    return np.array(
-        [
-            [1.0, 0.0, 0.0, 0.0, dz, -dy],
-            [0.0, 1.0, 0.0, -dz, 0.0, dx],
-            [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0, dy, -dx, 0.0],
-            [0.0, 0.0, 0.0, 0.0, -1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-        ]
-    )
+    """Jacobian of travel, rise, and slopes at ``origin`` for a body with ``center``, (46):
+    the point's travel and rise, the turn about z, and the slopes of a tilted plane."""
+    point = point_jacobian(origin - center)
+    turn = np.array([[0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
+    slopes = np.array([[0.0, 0.0, 0.0, 0.0, -1.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]])
+    return np.vstack([point[:2], turn, point[2:], slopes])

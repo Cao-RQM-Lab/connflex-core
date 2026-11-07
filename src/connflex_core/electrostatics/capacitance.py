@@ -28,6 +28,7 @@ from connflex_core.electrostatics.sidewalls import (
 from connflex_core.electrostatics.translates import taylor
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.mechanics.assembly import DOF_NAMES, Dof
+from connflex_core.mechanics.kinematics import point_jacobian
 from connflex_core.params import ElectrostaticParams
 from connflex_core.progress import Progress, quiet, stage
 from connflex_core.workers import Workers
@@ -897,13 +898,8 @@ def _merged(region: MultiPolygon, margin: float) -> MultiPolygon:
 
 def _in_plane(lever: float) -> Array:
     """Travel along x and y and rotation about z at device mid-plane, equation (114)."""
-    return np.array(
-        [
-            [1.0, 0.0, 0.0, 0.0, lever, 0.0],
-            [0.0, 1.0, 0.0, -lever, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-        ]
-    )
+    point = point_jacobian([0.0, 0.0, lever])
+    return np.vstack([point[:2], [[0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]])
 
 
 _BETWEEN = np.array([[1.0, -1.0], [-1.0, 1.0]])
