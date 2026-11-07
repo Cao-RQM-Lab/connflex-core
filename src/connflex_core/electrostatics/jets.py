@@ -37,6 +37,19 @@ class Jet:
             np.zeros((*value.shape, parameters, parameters)),
         )
 
+    def take(self, rows: NDArray[np.intp]) -> Jet:
+        """The jet of ``rows`` of these values."""
+        return Jet(self.value[rows], self.gradient[rows], self.hessian[rows])
+
+    @classmethod
+    def where(cls, mask: NDArray[np.bool_], yes: Jet, no: Jet) -> Jet:
+        """Jet of ``yes`` where ``mask`` holds and of ``no`` elsewhere."""
+        return cls(
+            np.where(mask, yes.value, no.value),
+            np.where(mask[:, None], yes.gradient, no.gradient),
+            np.where(mask[:, None, None], yes.hessian, no.hessian),
+        )
+
     def __add__(self, other: Jet | float | Array) -> Jet:
         if isinstance(other, Jet):
             return Jet(

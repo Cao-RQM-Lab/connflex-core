@@ -190,7 +190,7 @@ def facing_runs(
             left[part], right[part] = low.value, high.value
             span = high - low
             if smooth > 0:
-                span = _pick(
+                span = Jet.where(
                     _geometric(pieces[part]),
                     _overlap(u0, u1, length[pieces[part, 0]], smooth),
                     span,
@@ -509,8 +509,8 @@ def _geometric(pieces: Index) -> NDArray[np.bool_]:
 def _overlap(first: Jet, second: Jet, span: Array, width: float) -> Jet:
     """Overlap of an edge from 0 to ``span`` with the faced edge from ``first`` to
     ``second`` along it, rounded over ``width`` where ends pass, equation (161)."""
-    low = _pick(first.value <= second.value, first, second)
-    high = _pick(first.value <= second.value, second, first)
+    low = Jet.where(first.value <= second.value, first, second)
+    high = Jet.where(first.value <= second.value, second, first)
 
     def onset(x: Jet) -> Jet:
         return x.through(
@@ -563,15 +563,6 @@ def _even_slope(x: Array, width: float) -> Array:
 
 def _even_bend(x: Array, width: float) -> Array:
     return np.where(abs(x) < width / 2, 1 / width, 0.0)
-
-
-def _pick(mask: NDArray[np.bool_], yes: Jet, no: Jet) -> Jet:
-    """Jet of ``yes`` where ``mask`` holds and of ``no`` elsewhere."""
-    return Jet(
-        np.where(mask, yes.value, no.value),
-        np.where(mask[:, None], yes.gradient, no.gradient),
-        np.where(mask[:, None, None], yes.hessian, no.hessian),
-    )
 
 
 def _moved(points: Array, pivot: Array, slot: Index, parameters: int) -> tuple[Jet, Jet]:

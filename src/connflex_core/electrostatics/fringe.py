@@ -203,24 +203,24 @@ def find_fringe(
             runs.conductor[taken],
             point[taken],
             facing_normal[taken],
-            _rows(runs.length, taken),
+            runs.length.take(taken),
             runs.bodies[taken],
-            _rows(runs.distance, taken),
+            runs.distance.take(taken),
             rest_start[runs.edge[taken]],
             rest_tangent[runs.edge[taken]],
-            _rows(runs.middle, taken),
+            runs.middle.take(taken),
         ),
         _Items(
             _present(edge_cuts, runs.edge[covered]),
             runs.conductor[covered],
             middle[runs.edge[covered]],
             facing_normal[covered],
-            -_rows(runs.length, covered),
+            -runs.length.take(covered),
             runs.bodies[covered],
             None,
             rest_start[runs.edge[covered]],
             rest_tangent[runs.edge[covered]],
-            _rows(runs.middle, covered),
+            runs.middle.take(covered),
         ),
         _Items(
             _present(edge_cuts, lone),
@@ -246,12 +246,12 @@ def find_fringe(
                 batch.owner[chosen],
                 batch.point[chosen],
                 batch.normal[chosen],
-                _rows(batch.weight, chosen),
+                batch.weight.take(chosen),
                 batch.slots[chosen],
-                None if batch.distance is None else _rows(batch.distance, chosen),
+                None if batch.distance is None else batch.distance.take(chosen),
                 batch.start[chosen],
                 batch.tangent[chosen],
-                _rows(batch.middle, chosen),
+                batch.middle.take(chosen),
             )
             _assemble(plan, part, pivots, centers, motion, total, slope, bend)
     found = _symmetric(total, slope[:, :, :-1], bend[:, :, :-1, :-1], devices, bodies)
@@ -265,10 +265,6 @@ def _present(cuttings: list[_Cutting | None], chosen: Index) -> list[_Cutting]:
     """Cuts at ``chosen``, every one of them taken."""
     found = [cuttings[k] for k in chosen.tolist()]
     return [cutting for cutting in found if cutting is not None]
-
-
-def _rows(jet: Jet, rows: Index) -> Jet:
-    return Jet(jet.value[rows], jet.gradient[rows], jet.hessian[rows])
 
 
 def _beneath(plan: FringePlan, points: Array) -> Index:
