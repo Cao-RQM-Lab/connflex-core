@@ -61,11 +61,16 @@ and `vias`. Every polygon marks where the named feature is present; see the
     from shapely import box
 
     layout = cf.Layout.from_shapely(
-        device=[box(0, 0, 200, 50), box(90, 50, 110, 150), box(0, 150, 200, 200)],
-        handle=[box(-50, -50, 250, 250)],
+        device=[box(0, 0, 200, 50), box(96, 50, 104, 150), box(0, 150, 200, 200)],
+        handle=[box(-50, -50, 250, 100)],
         unit=1e-6,
     )
     ```
+
+    A pad on the handle, an 8 um beam, and a pad past the handle's edge:
+    with the parameters below the first pad keeps oxide and anchors, the
+    beam is undercut from both sides, and the second pad hangs free, so
+    the extraction yields one beam and one movable body.
 
 Polygons within one role are merged where they overlap or touch, invalid
 polygons are rejected with role and index named, and `layout.device` and friends are shapely
