@@ -403,11 +403,12 @@ solution kept. Its fringe is kept and expanded with it. The radius around each s
 predicted the next one. `model.clusters[k].anchors` counts the solutions a
 cluster holds, and `model.at(displacement, exact=True)` solves anew
 regardless. `equilibrium` solves its result anew, so its stiffness and
-model are exact; a transient keeps the expanded values, and its energy
+model are exact at a displacement that converged on the expanded forces,
+within the tolerance; a transient keeps the expanded values, and its energy
 ledger shows their error. The second derivative is that of the nearest
 solution, accurate to about the square root of the tolerance, which slows
-no solve and changes no result beyond the tolerance. Plates and the plates
-method are cheap and always evaluated exactly.
+a solve a little and changes no result beyond the tolerance. Plates and the
+plates method are cheap and always evaluated exactly.
 
 ```python
 model = structure.capacitance(cf.ElectrostaticParams(..., surrogate_tolerance=1e-4))
@@ -766,9 +767,9 @@ error.
 `netlist` returns a SPICE subcircuit as text, with pins `port0`, `port1`,
 ... in port order and node 0 as the potential of nets held without a port:
 capacitors and resistors between nodes and one series branch per mode,
-coupled to the nodes through controlled sources. Every mode is included
-unless `modes` lists some; a mode left out also takes its compliance below
-resonance with it. Formulas are in [small signal](theory.md#small-signal).
+coupled to the nodes through controlled sources. Every mode that couples to
+a node is included unless `modes` lists some, and the header counts those
+written; a mode left out also takes its compliance below resonance with it. Formulas are in [small signal](theory.md#small-signal).
 
 ## Transient
 

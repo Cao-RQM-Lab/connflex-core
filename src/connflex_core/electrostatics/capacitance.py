@@ -196,8 +196,10 @@ class CapacitanceModel:
         fringe: Part of the field above and below the device layer along walls,
             between device electrodes and to the handle beneath, equation (163).
         gradient: n by n by D derivative of ``matrix`` in the degrees of freedom ``dofs``.
-        blocks: Second derivative of ``matrix``, one block per plate between two bodies
-            and per cluster. Blocks add where they share entries.
+        blocks: Second derivative of ``matrix``, among parts with a movable body: one
+            block per plate between two bodies, one per cluster for its sidewalls and,
+            with ``include_fringe``, one for its fringe, and one per device electrode
+            alone over the handle for its fringe. Blocks add where they share entries.
         dofs: (body index, degree of freedom) for each of the D degrees of freedom: six
             per movable body in body order, as for the assembled mechanical matrices.
         net: Net of each electrode.
@@ -213,7 +215,8 @@ class CapacitanceModel:
             corner of the plate that comes closest, and over device electrodes of one
             cluster on different bodies, by the distance between their silicon. 1 at
             rest.
-        closest: Electrodes on either side of the gap with that ratio. None at rest.
+        closest: Electrodes on either side of the gap with that ratio. None at rest and
+            wherever no gap is narrower than at rest, when ``clearance`` is 1.
         rest: Plates, clusters, meshes, and windows found at rest, which ``at`` moves.
     """
 
@@ -308,8 +311,10 @@ class CapacitanceModel:
         ``pairs`` lists every two electrodes with capacitance between them: its oxide,
         released, sidewall, and fringe parts and their total in farads, their nets, and the
         change of the total with the six degrees of freedom of each body that changes
-        it. ``net_matrix``, ``clusters``, ``dofs``, ``displacement``, ``clearance``,
-        ``closest``, and ``unassigned_area`` are as on the model.
+        it. ``clusters`` lists the electrodes, elements, windows, asymmetry, anchors,
+        sections, and interactions of each cluster; ``net_matrix``, ``dofs``,
+        ``displacement``, ``clearance``, ``closest``, and ``unassigned_area`` are as on
+        the model.
         """
         pairs = []
         for a, b in np.argwhere(np.triu(self.matrix, 1)).tolist():
@@ -339,6 +344,8 @@ class CapacitanceModel:
                     "elements": cluster.elements,
                     "windows": cluster.windows,
                     "asymmetry": cluster.asymmetry,
+                    "anchors": cluster.anchors,
+                    "sections": cluster.sections,
                     "interactions": [
                         {
                             "nets": list(interaction.nets),

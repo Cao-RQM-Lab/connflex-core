@@ -25,7 +25,8 @@ class Electrode:
         conductor: Index of its conductor in ``Nets.conductors``.
         net: Index of its net.
         region: Its silicon, in meters. For a device electrode, one device polygon of the
-            body followed by the stubs that touch that polygon alone.
+            body followed by the stubs that touch that polygon alone, or a rejected
+            candidate that touches no body polygon, which is an electrode by itself.
     """
 
     index: int

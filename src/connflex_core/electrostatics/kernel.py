@@ -27,9 +27,9 @@ def pair_integrals(a0: Complex, a1: Complex, b0: Complex, b1: Complex) -> Array:
     """Double integral of ln|r - r'| over element pairs, equation (64).
 
     Points are complex numbers x + iy; ``a0`` and ``a1`` are ends of the first element of
-    each pair, ``b0`` and ``b1`` of the second, broadcast against each other. Pairs
-    farther apart than their lengths by ``1 / SERIES_REACH`` use the series (69), the
-    others the closed form (67). A pair may share an end point or be one element twice,
+    each pair, ``b0`` and ``b1`` of the second, broadcast against each other. Pairs whose
+    centers are at least ``(L_i + L_j) / (2 * SERIES_REACH)`` apart use the series (69),
+    the others the closed form (67). A pair may share an end point or be one element twice,
     but two different elements must not cross or overlap.
     """
     a0, a1, b0, b1 = np.broadcast_arrays(a0, a1, b0, b1)
@@ -52,7 +52,8 @@ def pair_derivatives(
     The six parameters are travel along x and y and rotation about ``pivot_a`` of the
     first element, then the same about ``pivot_b`` of the second, equations (83) to (88).
     The first axis of the gradient and the first two of the Hessian run over them. The
-    two elements of a pair must not touch.
+    series and the closed form switch as in ``pair_integrals``. The two elements of a
+    pair must not touch.
     """
     a0, a1, b0, b1, pivot_a, pivot_b = np.broadcast_arrays(a0, a1, b0, b1, pivot_a, pivot_b)
     center = (a0 + a1 - b0 - b1) / 2

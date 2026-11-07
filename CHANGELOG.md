@@ -7,6 +7,7 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `anchors` and `sections` of each cluster in `CapacitanceModel.to_dict`.
 - `CapacitanceModel.charge_gradient(potentials)`: change of the charge on each
   electrode with each degree of freedom, which the force is half the
   potentials times; the coupled solvers take their charge sensitivities from
@@ -26,6 +27,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The header of a SPICE netlist counts the modes it writes; a mode that no
+  node couples to was counted and then left out.
 - The transient stage advances once for the frame of a contact event too, so
   `progress` sees one step per entry of `Transient.times`; the `(-1, -1)`
   that `Transient.contact` carries when no step could be taken is documented.

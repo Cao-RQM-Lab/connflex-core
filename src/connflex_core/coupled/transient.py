@@ -91,7 +91,8 @@ class Transient:
         loose: Bodies that no chain of beams joins to the anchor, kept at rest.
         floating: Nets that kept a fixed charge.
         steps: Time steps the integrator accepted.
-        evaluations: Evaluations of the capacitance model at displaced bodies.
+        evaluations: Distinct displacements the capacitance model was evaluated at; a
+            cache of ``CACHE`` serves repeats.
         model: Capacitance model at the last time.
     """
 

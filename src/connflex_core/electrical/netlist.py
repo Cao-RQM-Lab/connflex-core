@@ -23,13 +23,14 @@ def spice_netlist(signal: SmallSignal, name: str, modes: Sequence[int] | None) -
     for mode in chosen:
         if not 0 <= mode < total:
             raise ValueError(f"mode {mode} does not exist; the model has {total}")
+    written = [mode for mode in chosen if np.max(abs(signal.transduction[mode]))]
     ports = len(signal.ports)
     pins = [f"port{k}" for k in range(ports)]
     names = pins + [f"n{k}" for k in range(ports, len(signal.nodes))]
     quality = signal.options.quality_factor
     lines = [
         f"* small-signal model about an equilibrium: {ports} ports, {len(names)} nodes, "
-        f"{len(chosen)} of {total} modes, quality factor {quality:g}",
+        f"{len(written)} of {total} modes, quality factor {quality:g}",
         *(f"* {pin}: electrode {port.index}" for pin, port in zip(pins, signal.ports, strict=True)),
         f".subckt {name} {' '.join(pins)}",
     ]
@@ -42,11 +43,9 @@ def spice_netlist(signal: SmallSignal, name: str, modes: Sequence[int] | None) -
                 lines.append(f"Cc{i}_{j} {names[i]} {names[j]} {_number(-capacitance[i, j])}")
             if conductance[i, j]:
                 lines.append(f"Rn{i}_{j} {names[i]} {names[j]} {_number(-1 / conductance[i, j])}")
-    for mode in chosen:
+    for mode in written:
         coupling = signal.transduction[mode]
         scale = float(np.max(abs(coupling)))
-        if not scale:
-            continue
         natural = 2 * np.pi * float(signal.frequencies_hz[mode])
         lines.append(f"* mode {mode} at {signal.frequencies_hz[mode]:.9g} Hz")
         previous = "0"

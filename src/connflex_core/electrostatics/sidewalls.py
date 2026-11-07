@@ -61,15 +61,18 @@ class SidewallCapacitance:
             be dense whose problem exceeds ``max_elements`` is ``"windowed"``.
         charge: N by n charges on the elements of ``mesh`` that a field solution counts,
             in coulombs per meter of thickness, per volt on each conductor with the
-            others at zero; zero elsewhere.
+            others at zero; zero elsewhere. An element counted by two field problems,
+            as a conductor in a dense pair and a windowed pair has, keeps the charge of
+            the problem solved last.
         mesh: Boundary elements on the outlines. Empty when no pair is solved by the
             field method.
         walls: Pieces of wall facing another conductor, which give feature sizes and
             the capacitance of pairs taken as plates.
-        windows: Number of field solutions behind the result: 1 for a mesh solved whole,
-            the number of windows and rows of identical cells otherwise, counting a
-            window that took the solution of a translate and the windows of cells that
-            travel took out of rows, 0 when every pair is taken as plates.
+        windows: Field solutions planned: 1 for a mesh solved whole, the number of
+            windows and rows of identical cells otherwise, counting a window that took
+            the solution of a translate, a window that held no pair and was not solved,
+            and the windows of cells that travel took out of rows, 0 when every pair is
+            taken as plates.
         asymmetry: Largest difference between the charge on one conductor per volt on
             another and the same with the two exchanged, over pairs solved by the field
             method, against the largest such entry, before the two were averaged.
@@ -136,7 +139,7 @@ class SidewallPlan:
 
     @property
     def windows(self) -> int:
-        """Number of windows and periodic cells the field solutions take."""
+        """Number of windows and rows of identical cells the field solutions take."""
         return sum(len(problem.cores) + len(problem.rows) for problem in self.problems)
 
 

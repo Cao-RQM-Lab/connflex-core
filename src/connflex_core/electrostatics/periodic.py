@@ -191,7 +191,9 @@ class Row:
         period: Vector from one cell to the next, in meters.
         cells: Elements of each interior cell, in order along ``period``.
         centers: Center of each interior cell at rest, in meters.
-        middle: Position in ``cells`` of the cell solved for all of them.
+        middle: Position in ``cells`` of the middle cell, which keys the row's family; the
+            cell solved is the counted cell nearest it in the first row of a family,
+            equation (165).
         owners: Conductors whose runs make the row.
         ends: Points at rest where the runs of each owner begin and end along the row,
             owners by 2 by 2, in meters.

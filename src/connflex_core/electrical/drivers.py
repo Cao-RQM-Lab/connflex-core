@@ -19,7 +19,7 @@ class PiecewiseLinear:
 
     Attributes:
         times: Times of the points in seconds, strictly ascending.
-        values: Value at each time, in volts for a source.
+        values: Value at each time, in volts for a ``Source``, amperes for a ``CurrentSource``.
     """
 
     times: tuple[float, ...]
