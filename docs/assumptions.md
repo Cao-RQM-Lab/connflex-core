@@ -116,7 +116,9 @@ consequence, and a way to check or mitigate it.
   windowed pair whose facing walls are long against $d_i$ keeps an error that
   refinement does not remove, a few percent of its force; `asymmetry` is the
   mismatch of overlapping windows, not that error. Raise
-  `interaction_distance` against the facing length, or lower `dense_cutoff`.
+  `interaction_distance` against the facing length, or raise `dense_cutoff`
+  so that the pair is solved in one dense system; lowering it sends more
+  pairs to windows.
 - **Window sets and row cells are held while travel allows**, (164) and (165):
   $\mathbf{C}(\mathbf{q})$ steps by about the asymmetry where a set changes, so
   two histories reaching one displacement can differ by one such step.

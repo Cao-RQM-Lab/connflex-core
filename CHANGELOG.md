@@ -30,6 +30,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The assumptions page advised lowering `dense_cutoff` against window
+  truncation; lowering it sends more pairs to windows, raising it fewer.
 - The Shapely example on the usage page drew every pad over the handle and a
   beam wider than `beam_width_max`, so it extracted one anchored body and
   modal analysis raised; it now releases a pad on a beam, and a test runs it.
