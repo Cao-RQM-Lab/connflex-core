@@ -22,6 +22,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `equilibrium` at a fold where the tangent stiffness is singular in a
+  direction without unbalance, as at the symmetric loss of stability of a
+  centered comb, no longer leaks scipy's `LinAlgWarning`: the result there is
+  right and `stable` reports it.
 - Newton iteration of `equilibrium` that meets a force or stiffness that is
   not finite, as a model evaluated far beyond its range can return, raises
   `NoEquilibriumError` instead of a solver error, so a pull-in search that

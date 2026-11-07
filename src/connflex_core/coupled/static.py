@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -238,7 +239,9 @@ def _settle(
             return None, iteration
         step = np.zeros(len(place))
         try:
-            step[kept] = scipy.linalg.solve(tangent[both], -unbalance[kept], assume_a="sym")
+            with warnings.catch_warnings():  # singular along a direction without unbalance
+                warnings.simplefilter("ignore", scipy.linalg.LinAlgWarning)
+                step[kept] = scipy.linalg.solve(tangent[both], -unbalance[kept], assume_a="sym")
         except scipy.linalg.LinAlgError:
             return None, iteration
         whole = True

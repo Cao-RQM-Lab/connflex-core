@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import replace
 
 import numpy as np
@@ -184,6 +185,11 @@ def test_centered_comb_turns_unstable_at_the_closed_form_voltage(shuttle: Struct
         assert np.max(abs(result.displacement[:3])) < 1e-9 * GAP * UM
         assert result.margin == pytest.approx(1 - fraction**2, rel=1e-3)
         assert result.stable == (fraction < 1)
+    with warnings.catch_warnings():  # at the fold the tangent is singular and the unbalance zero
+        warnings.simplefilter("error")
+        stators = {net_at(shuttle, x, 0): limit for x in (-250, 250)}
+        result = shuttle.equilibrium(model, stators)
+    assert abs(result.margin) < 1e-6
 
 
 def test_floating_net_keeps_its_charge_as_the_plate_moves(plate: Structure) -> None:
