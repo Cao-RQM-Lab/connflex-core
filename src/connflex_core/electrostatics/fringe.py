@@ -13,6 +13,7 @@ from shapely import MultiPolygon, Polygon, STRtree
 
 from connflex_core.electrostatics.facing import edge_frames, facing_runs, outline_edges
 from connflex_core.electrostatics.jets import Jet
+from connflex_core.electrostatics.outlines import solid_polygons
 from connflex_core.electrostatics.section import Cut, Section, solve_section
 from connflex_core.electrostatics.translates import KEY_GRID
 from connflex_core.workers import Workers
@@ -153,7 +154,7 @@ def find_fringe(
     point = (runs.start + runs.end) / 2
     facing_normal = normal[runs.edge]
     across = point + facing_normal * runs.gap.mean(axis=1)[:, None] / 2
-    owners, polygons = _solid(regions)
+    owners, polygons = solid_polygons(regions)
     piece_cuts = _cuts(
         plan,
         polygons,
@@ -278,23 +279,6 @@ def _beneath(plan: FringePlan, points: Array) -> Index:
     where, which = STRtree(list(plan.handle)).query(shapely.points(points), predicate="intersects")
     found[where] = which
     return found
-
-
-def _solid(regions: Sequence[MultiPolygon]) -> tuple[Index, list[Polygon]]:
-    """Polygons of the regions, with holes that hold no other polygon filled as the
-    mesh leaves them, and the region of each."""
-    polygons = [polygon for region in regions for polygon in region.geoms]
-    owners = np.array([k for k, region in enumerate(regions) for _ in region.geoms], dtype=np.intp)
-    tree = STRtree(polygons)
-    solid = []
-    for position, polygon in enumerate(polygons):
-        kept = [
-            ring
-            for ring in polygon.interiors
-            if np.any(tree.query(Polygon(ring), predicate="intersects") != position)
-        ]
-        solid.append(Polygon(polygon.exterior, kept))
-    return owners, solid
 
 
 def _cuts(

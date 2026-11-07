@@ -43,18 +43,12 @@ def mesh_outlines(conductors: Sequence[MultiPolygon], size: float, grading: floa
     ``size`` of the next, as rounding leaves them, is dropped. A hole is meshed only
     when it holds another polygon: an empty cavity in a conductor holds no field.
     """
-    polygons = [polygon for conductor in conductors for polygon in conductor.geoms]
-    owner = [index for index, conductor in enumerate(conductors) for _ in conductor.geoms]
-    tree = STRtree(polygons)
+    owner, polygons = solid_polygons(conductors)
     start: list[NDArray[np.complex128]] = []
     end: list[NDArray[np.complex128]] = []
     conductor: list[int] = []
     for position, polygon in enumerate(polygons):
-        rings = [(polygon.exterior, 1.0)]
-        for ring in polygon.interiors:
-            inside = tree.query(Polygon(ring), predicate="intersects")
-            if np.any(inside != position):
-                rings.append((ring, -1.0))
+        rings = [(polygon.exterior, 1.0), *((ring, -1.0) for ring in polygon.interiors)]
         for ring, role in rings:
             for points in _ring_nodes(shapely.get_coordinates(ring), role, size, grading):
                 start.append(points[:-1])
@@ -66,6 +60,26 @@ def mesh_outlines(conductors: Sequence[MultiPolygon], size: float, grading: floa
         end=np.column_stack([last.real, last.imag]),
         conductor=np.array(conductor, dtype=np.intp),
     )
+
+
+def solid_polygons(conductors: Sequence[MultiPolygon]) -> tuple[NDArray[np.intp], list[Polygon]]:
+    """Polygons of ``conductors`` with the conductor of each, holes that hold no other
+    polygon filled: an empty cavity in a conductor holds no field."""
+    polygons = [polygon for conductor in conductors for polygon in conductor.geoms]
+    owner = np.array(
+        [index for index, conductor in enumerate(conductors) for _ in conductor.geoms],
+        dtype=np.intp,
+    )
+    tree = STRtree(polygons)
+    solid = []
+    for position, polygon in enumerate(polygons):
+        kept = [
+            ring
+            for ring in polygon.interiors
+            if np.any(tree.query(Polygon(ring), predicate="intersects") != position)
+        ]
+        solid.append(Polygon(polygon.exterior, kept))
+    return owner, solid
 
 
 def _ring_nodes(
