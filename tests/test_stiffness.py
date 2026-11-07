@@ -95,3 +95,20 @@ def test_effective_stiffness_is_invariant_under_rotation() -> None:
     assert np.linalg.eigvalsh(k_rotated) == pytest.approx(
         reference, rel=1e-9, abs=1e-12 * np.max(reference)
     )
+
+
+def test_lever_arm_maps_the_beam_end_stiffness_to_an_offset_center() -> None:
+    """A body whose center lies off the beam end sees the end stiffness through the lever
+    of equations (27) and (28): a motion of the center carries the end by the cross
+    product of the turn with the arm."""
+    b = beam(200 * UM, 10 * UM, 25 * UM)
+    anchor_center = np.array([-50 * UM, 0.0, -200 * UM])
+    arm = np.array([30 * UM, -20 * UM, -40 * UM])
+    at_end = effective_stiffness(b, SILICON, anchor_center, np.array(b.end))
+    offset = effective_stiffness(b, SILICON, anchor_center, np.array(b.end) + arm)
+    skew = np.array([[0.0, -arm[2], arm[1]], [arm[2], 0.0, -arm[0]], [-arm[1], arm[0], 0.0]])
+    carry = np.eye(12)
+    carry[6:9, 9:12] = skew  # end travel = center travel + turn x (end - center)
+    expected = carry.T @ at_end @ carry
+    assert offset == pytest.approx(expected, rel=1e-12, abs=1e-12 * np.max(abs(at_end)))
+    assert offset[6:, 6:] != pytest.approx(at_end[6:, 6:])

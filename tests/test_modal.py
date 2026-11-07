@@ -101,3 +101,26 @@ def test_result_round_trips_through_npz(
         assert saved["frequencies_hz"] == pytest.approx(result.frequencies_hz)
         assert saved["modes"].shape == (6, 6)
         assert list(saved["dof_name"]) == ["ux", "uy", "uz", "tx", "ty", "tz"]
+
+
+def test_error_paths_name_their_cause(stack: Stack, params: Params, layout_um: LayoutUm) -> None:
+    anchored = extract(layout_um([PAD_A], [HANDLE_A]), stack, params())
+    with pytest.raises(ValueError, match="no movable bodies"):
+        anchored.modal()
+    structure = single_beam(stack, params, layout_um)
+    with pytest.raises(ValueError, match="sparse solver needs"):
+        structure.modal(SolveOptions(n_modes=6, method="sparse"))
+    with pytest.raises(ValueError, match="the anchor or does not exist"):
+        structure.static({0: [1.0, 0, 0, 0, 0, 0]})
+    with pytest.raises(ValueError, match="six components"):
+        structure.static({1: [1.0, 0, 0]})
+
+
+def test_sparse_solver_shifted_off_zero_matches_dense(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    chain = [PAD_A, BEAM, PAD_B, box(400, 45, 600, 55), box(600, 0, 700, 100)]
+    structure = extract(layout_um(chain, [HANDLE_A]), stack, params())
+    dense = structure.modal(SolveOptions(n_modes=4))
+    shifted = structure.modal(SolveOptions(n_modes=4, method="sparse", sigma=1e9))
+    assert shifted.frequencies_hz == pytest.approx(dense.frequencies_hz, rel=1e-6)

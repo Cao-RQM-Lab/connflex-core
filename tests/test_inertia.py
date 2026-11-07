@@ -76,3 +76,52 @@ def test_two_layers_shift_the_center_and_add_parallel_axis_terms(stack: Stack) -
     )
     assert props.inertia[0, 0] == pytest.approx(ixx)
     assert props.inertia[0, 2] == pytest.approx(0.0, abs=1e-9 * ixx)
+
+
+def voxel_inertia(
+    blocks: list[tuple[float, float, float, float, float, float, float]], cells: int
+) -> tuple[float, np.ndarray, np.ndarray]:
+    """Mass, center, and inertia tensor of axis-aligned blocks (x0, y0, x1, y1, bottom,
+    top, density) summed over cells, exact in the plane for grid-aligned blocks."""
+    points, masses = [], []
+    for x0, y0, x1, y1, bottom, top, density in blocks:
+        xs = x0 + (np.arange(cells) + 0.5) * (x1 - x0) / cells
+        ys = y0 + (np.arange(cells) + 0.5) * (y1 - y0) / cells
+        zs = bottom + (np.arange(cells) + 0.5) * (top - bottom) / cells
+        grid = np.stack(np.meshgrid(xs, ys, zs, indexing="ij"), axis=-1).reshape(-1, 3)
+        points.append(grid)
+        weight = density * (x1 - x0) * (y1 - y0) * (top - bottom) / cells**3
+        masses.append(np.full(len(grid), weight))
+    xyz, m = np.concatenate(points), np.concatenate(masses)
+    center = m @ xyz / m.sum()
+    r = xyz - center
+    inertia = -np.einsum("n,ni,nj->ij", m, r, r)
+    inertia[np.diag_indices(3)] += np.sum(m * np.sum(r * r, axis=1))
+    return float(m.sum()), center, inertia
+
+
+def test_products_of_inertia_are_those_of_the_mass_distribution(stack: Stack) -> None:
+    """An L-shaped plate has a product of inertia in the plane, and a box layer offset
+    from the device footprint has products with the vertical, equation (10)."""
+    a, t_d, t_b = 100 * UM, stack.device.thickness, stack.box.thickness
+    ell = as_multipolygon(unary_union([box(0, 0, a, a / 4), box(0, 0, a / 4, a)]))
+    props = mass_properties([ell, MultiPolygon(), MultiPolygon()], stack)
+    mass, center, inertia = voxel_inertia(
+        [(0, 0, a, a / 4, -t_d, 0.0, 2330), (0, a / 4, a / 4, a, -t_d, 0.0, 2330)], 80
+    )
+    assert props.mass == pytest.approx(mass)
+    assert props.center == pytest.approx(center)
+    assert abs(props.inertia[0, 1]) > 1e-3 * props.inertia[0, 0]
+    assert props.inertia == pytest.approx(inertia, rel=2e-4, abs=1e-6 * np.max(abs(inertia)))
+
+    plate = MultiPolygon([box(0, 0, a, a / 2)])
+    oxide = MultiPolygon([box(a / 2, a / 4, a, a / 2)])
+    props = mass_properties([plate, oxide, MultiPolygon()], stack)
+    mass, center, inertia = voxel_inertia(
+        [(0, 0, a, a / 2, -t_d, 0.0, 2330), (a / 2, a / 4, a, a / 2, -t_d - t_b, -t_d, 2200)], 80
+    )
+    assert props.mass == pytest.approx(mass)
+    assert props.center == pytest.approx(center)
+    assert abs(props.inertia[0, 2]) > 1e-4 * props.inertia[0, 0]
+    assert abs(props.inertia[1, 2]) > 1e-4 * props.inertia[1, 1]
+    assert props.inertia == pytest.approx(inertia, rel=2e-4, abs=1e-6 * np.max(abs(inertia)))

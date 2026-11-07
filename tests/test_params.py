@@ -36,6 +36,11 @@ def test_explicit_values_override_dependent_defaults() -> None:
         ({"precision_grid": 0.0}, "precision_grid"),
         ({"anchor": (1.0,)}, "anchor"),
         ({"via_resistance": -1.0}, "via_resistance"),
+        ({"heal_distance": 0.0}, "heal_distance"),
+        ({"simplify_tolerance": 0.0}, "simplify_tolerance"),
+        ({"body_min_width": 0.0}, "body_min_width"),
+        ({"beam_width_max": 0.0}, "beam_width_max"),
+        ({"anchor": -1}, "anchor"),
     ],
 )
 def test_invalid_parameters_name_the_field(overrides: dict[str, object], field: str) -> None:
@@ -48,9 +53,11 @@ def test_anchor_accepts_index_or_point() -> None:
     assert params(anchor=(1e-6, 2e-6)).anchor == (1e-6, 2e-6)
 
 
-def test_solve_options_reject_unknown_method() -> None:
+def test_solve_options_reject_unknown_method_and_no_modes() -> None:
     with pytest.raises(ValueError, match="method"):
         SolveOptions(method="magic")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="n_modes"):
+        SolveOptions(n_modes=0)
 
 
 @pytest.mark.parametrize(

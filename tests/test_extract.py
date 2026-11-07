@@ -218,3 +218,32 @@ def test_stub_adds_mass_and_inertia_to_its_body_but_no_stiffness(
     (candidate,) = structure.rejected
     assert candidate.bodies == (1,)
     assert structure.anchor.stubs.is_empty
+
+
+def test_precision_grid_snaps_and_beam_width_bounds_reject_wide_candidates(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    layout = layout_um([PAD_A, box(100, 45.0004, 300, 55.0007), PAD_B], [HANDLE_A])
+    loose = extract(layout, stack, params())
+    snapped = extract(layout, stack, params(precision_grid=1e-9))
+    (beam,) = snapped.beams
+    assert beam.width == pytest.approx(10 * UM, abs=2e-9)
+    assert beam.length == pytest.approx(loose.beams[0].length, abs=2e-9)
+    assert snapped.bodies[1].device.area == pytest.approx(loose.bodies[1].device.area, rel=1e-6)
+
+    structure = extract(
+        layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A]), stack, params(beam_width_max=5 * UM)
+    )
+    assert structure.beams == ()
+    assert any("beam_width_max" in candidate.reason for candidate in structure.rejected)
+
+
+def test_anchor_index_counts_handle_polygons_by_descending_area(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    small = box(250, -25, 450, 125)
+    structure = extract(layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A, small]), stack, params(anchor=1))
+    assert structure.anchor.device.contains(at(350, 50))
+    assert not structure.anchor.device.contains(at(50, 50))
+    structure = extract(layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A, small]), stack, params(anchor=0))
+    assert structure.anchor.device.contains(at(50, 50))
