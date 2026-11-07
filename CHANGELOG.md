@@ -82,6 +82,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   element centers rather than by testing every element of the mesh.
 - Hessian blocks are mapped onto body degrees of freedom by matrix products
   rather than by an `einsum` over six indices.
+- The handle slab of a cross-section reaches four device thicknesses past the
+  cut, from one: the excess to the handle was about 5 percent short of its
+  settled value at one thickness. The theory page restates the fringe table
+  and the comb example with the new values and the slab's convergence.
 - Cross-section faces are meshed at the box height only where they pass the
   wall or the edge of a block, and coarsen to an eighth of the device
   thickness away from them; the handle slab is so meshed under every block

@@ -3107,22 +3107,23 @@ between device electrodes $a$ and $b$ and to a handle electrode $h$. Its
 gradient and Hessian follow (162) and (163) through the lengths of (161) and
 the expansions of (160), in the six degrees of freedom of every body.
 
-Two walls 4 micrometers apart, each a block 22 micrometers wide or more, show
-how the correction goes with thickness:
+Two walls 4 micrometers apart, the wall's block 30 micrometers wide, as far as
+the cut reaches with $d_i$ of 30 micrometers, and the block ahead 22, show how
+the correction goes with thickness:
 
 | $t$ | Excess to the wall ahead | Against $t / g$ | With the handle 2 micrometers below: to the wall ahead | To the handle |
 | --- | --- | --- | --- | --- |
-| 10 um | $1.85\, \varepsilon$ | 0.74 | $0.75\, \varepsilon$ | $0.92\, \varepsilon$ |
-| 20 um | $1.85\, \varepsilon$ | 0.37 | $0.76\, \varepsilon$ | $0.90\, \varepsilon$ |
-| 40 um | $1.85\, \varepsilon$ | 0.18 | $0.77\, \varepsilon$ | $0.88\, \varepsilon$ |
-| 80 um | $1.85\, \varepsilon$ | 0.09 | $0.78\, \varepsilon$ | $0.85\, \varepsilon$ |
+| 10 um | $1.85\, \varepsilon$ | 0.74 | $0.73\, \varepsilon$ | $0.98\, \varepsilon$ |
+| 20 um | $1.85\, \varepsilon$ | 0.37 | $0.73\, \varepsilon$ | $0.96\, \varepsilon$ |
+| 40 um | $1.85\, \varepsilon$ | 0.18 | $0.75\, \varepsilon$ | $0.92\, \varepsilon$ |
+| 80 um | $1.85\, \varepsilon$ | 0.09 | $0.77\, \varepsilon$ | $0.88\, \varepsilon$ |
 
 The fringe at the two ends of a wall does not grow with its height, so it
-matters less as $t / g$ grows, and the handle takes about half of it. On a
+matters less as $t / g$ grows, and the handle takes well over half of it. On a
 comb of fingers 4 micrometers wide with gaps of 3 micrometers, 25
 micrometers thick, the fringe adds 14 percent to the pull along the fingers
 without a handle. Over a grounded handle, with the shuttle grounded and the
-stator driven, it takes 18 percent off the pull instead: walls of the stator
+stator driven, it takes 20 percent off the pull instead: walls of the stator
 that no finger faces couple to the handle beside them, and an engaging finger
 shields them from it.
 
@@ -3130,11 +3131,23 @@ shields them from it.
     The cross-section holds air: buried oxide under anchored electrodes is
     left to the plates, since the release undercut leaves air under the
     edges of walls, where the fringe lies, wherever the release distance
-    exceeds the box. Elements are at most $t / 8$ long on walls and $g_0$ on
-    faces, and shorten toward corners by `corner_grading`. Between 4 and 32
-    elements over the height the excess changes by $5 \times 10^{-4}$, and a
-    slab reaching $2 t$ rather than $t$ past the cut changes it by $2 \times
-    10^{-3}$.
+    exceeds the box. Elements are at most $t / 8$ long on walls and on faces
+    away from features, at most the smaller of $g_0$ and $t / 8$ on faces
+    where they pass the wall or the edge of a block, growing by at most $e$
+    per element in between, and shorten toward corners by `corner_grading`.
+    The slab is meshed as finely under every block edge, so its mesh follows
+    the blocks of a cut; the derivatives of a cut hold it where it is, and
+    (160) expands from cuts on the grid, where it stands still. Between 4 and
+    32 elements over the height the excess changes by $2 \times 10^{-4}$
+    without the handle and by $3 \times 10^{-3}$ with it. The slab reaches
+    $d_i + 4 t$ either side of the wall: its top beyond the silicon the cut
+    knows takes charge from the top face of the wall's block, which the cut
+    truncates at $d_i$, so the excess settles slowly as the slab grows. From
+    $4 t$ to $8 t$ the excess to the wall ahead falls by $6 \times 10^{-3}$
+    and that to the handle rises by $1 \times 10^{-2}$, and to $16 t$ by
+    $8 \times 10^{-3}$ and $1.3 \times 10^{-2}$; a wall's block wider than
+    about $t$ so keeps a fringe to its faced conductor that grows a little
+    with $d_i$.
 
     A cut is uniform along its wall. Corners of outlines add no field of
     their own, and the rounding of (161) stands in for it where ends pass.

@@ -16,7 +16,7 @@ Array = NDArray[np.float64]
 Index = NDArray[np.intp]
 
 WALL_ELEMENTS = 8
-HANDLE_MARGIN = 1.0
+HANDLE_MARGIN = 4.0
 
 
 @dataclass(frozen=True, eq=False)

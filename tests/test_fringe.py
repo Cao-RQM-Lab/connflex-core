@@ -117,19 +117,33 @@ def test_cross_section_faces_coarsen_away_from_features() -> None:
     the whole slab; faces now coarsen away from the wall and the block edges, and the
     excess is that of the fine mesh to a few tenths of a percent."""
     found = solve_section(walls(True), 200 * UM, 0.3 * UM, 30 * UM, 16.0)
-    assert -found.value[1] == pytest.approx(0.5109, rel=1e-2)  # every face at the box height
-    assert -found.value[2] == pytest.approx(1.9359, rel=1e-2)
+    assert -found.value[1] == pytest.approx(0.4999, rel=1e-2)  # every face at the box height
+    assert -found.value[2] == pytest.approx(1.9528, rel=1e-2)
     mesh = section._rectangles(
         [
             (-30 * UM, 0.0, 0.0, 200 * UM, 0, -15 * UM),
             (4 * UM, 0.0, 26 * UM, 200 * UM, 1, None),
-            (-230 * UM, -0.6 * UM, 230 * UM, -0.3 * UM, 2, 0.0),
+            (-830 * UM, -0.6 * UM, 830 * UM, -0.3 * UM, 2, 0.0),
         ],
         0.3 * UM,
         25 * UM,
         16.0,
     )
-    assert len(mesh.conductor) < 400
+    assert len(mesh.conductor) < 500
+
+
+def test_cross_section_is_settled_in_its_mesh_and_slab(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Four times the elements over the height, or a slab reaching twice as far, move
+    the excess of the documented cut by less than the bounds the theory page states."""
+    base = solve_section(walls(True), 25 * UM, BOX, 30 * UM, 16.0)
+    monkeypatch.setattr(section, "WALL_ELEMENTS", 32)
+    fine = solve_section(walls(True), 25 * UM, BOX, 30 * UM, 16.0)
+    assert fine.value[1:] == pytest.approx(base.value[1:], rel=4e-3)
+    monkeypatch.setattr(section, "WALL_ELEMENTS", 8)
+    monkeypatch.setattr(section, "HANDLE_MARGIN", 8.0)
+    wide = solve_section(walls(True), 25 * UM, BOX, 30 * UM, 16.0)
+    assert wide.value[1] == pytest.approx(base.value[1], rel=8e-3)
+    assert wide.value[2] == pytest.approx(base.value[2], rel=1.2e-2)
 
 
 def test_fringe_is_a_symmetric_part_of_the_matrix(comb: Structure) -> None:
@@ -147,7 +161,8 @@ def test_fringe_is_a_symmetric_part_of_the_matrix(comb: Structure) -> None:
 def test_fringe_derivatives_are_slopes_of_the_model(comb: Structure) -> None:
     """At rest and with the shuttle moved, tilted, and turned. Walls that a cut meets
     behind its own, of a third body, move as if square to it, which leaves second
-    derivatives in turn a little off."""
+    derivatives in turn a little off. The handle's diagonal is the sum of its column
+    and carries the differences of every entry in it."""
     at = electrodes(comb)
     rest = comb.capacitance(FIELD)
     potentials = np.zeros(len(comb.electrodes))
@@ -161,7 +176,7 @@ def test_fringe_derivatives_are_slopes_of_the_model(comb: Structure) -> None:
             ahead, behind = rest.at(place + step), rest.at(place - step)
             slope = (ahead.matrix - behind.matrix) / (2 * step[dof])
             expected = here.gradient[:, :, dof]
-            floor = 1e-6 * np.max(abs(slope)) + 1e-12 * np.max(abs(here.gradient))
+            floor = 1e-5 * np.max(abs(slope)) + 1e-12 * np.max(abs(here.gradient))
             assert expected == pytest.approx(slope, rel=1e-5, abs=floor)
             softening = -(ahead.force(potentials) - behind.force(potentials)) / (2 * step[dof])
             scale = np.sqrt(abs(np.diag(stiffness) * stiffness[dof, dof]))
