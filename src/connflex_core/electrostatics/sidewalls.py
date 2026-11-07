@@ -20,6 +20,7 @@ from connflex_core.electrostatics.periodic import (
     interior_cells,
     near_rows,
     solve_rows,
+    turns_of,
 )
 from connflex_core.electrostatics.windows import (
     WindowSets,
@@ -337,7 +338,10 @@ def solve_sidewalls(
                     workers=workers,
                 )
                 if problem.rows:
-                    kept_cells = interior_cells(problem.rows, mesh, plan.mesh, body, _reach(params))
+                    turns = turns_of(mesh, plan.mesh, body)
+                    kept_cells = interior_cells(
+                        problem.rows, mesh, plan.mesh, body, _reach(params), turns
+                    )
                     cores, keys = _loose(problem.rows, kept_cells, params.window_elements)
                     if cores:
                         *part, _ = solve_windows(
@@ -367,6 +371,7 @@ def solve_sidewalls(
                         _reach(params),
                         (found[0], found[1], found[2], found[3]),
                         kept_cells,
+                        turns,
                     )
                     for _ in problem.rows:
                         step()

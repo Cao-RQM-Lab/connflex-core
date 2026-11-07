@@ -458,12 +458,12 @@ def near_rows(rows: Sequence[Row], mesh: Mesh, elements: Index, reach: float) ->
 
 
 def interior_cells(
-    rows: Sequence[Row], mesh: Mesh, rest: Mesh, body: Index, reach: float
+    rows: Sequence[Row], mesh: Mesh, rest: Mesh, body: Index, reach: float, turns: Turns
 ) -> list[NDArray[np.bool_]]:
     """Which cells of each row lie, where the bodies are now, within the overlap of its
     runs less ``reach`` at both ends, equation (165); ``mesh``, ``rest``, and ``body`` as
     for ``solve_rows``."""
-    turn = _turns_of(mesh, rest, body)
+    turn = turns
     center = mesh.center
     kept = []
     for row in rows:
@@ -499,6 +499,7 @@ def solve_rows(
     reach: float,
     totals: tuple[Array, Array, Array, Array],
     kept: Sequence[NDArray[np.bool_]] | None = None,
+    turns: Turns | None = None,
 ) -> None:
     """Add to ``totals``, capacitance, gradient, Hessian, and element charges per unit
     permittivity, what the cells of ``rows`` hold, equations (154) and (155), and return
@@ -515,7 +516,7 @@ def solve_rows(
     is that cell moved by the turn of its bodies, carried to second order.
     """
     capacitance, gradient, hessian, charge = totals
-    turn = _turns_of(mesh, rest, body)
+    turn = turns_of(mesh, rest, body) if turns is None else turns
     counted = kept if kept is not None else [np.ones(len(row.cells), dtype=bool) for row in rows]
     tree = center_tree(mesh)
     families: dict[bytes, list[tuple[Row, NDArray[np.bool_]]]] = {}
@@ -571,7 +572,10 @@ def solve_rows(
         )
 
 
-def _turns_of(mesh: Mesh, rest: Mesh, body: Index) -> dict[int, tuple[float, complex, complex]]:
+Turns = dict[int, tuple[float, complex, complex]]
+
+
+def turns_of(mesh: Mesh, rest: Mesh, body: Index) -> Turns:
     """Turn of every body from rest, with a point of it at rest and where it is now."""
     owner = body[mesh.conductor]
     turn = {}
@@ -584,7 +588,7 @@ def _turns_of(mesh: Mesh, rest: Mesh, body: Index) -> dict[int, tuple[float, com
     return turn
 
 
-def _placed(turn: dict[int, tuple[float, complex, complex]], b: int, point: complex) -> complex:
+def _placed(turn: Turns, b: int, point: complex) -> complex:
     """Where a point at rest on body ``b`` is now."""
     angle, anchor_rest, anchor_now = turn[b]
     return complex(anchor_now + np.exp(1j * angle) * (point - anchor_rest))
