@@ -30,8 +30,7 @@ def local_stiffness(beam: Beam, material: Material) -> Matrix:
     freedom are ordered as in equation (12) for each end.
     """
     e, g = material.youngs_modulus, material.shear_modulus
-    if g is None:
-        raise ValueError("material shear modulus is not resolved")
+    assert g is not None  # derived by Material
     length, w, t = beam.length, beam.width, beam.thickness
     j = effective_torsion_constant(w, t, length, material.torsion_beta)
     k_a, k_t = e * w * t / length, g * j / length

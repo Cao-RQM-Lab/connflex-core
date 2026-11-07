@@ -394,7 +394,8 @@ def find_capacitance(
             )
         device = [e for e in structure.electrodes if e.layer == "device"]
         with stage("clusters", progress) as current:
-            margin = structure.params.beam_overlap_margin or structure.params.heal_distance
+            margin = structure.params.beam_overlap_margin
+            assert margin is not None  # resolved by ExtractionParams
             silicon = [_merged(electrode.region, margin) for electrode in device]
             graph: nx.Graph[int] = nx.Graph()
             graph.add_nodes_from(range(len(device)))

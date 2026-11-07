@@ -53,8 +53,9 @@ def extract(
     tolerance = params.simplify_tolerance
     margin = params.beam_overlap_margin
     width_max = params.beam_width_max
-    if tolerance is None or margin is None or width_max is None:
-        raise ValueError("extraction parameters are not resolved")
+    assert tolerance is not None  # the three are resolved by ExtractionParams
+    assert margin is not None
+    assert width_max is not None
 
     with stage("heal", progress) as current:
         device, holes = fill_release_holes(layout.device, params.release_hole_max_area)

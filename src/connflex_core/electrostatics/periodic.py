@@ -498,7 +498,7 @@ def solve_rows(
     reach: float,
     totals: tuple[Array, Array, Array, Array],
     kept: Sequence[NDArray[np.bool_]] | None = None,
-) -> int:
+) -> None:
     """Add to ``totals``, capacitance, gradient, Hessian, and element charges per unit
     permittivity, what the cells of ``rows`` hold, equations (154) and (155), and return
     the number of cells solved.
@@ -566,7 +566,6 @@ def solve_rows(
         hessian[np.ix_(present, present, moving, three, moving, three)] += swing.reshape(
             size, size, rigid, 3, rigid, 3
         )
-    return len(families)
 
 
 def _turns_of(mesh: Mesh, rest: Mesh, body: Index) -> dict[int, tuple[float, complex, complex]]:
