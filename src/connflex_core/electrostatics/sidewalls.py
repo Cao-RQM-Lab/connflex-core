@@ -200,7 +200,7 @@ def plan_sidewalls(
     their pair of nets. ``meshing`` opens the stage in which outlines are meshed when a
     pair is solved by the field method.
     """
-    reach = _reach(params)
+    reach = interaction_reach(params)
     first, second = STRtree(list(regions)).query(list(regions), predicate="dwithin", distance=reach)
     keep = first < second
     pairs = np.unique(np.column_stack([first[keep], second[keep]]), axis=0).astype(np.intp)
@@ -340,7 +340,7 @@ def solve_sidewalls(
                 if problem.rows:
                     turns = turns_of(mesh, plan.mesh, body)
                     kept_cells = interior_cells(
-                        problem.rows, mesh, plan.mesh, body, _reach(params), turns
+                        problem.rows, mesh, plan.mesh, body, interaction_reach(params), turns
                     )
                     cores, keys = _loose(problem.rows, kept_cells, params.window_elements)
                     if cores:
@@ -368,7 +368,7 @@ def solve_sidewalls(
                         plan.mesh,
                         body,
                         pivots,
-                        _reach(params),
+                        interaction_reach(params),
                         (found[0], found[1], found[2], found[3]),
                         kept_cells,
                         turns,
@@ -429,12 +429,16 @@ def _loose(
 def _facing(
     regions: Sequence[MultiPolygon], body: Index, pivots: Array, params: ElectrostaticParams
 ) -> Facing:
-    return facing_plates(regions, body, pivots, _reach(params))
+    return facing_plates(regions, body, pivots, interaction_reach(params))
 
 
-def _reach(params: ElectrostaticParams) -> float:
+def interaction_reach(params: ElectrostaticParams) -> float:
+    """``interaction_distance`` of ``params``, which the sidewall field needs."""
     if params.interaction_distance is None:
-        raise ValueError("interaction_distance is required for sidewall capacitance")
+        raise ValueError(
+            "interaction_distance is required for sidewall capacitance; set it or "
+            "include_sidewalls=False"
+        )
     return params.interaction_distance
 
 

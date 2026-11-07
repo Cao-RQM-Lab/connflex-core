@@ -22,6 +22,7 @@ from connflex_core.electrostatics.sidewalls import (
     Facing,
     SidewallCapacitance,
     SidewallPlan,
+    interaction_reach,
     plan_sidewalls,
     solve_sidewalls,
 )
@@ -395,12 +396,7 @@ def find_capacitance(
     plates = find_plates(structure, params, progress=progress) if params.include_plates else ()
     groups: list[RestCluster] = []
     if params.include_sidewalls:
-        reach = params.interaction_distance
-        if reach is None:
-            raise ValueError(
-                "interaction_distance is required for sidewall capacitance; set it or "
-                "include_sidewalls=False"
-            )
+        reach = interaction_reach(params)
         device = [e for e in structure.electrodes if e.layer == "device"]
         with stage("clusters", progress) as current:
             margin = structure.params.beam_overlap_margin
@@ -483,7 +479,7 @@ def _fringe_plan(
     bodies among those of the group, and the bodies of the result. Groups share
     ``solved``, the cross-sections met so far; ``gap`` is the narrowest between
     electrodes of different bodies of the group."""
-    reach = params.interaction_distance or 0.0
+    reach = interaction_reach(params)
     found: list[int] = []
     if below is not None:
         hits = below.query(list(regions), predicate="dwithin", distance=reach)[1]
@@ -590,7 +586,7 @@ def _evaluate(
                     facing = group.facing
                     if motion.any() and "plates" in group.plan.method:
                         facing = facing_plates(
-                            regions, group.body, pivots, params.interaction_distance or 0.0
+                            regions, group.body, pivots, interaction_reach(params)
                         )
                     mesh = _carried(group.plan.mesh, group.body, centers, motion)
                     found, plan = solve_sidewalls(
@@ -753,9 +749,7 @@ def _remember(
             reach[body] = max(reach[body], float(np.max(np.hypot(*(corners - centers[body]).T))))
         memo.reach = reach
         gaps = [width for _, _, width in group.near]
-        memo.start = np.sqrt(tolerance) * (
-            min(gaps) if gaps else params.interaction_distance or 0.0
-        )
+        memo.start = np.sqrt(tolerance) * (min(gaps) if gaps else interaction_reach(params))
     radius = memo.start
     if memo.anchors:
         nearest = min(memo.anchors, key=lambda anchor: _apart(memo, motion, anchor.motion))
