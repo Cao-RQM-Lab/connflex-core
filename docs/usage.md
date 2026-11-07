@@ -283,6 +283,7 @@ model.dofs  # (body, "ux" | "uy" | "uz" | "tx" | "ty" | "tz") per degree of free
 model.gradient  # n by n by len(dofs): change of the matrix with each
 force = model.force(potentials)  # one potential per electrode
 softening = model.stiffness(potentials)  # adds to the mechanical stiffness
+model.charge_gradient(potentials)  # n by len(dofs): change of each electrode's charge with each
 
 moved = model.at(displacement)  # the same model with bodies displaced from rest
 moved.matrix, moved.gradient, moved.force(potentials)  # all at that displacement

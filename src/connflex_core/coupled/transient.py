@@ -16,7 +16,7 @@ from numpy.typing import ArrayLike, NDArray
 
 from connflex_core.coupled.static import Equilibrium
 from connflex_core.electrical.drivers import Capacitor, CurrentSource, Resistor, Source, Switch
-from connflex_core.electrical.network import electrode_indices, network_nodes
+from connflex_core.electrical.network import electrode_indices, network_nodes, tie_matrix
 from connflex_core.mechanics.assembly import Dof, anchored, applied_loads, assemble
 from connflex_core.params import TransientOptions
 from connflex_core.progress import Progress, stage
@@ -282,7 +282,7 @@ class _Run:
         n, d = self.count, len(self.dynamic)
         here, unknown = now.here, self.unknown
         stiffness = here.stiffness(now.electrodes)[np.ix_(self.kept, self.kept)]
-        pull = (self.tie.T @ np.einsum("abk,b->ak", here.gradient, now.electrodes))[:, self.kept]
+        pull = (self.tie.T @ here.charge_gradient(now.electrodes))[:, self.kept]
         size = 2 * n + d + 3
         matrix = np.zeros((size, size))
         matrix[:n, n : 2 * n] = np.eye(n)
@@ -388,9 +388,7 @@ def transient(
 
     reached = [*feeding, *(end for pair in ends for end in pair)]
     nodes, hidden, conductance = network_nodes(structure, stored, places, "source", reached)
-    tie = np.zeros((len(structure.electrodes), len(nodes) + len(hidden)))
-    for column, node in enumerate([*nodes, *hidden]):
-        tie[list(node), column] = 1.0
+    tie = tie_matrix(len(structure.electrodes), [*nodes, *hidden])
     index = {electrode: k for k, node in enumerate(nodes) for electrode in node}
     resistors, lumped = [], np.zeros((len(tie[0]), len(tie[0])))
     for part, pair in zip(circuit, ends, strict=True):

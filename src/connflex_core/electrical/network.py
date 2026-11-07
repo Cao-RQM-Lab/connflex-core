@@ -40,6 +40,16 @@ def electrode_indices(
     return places
 
 
+def tie_matrix(count: int, groups: Sequence[Sequence[int]]) -> Array:
+    """Matrix of ``count`` electrodes by ``groups`` with a one where an electrode belongs
+    to a group: it ties electrodes into nodes, so that ``tie.T @ C @ tie`` is the
+    capacitance between nodes and ``tie @ v`` the potential of every electrode."""
+    tie = np.zeros((count, len(groups)))
+    for column, group in enumerate(groups):
+        tie[list(group), column] = 1.0
+    return tie
+
+
 def network_nodes(
     structure: Structure,
     floating: Collection[int],

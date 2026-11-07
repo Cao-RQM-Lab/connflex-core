@@ -272,10 +272,17 @@ class CapacitanceModel:
         np.add.at(tied, (self.net[:, None], self.net[None, :]), self.matrix)
         return tied
 
+    def charge_gradient(self, potentials: ArrayLike) -> Array:
+        """Change of the charge on each electrode with each degree of freedom, n by D,
+        with ``potentials`` on the electrodes: ``gradient`` contracted with them."""
+        v = self._volts(potentials)
+        sensitivity: Array = np.einsum("abk,b->ak", self.gradient, v)
+        return sensitivity
+
     def force(self, potentials: ArrayLike) -> Array:
         """Generalized forces on ``dofs`` with ``potentials`` on the electrodes, equation (116)."""
         v = self._volts(potentials)
-        force: Array = 0.5 * np.einsum("a,abk,b->k", v, self.gradient, v)
+        force: Array = 0.5 * v @ self.charge_gradient(v)
         return force
 
     def stiffness(self, potentials: ArrayLike) -> Array:

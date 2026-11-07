@@ -13,7 +13,7 @@ from numpy.typing import ArrayLike, NDArray
 
 from connflex_core.coupled.static import Equilibrium
 from connflex_core.electrical.electrodes import Electrode
-from connflex_core.electrical.network import electrode_indices, network_nodes
+from connflex_core.electrical.network import electrode_indices, network_nodes, tie_matrix
 from connflex_core.mechanics.assembly import Dof, assemble
 from connflex_core.params import SmallSignalOptions
 from connflex_core.progress import Progress, stage
@@ -246,10 +246,8 @@ def small_signal(
         nodes, floating, conductance = network_nodes(
             structure, equilibrium.floating, places, "port"
         )
-        tie = np.zeros((count, len(nodes) + len(floating)))
-        for column, node in enumerate([*nodes, *floating]):
-            tie[list(node), column] = 1.0
-        pull = tie.T @ np.einsum("abk,b->ak", model.gradient, equilibrium.potentials)
+        tie = tie_matrix(count, [*nodes, *floating])
+        pull = tie.T @ model.charge_gradient(equilibrium.potentials)
         joined = tie.T @ model.matrix @ tie
         signal = slice(len(nodes))
         hidden = slice(len(nodes), None)

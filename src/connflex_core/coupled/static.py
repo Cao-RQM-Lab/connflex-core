@@ -137,7 +137,7 @@ def equilibrium(
                 ) from exc
             across = between[np.ix_(floating, driven)] @ level[driven]
             level[floating] = scipy.linalg.cho_solve(factor, stored[floating] - across)
-            pull = (tie.T @ np.einsum("abk,b->ak", here.gradient, level[here.net]))[floating]
+            pull = (tie.T @ here.charge_gradient(level[here.net]))[floating]
             added = pull.T @ scipy.linalg.cho_solve(factor, pull)
         return level[here.net], added
 

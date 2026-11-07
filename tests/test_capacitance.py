@@ -305,6 +305,22 @@ def test_derivatives_at_displaced_bodies_are_slopes_of_the_displaced_model(
         assert np.all(abs(stiffness[:, dof] - softening) < 1e-4 * abs(softening) + 1e-5 * scale)
 
 
+def test_charge_gradient_is_the_slope_of_the_charge(
+    model: CapacitanceModel, at: dict[str, int]
+) -> None:
+    """The charge on each electrode per degree of freedom, from which the force follows."""
+    volts = np.zeros(len(model.net))
+    volts[at["stator"]] = 10.0
+    sensitivity = model.charge_gradient(volts)
+    assert sensitivity.shape == (len(model.net), len(model.dofs))
+    assert model.force(volts) == pytest.approx(0.5 * volts @ sensitivity)
+    for k in (0, 2):  # travel along the fingers, and toward the handle
+        step = np.zeros(len(model.dofs))
+        step[k] = 1e-10
+        slope = (model.at(step).matrix - model.at(-step).matrix) @ volts / (2 * step[k])
+        assert sensitivity[:, k] == pytest.approx(slope, rel=1e-6, abs=1e-6 * np.max(abs(slope)))
+
+
 def test_gradient_and_stiffness_follow_a_moved_structure(
     comb: Structure, settings: ElectrostaticParams, model: CapacitanceModel, at: dict[str, int]
 ) -> None:

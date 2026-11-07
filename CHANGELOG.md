@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `CapacitanceModel.charge_gradient(potentials)`: change of the charge on each
+  electrode with each degree of freedom, which the force is half the
+  potentials times; the coupled solvers take their charge sensitivities from
+  it.
 - `StaticOptions.patience`: Newton steps in a row that are halved or do not
   shrink before `equilibrium` gives up, 8 by default; the count was fixed at 4,
   which cut off iterations started close to a gap that converge after more.
