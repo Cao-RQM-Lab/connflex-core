@@ -3032,12 +3032,22 @@ handle is a plane: travel along the cut does not move it, and the slab, which
 is centered on the wall, goes with the wall.
 
 Walls repeat, and so do cuts. A cut is rounded to a grid of $\Delta = \min(t,
-g_0) / 4$ and solved once for every rounded cut met; a cut that rounding
-would close, silicon or a gap narrower than $\Delta$, keeps its own geometry.
-The expansion (160) carries the rounding to first order, so what the grid
-costs is of second order in $\Delta$; what it saves is bounded, since cuts of
-one layout differ in how many spans they cross and of which conductors far
-more than in how those spans round.
+g_0, g_\text{min}) / 4$, with $g_\text{min}$ the narrowest gap between
+electrodes of different bodies of the group at rest, and solved once for
+every rounded cut met; a cut that rounding would close, silicon or a gap
+narrower than $\Delta$, keeps its own geometry. The expansion (160) carries
+the rounding of the nearest end of each body to first order, so what the
+grid costs the capacitance is of second order in $\Delta$; the force, which
+also feels the far ends and the ends of other bodies that are rounded
+without correction, pays between first and second order, and the stiffness,
+whose second derivative is that of the rounded cut, first order. On a comb
+of fingers 4 micrometers wide at gaps of 3 micrometers, 25 micrometers thick
+over a box of 2 micrometers, the grid costs $2 \times 10^{-5}$ of the fringe
+matrix, $2 \times 10^{-3}$ of the force, and $2 \times 10^{-3}$ of the
+stiffness at displacements off the grid; a grid four times finer costs
+$2 \times 10^{-6}$, $4 \times 10^{-4}$, and $5 \times 10^{-4}$. What the
+grid saves is bounded, since cuts of one layout differ in how many spans
+they cross and of which conductors far more than in how those spans round.
 Each body $b$ of a cut has the end of its silicon nearest the wall a distance
 $\delta_b$ from where rounding put it, measured from the wall, and rises by
 $z_b$. With $\mathbf{x} = (\delta_b, z_b)$ over the bodies of the cut,

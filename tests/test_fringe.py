@@ -22,12 +22,12 @@ BOX = 2 * UM
 PITCH, WIDTH, GAP, FINGERS = 14.0, 4.0, 3.0, 4
 
 
-def comb_over_handle(thickness: float = 25.0) -> Structure:
+def comb_over_handle(thickness: float = 25.0, gap: float = GAP) -> Structure:
     """Bonded pad with five fingers and a released shuttle with four between them, on
-    two beams, over the handle, gaps of 3 um."""
+    two beams, over the handle, gaps of 3 um unless ``gap`` says otherwise."""
     stator = [box(300, 100 + PITCH * k, 360, 100 + PITCH * k + WIDTH) for k in range(FINGERS + 1)]
     rotor = [
-        box(320, 100 + PITCH * k + WIDTH + GAP, 380, 100 + PITCH * k + 2 * WIDTH + GAP)
+        box(320, 100 + PITCH * k + WIDTH + gap, 380, 100 + PITCH * k + 2 * WIDTH + gap)
         for k in range(FINGERS)
     ]
     spine, beams = box(380, 60, 420, 200), [box(420, 70, 620, 80), box(420, 180, 620, 190)]
@@ -141,6 +141,38 @@ def test_fringe_derivatives_are_slopes_of_the_model(comb: Structure) -> None:
             softening = -(ahead.force(potentials) - behind.force(potentials)) / (2 * step[dof])
             scale = np.sqrt(abs(np.diag(stiffness) * stiffness[dof, dof]))
             assert np.all(abs(stiffness[:, dof] - softening) < 2e-3 * abs(softening) + 1e-5 * scale)
+
+
+def test_rounding_grid_follows_the_narrowest_gap_and_costs_little(
+    comb: Structure, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cuts are rounded to a quarter of the smallest of thickness, box, and narrowest
+    sidewall gap. Against cuts rounded to nothing, the grid costs the fringe matrix
+    second order, the force about first order, equation (160)."""
+    plan = comb.capacitance(FIELD).rest.groups[0].fringe
+    assert plan is not None
+    assert plan.step == pytest.approx(BOX / 4)
+    narrow = comb_over_handle(gap=1.0).capacitance(replace(FIELD, element_size=1 * UM))
+    plan = narrow.rest.groups[0].fringe
+    assert plan is not None
+    assert plan.step == pytest.approx(1 * UM / 4)
+
+    at = electrodes(comb)
+    volts = np.zeros(len(comb.electrodes))
+    volts[at["stator"]] = 10.0
+    places = [
+        np.array([0.37, -0.21, -0.13, 0.4e-4, -0.7e-4, 1.3e-4]) * [UM, UM, UM, 1, 1, 1],
+        np.array([-0.83, 0.52, -0.31, -0.9e-4, 0.3e-4, -0.6e-4]) * [UM, UM, UM, 1, 1, 1],
+    ]
+    rounded = [comb.capacitance(FIELD).at(place) for place in places]
+    monkeypatch.setattr(fringe, "KEY_STEPS", 400)
+    exact = [comb.capacitance(FIELD).at(place) for place in places]
+    for found, truth in zip(rounded, exact, strict=True):
+        assert np.max(abs(found.fringe - truth.fringe)) < 1e-4 * np.max(abs(truth.fringe))
+        pull, pulled = found.force(volts), truth.force(volts)
+        assert np.max(abs(pull - pulled)) < 5e-3 * np.max(abs(pulled))
+        soft, softened = found.stiffness(volts), truth.stiffness(volts)
+        assert np.max(abs(soft - softened)) < 5e-3 * np.max(abs(softened))
 
 
 def test_faced_body_is_carried_by_the_gap_ahead_of_the_wall() -> None:

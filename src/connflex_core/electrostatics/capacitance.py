@@ -427,8 +427,11 @@ def find_capacitance(
                 pivots = np.array([structure.bodies[b].inertial.center[:2] for b in bodies])
                 facing = facing_plates(regions, body, pivots, reach)
                 nets = np.array([device[k].net for k in members], dtype=np.intp)
+                narrowest = min((width for _, _, width in apart), default=np.inf)
                 plan, beneath, held = (
-                    _fringe_plan(structure, params, regions, bodies, handle, below, solved)
+                    _fringe_plan(
+                        structure, params, regions, bodies, handle, below, solved, narrowest
+                    )
                     if fringe
                     else (None, (), bodies)
                 )
@@ -464,10 +467,12 @@ def _fringe_plan(
     handle: list[Any],
     below: STRtree | None,
     solved: dict[bytes, Section],
+    gap: float,
 ) -> tuple[FringePlan, tuple[int, ...], tuple[int, ...]]:
     """Plan of the fringe of a group: handle electrodes within reach beneath it, their
     bodies among those of the group, and the bodies of the result. Groups share
-    ``solved``, the cross-sections met so far."""
+    ``solved``, the cross-sections met so far; ``gap`` is the narrowest between
+    electrodes of different bodies of the group."""
     reach = params.interaction_distance or 0.0
     found: list[int] = []
     if below is not None:
@@ -486,6 +491,7 @@ def _fringe_plan(
         box=structure.stack.box.thickness,
         reach=reach,
         grading=params.corner_grading,
+        gap=gap,
         sections=solved,
     )
     return plan, tuple(handle[j].index for j in found), tuple(held)

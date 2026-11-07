@@ -36,6 +36,8 @@ class FringePlan:
         box: Height of the released gap above the handle, in meters.
         reach: How far a cut reaches either side of its wall, in meters.
         grading: Shortening of cross-section elements toward corners.
+        gap: Narrowest gap between electrodes of different bodies of the group at rest,
+            in meters; infinite when there is none.
         sections: Solutions met so far, by key of their rounded cut.
         last: The motion last evaluated and its result.
     """
@@ -46,13 +48,15 @@ class FringePlan:
     box: float
     reach: float
     grading: float
+    gap: float = np.inf
     sections: dict[bytes, Section] = field(default_factory=dict)
     last: list[tuple[Array, FringeCapacitance]] = field(default_factory=list)
 
     @property
     def step(self) -> float:
-        """Grid that cuts are rounded to for their key, equation (160)."""
-        return min(self.thickness, self.box) / KEY_STEPS
+        """Grid that cuts are rounded to for their key, equation (160): a quarter of
+        the smallest of thickness, released gap, and narrowest sidewall gap."""
+        return min(self.thickness, self.box, self.gap) / KEY_STEPS
 
 
 @dataclass(frozen=True, eq=False)

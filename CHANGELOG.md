@@ -82,10 +82,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   element centers rather than by testing every element of the mesh.
 - Hessian blocks are mapped onto body degrees of freedom by matrix products
   rather than by an `einsum` over six indices.
-- Fringe cuts are keyed on a grid of a quarter of the smaller of device
-  thickness and released gap, from a sixteenth; their expansion carries the
-  rounding to first order, so fewer distinct cross-sections are solved at a
-  second-order cost.
+- Fringe cuts are keyed on a grid of a quarter of the smallest of device
+  thickness, released gap, and narrowest sidewall gap of their group, from a
+  sixteenth of the smaller of the first two; their expansion carries the
+  rounding of the nearest ends to first order, so fewer distinct
+  cross-sections are solved at a cost of second order in the capacitance and
+  of about first order in force and stiffness, which the theory page states.
 
 ## [0.2.0] - 2026-11-06
 
