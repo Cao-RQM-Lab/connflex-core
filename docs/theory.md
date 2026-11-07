@@ -2272,10 +2272,14 @@ every floating net has capacitance to a driven one.
 !!! note "Implementation choices"
     A Newton step that would close a gap between a plate and the handle,
     or bring electrodes of two bodies into contact, is halved until it does
-    not, up to twelve times. A halved step never ends the iteration.
+    not, up to twelve times. A halved step never ends the iteration with an
+    equilibrium.
 
-    An iteration that has not ended after `max_iterations`, or whose steps
-    were halved or did not shrink four times in a row, finds no
+    An iteration that has not ended after `max_iterations`, whose steps
+    were halved or did not shrink four times in a row, whose step closed a
+    gap through all twelve halvings, whose tangent stiffness is singular, or
+    that meets a force or stiffness that is not finite, as a model evaluated
+    far beyond its range can return, finds no
     equilibrium. Beyond a fold that is the truth, and giving up early saves
     most of the cost of the attempt. It also happens with the plates method
     on teeth that stand tip to tip: the force jumps at the cusp of (97) and

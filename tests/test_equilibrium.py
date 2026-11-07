@@ -268,6 +268,20 @@ def test_body_that_no_beam_holds_stays_at_rest(plate: Structure) -> None:
     assert result.softest == pytest.approx(alone.softest)
 
 
+def test_iteration_that_meets_no_finite_force_finds_no_equilibrium(
+    plate: Structure, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A model that returns no finite force or stiffness, as one evaluated far beyond
+    its range can, ends the iteration as no equilibrium rather than as a solver error."""
+    model = plate.capacitance(HANDLE_ALONE)
+    handle = net_at(plate, 0, 0, "handle")
+    for name in ("force", "stiffness"):
+        with monkeypatch.context() as patch:
+            patch.setattr(type(model), name, lambda self, volts: np.nan)
+            with pytest.raises(NoEquilibriumError):
+                plate.equilibrium(model, {handle: 1.0})
+
+
 def test_inputs_that_name_nothing_are_rejected(plate: Structure, shuttle: Structure) -> None:
     model = plate.capacitance(HANDLE_ALONE)
     with pytest.raises(ValueError, match="net 99"):

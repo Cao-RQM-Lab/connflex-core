@@ -83,7 +83,7 @@ keyword overrides.
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
 | `tolerance` | $\tau_s$ | 1e-9 | Newton iteration for static equilibrium stops when the strain energy of its last step is below this fraction, squared, of the strain energy of the displacement, equation (122), or one step after it is below this fraction itself. |
-| `max_iterations` | | 30 | Most Newton iterations of one solve. Reaching it raises `NoEquilibriumError`. |
+| `max_iterations` | | 30 | Most Newton iterations of one solve. Reaching it raises `NoEquilibriumError`, as do steps that stop shrinking, a singular tangent, and a force that is not finite (theory, Implementation choices of static equilibrium). |
 
 ## `SmallSignalOptions`
 

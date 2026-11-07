@@ -96,7 +96,9 @@ def equilibrium(
     ``start``: an earlier ``Equilibrium`` of this structure or a displacement of every
     degree of freedom. It finds the equilibrium near its start, so which of several it
     finds depends on where it starts; ``stable`` and ``margin`` tell whether that one
-    holds. No equilibrium within ``max_iterations`` raises ``NoEquilibriumError``.
+    holds. Iteration that has not converged within ``max_iterations``, whose steps stop
+    shrinking, whose tangent is singular, or that meets no finite force (theory,
+    Implementation choices) raises ``NoEquilibriumError``.
     ``workers`` threads evaluate the model, as many as at rest by default. Stages
     assemble and equilibrium log through the ``connflex_core`` logger and report to
     ``progress``.
@@ -219,9 +221,10 @@ def _settle(
     """Newton iteration from the displacement of ``model``, with the iterations it took.
 
     ``drive`` gives electrode potentials at a displacement and the stiffness that held
-    charge adds. Only degrees of freedom marked in ``kept`` move. The model is None when iteration
-    does not converge; it is given up after ``PATIENCE`` steps in a row that are halved
-    or are no smaller than the smallest so far.
+    charge adds. Only degrees of freedom marked in ``kept`` move. The model is None when
+    iteration does not converge: after ``PATIENCE`` steps in a row that are halved or are
+    no smaller than the smallest so far, after ``HALVINGS`` halvings of one step, on a
+    singular tangent, or on a force or stiffness that is not finite.
     """
     here = model
     both = np.ix_(kept, kept)
@@ -232,6 +235,8 @@ def _settle(
         held, added = drive(here)
         unbalance = spring @ place - here.force(held) - applied
         tangent = spring + here.stiffness(held) + added
+        if not (np.isfinite(unbalance[kept]).all() and np.isfinite(tangent[both]).all()):
+            return None, iteration
         step = np.zeros(len(place))
         try:
             step[kept] = scipy.linalg.solve(tangent[both], -unbalance[kept], assume_a="sym")

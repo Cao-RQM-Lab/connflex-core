@@ -19,6 +19,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Newton iteration of `equilibrium` that meets a force or stiffness that is
+  not finite, as a model evaluated far beyond its range can return, raises
+  `NoEquilibriumError` instead of a solver error, so a pull-in search that
+  catches `NoEquilibriumError` runs through potentials far beyond pull-in.
 - A beam candidate that keeps surviving buried oxide underneath, as one wider
   than twice `release_distance` over the handle does, is rejected with the
   oxide area as its reason instead of qualifying as a free beam of full
