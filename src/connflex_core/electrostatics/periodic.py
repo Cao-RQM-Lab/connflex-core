@@ -361,10 +361,10 @@ def _cells(
         members = near[inside & (position == k)]
         cells.append(
             members[
-                np.lexsort(
-                    (
-                        (center[members] - k * period) @ across,
-                        center[members] @ along - k * pitch,
+                np.lexsort(  # positions rounded to the tolerance, so that a tie between
+                    (  # mirror-image elements cannot flip from one cell to the next
+                        np.round((center[members] - k * period) @ across / tolerance),
+                        np.round((center[members] @ along - k * pitch) / tolerance),
                         mesh.conductor[members],
                     )
                 )

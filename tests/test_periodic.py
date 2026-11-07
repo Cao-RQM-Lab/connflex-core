@@ -9,6 +9,7 @@ from shapely import Polygon, affinity, box, union_all
 from connflex_core import (
     CapacitanceModel,
     ElectrostaticParams,
+    ExtractionParams,
     Layout,
     Structure,
     extract,
@@ -181,6 +182,69 @@ def test_periodic_row_matches_whole_solution_at_rest_and_displaced(long_comb: St
             assert found.stiffness(potentials)[k, k] == pytest.approx(
                 truth.stiffness(potentials)[k, k], rel=5e-3
             )
+
+
+def two_sided_comb(offset: tuple[float, float]) -> Structure:
+    """Twenty fingers on either side of a released spine, each side against its own
+    anchored stator, 1.5 um fingers and gaps at a 6 um pitch, drawn ``offset`` from the
+    origin in micrometers; the tips on the two sides are mirror images across the spine."""
+    pitch, finger, length, overlap, spine = 6.0, 1.5, 40.0, 30.0, 12.0
+    count, half = 20, 60.0
+    device = [box(-half - 12, -spine / 2, half + 12, spine / 2)]
+    for sign in (1, -1):
+        root = sign * spine / 2
+        tip = root + sign * (length - overlap)
+        for k in range(count):
+            x = -half + pitch * k
+            low, high = sorted((root, root + sign * length))
+            device.append(box(x, low, x + finger, high))
+        for k in range(-1, count):
+            x = -half + pitch * k + finger + 1.5
+            low, high = sorted((tip, tip + sign * length))
+            device.append(box(x, low, x + finger, high))
+        base = tip + sign * length
+        low, high = sorted((base, base + sign * 60))
+        device.append(box(-half - 32, low, half + 32, high))
+    for sign in (1, -1):
+        x1, x2 = sorted((sign * (half + 12), sign * (half + 162)))
+        device.append(box(x1, -2, x2, 2))
+        p1, p2 = sorted((sign * (half + 162), sign * (half + 222)))
+        device.append(box(p1, -30, p2, 30))
+    device = [affinity.translate(part, *offset) for part in device]
+    handle = affinity.translate(box(-400, -300, 400, 300), *offset)
+    layout = Layout.from_shapely(device=device, handle=[handle], unit=UM)
+    undercut = ExtractionParams(
+        release_hole_max_area=100 * UM * UM, release_distance=7 * UM, body_min_width=10 * UM
+    )
+    return extract(layout, STACK, undercut)
+
+
+def rows_of(model: CapacitanceModel) -> list[int]:
+    return [
+        len(row.cells)
+        for group in model.rest.groups
+        for problem in group.plan.problems
+        for row in problem.rows
+    ]
+
+
+def test_mirror_image_tips_do_not_break_a_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Elements of a cell are ordered by position; the tips of fingers on the two sides of
+    a spine share a position along the row up to rounding, which must not reorder them
+    from one cell to the next, wherever the comb is drawn."""
+    params = ElectrostaticParams(
+        element_size=0.75 * UM,
+        interaction_distance=20 * UM,
+        include_plates=False,
+        include_fringe=False,
+    )
+    found = [
+        rows_of(two_sided_comb(offset).capacitance(params))
+        for offset in ((0.0, 0.0), (3000.0, 3000.0))
+    ]
+    assert found[0] == found[1]
+    assert found[0]
+    assert min(found[0]) >= 8
 
 
 def test_remainder_stays_finite_far_across_the_row(monkeypatch: pytest.MonkeyPatch) -> None:

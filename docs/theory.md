@@ -2933,6 +2933,14 @@ which are solved once.
     capacitance $5 \times 10^{-4}$ high and windows of 30 micrometers $1.5
     \times 10^{-3}$.
 
+    The elements of a cell are matched to those of the first cell in one
+    order: by conductor, then by position along and across the row, each
+    rounded to the tolerance of the translate test, a thousandth of the
+    shortest element. Unrounded positions would let two elements that lie
+    at one position along the row up to rounding, such as the tips of
+    fingers on either side of a spine, change places from one cell to the
+    next and fail the test.
+
     Across the row, $R_K$ and its derivatives are evaluated from $\ln \sin$
     directly while $|\operatorname{Im}(\pi w / p)| \le 20$, and from the
     asymptotic forms $\ln |\sin x| = |\operatorname{Im} x| - \ln 2$,

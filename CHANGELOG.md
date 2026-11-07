@@ -22,6 +22,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Rows of identical cells are found on a comb whose fingers stand on both
+  sides of a spine wherever it is drawn: the elements of a cell are ordered by
+  position rounded to the translate tolerance, so a tie between mirror-image
+  tips, broken by rounding, no longer reorders them between cells and drops
+  the row.
 - A body carried more than about a hundred pitches across a row of identical
   cells no longer overflows the periodic kernel into a capacitance model of
   infinities: the remainder of (152) takes its asymptotic form far across the
