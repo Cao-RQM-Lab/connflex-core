@@ -25,16 +25,21 @@ L_\text{healed} = (L_\text{raw} \oplus r_h) \ominus r_h, \tag{1}
 $$
 
 where $L_\text{raw}$ is the raw layer, $L_\text{healed}$ is the healed layer,
-and $r_h$ is the healing tolerance. As a performance optimization, all polygon
-layers are simplified with the Douglas–Peucker algorithm with a tolerance of
-$r_h$. This process contributes no additional loss of precision as features
-smaller than $r_h$ were already destroyed in the prior healing step.
+and $r_h$ is the healing tolerance. Device and handle layers are then
+simplified with the Douglas–Peucker algorithm with the tolerance
+`simplify_tolerance`, $r_h$ by default; a release layer is simplified without
+being healed. Healing adds material and never removes it, so it leaves
+protrusions and shallow notches of any width in place; simplification moves
+no vertex farther than the tolerance and may remove such features up to the
+tolerance deep. A drawn arc moves inward by up to the tolerance, a hundredth
+of a one-micrometer gap at the default.
 
 Release holes may be provided in a dedicated layer or within the device layer
 polygon itself. In the latter case, the release holes are identified by a
-single area threshold $A_\text{min}$. Holes smaller than $A_\text{min}$ are
-only used in the release estimation step below and are filled. Later rigid
-body calculations assume all bodies do not contain release holes.
+single area threshold $A_\text{min}$. Holes at or below $A_\text{min}$ are
+release openings: they are filled for connectivity, body assembly, and beam
+extraction, enter the release estimate of (2), and are subtracted from the
+device-layer mass, center of mass, and inertia of their body.
 
 Surviving BOX regions after release, $O$, are regions protected by both device
 and handle layers, subtracted by the release hole regions, then isotropically
@@ -48,8 +53,8 @@ The largest handle polygon by area is selected as the anchor for the entire
 structure. ConnFlex iterates through all polygons in $D$ and $H$, discarding
 all polygons without a connection to the anchor.
 
-All features which have a smaller feature size than $w_\text{min}$ are removed
-through an erosion then an expansion by $w_\text{min}/2$,
+All features of width at most $w_\text{min}$ are removed through an erosion
+then an expansion by $w_\text{min}/2$,
 
 $$
 B = \left(D \ominus \tfrac{w_\text{min}}{2}\right) \oplus \tfrac{w_\text{min}}{2}. \tag{3}
@@ -375,6 +380,21 @@ $$
 where $E$ is the Young's modulus of the beam material, $G$ is the shear
 modulus, and $J$ is the torsion constant.
 
+The element is that of Euler-Bernoulli theory: plane sections stay plane and
+square to the axis, so shear deformation is left out. Against a Timoshenko
+beam every bending term of (19) is too large by $1 + \Phi$ with $\Phi = 12 E I
+/ (\kappa G A L^2)$: out of plane $\Phi \approx 3.07\, (t / L)^2$ for silicon
+with $\nu = 0.28$ and $\kappa = 5/6$, so a beam eight thicknesses long is 5
+percent too stiff out of plane and one four thicknesses long 19 percent, and
+in the plane the same with $w$ for $t$. Bending uses $E$ as given in both
+directions: in-plane bending of a beam much deeper than wide approaches the
+plate modulus $E / (1 - \nu^2)$, 8.5 percent higher at $\nu = 0.28$, and one
+isotropic $E$ serves beams of every orientation, where silicon's differs by
+up to 23 percent between $\langle 110 \rangle$ and $\langle 100 \rangle$.
+Beams carry no mass, no residual or thermal stress, and no root or anchor
+compliance: their ends are welded to rigid bodies at the body face, and the
+anchor does not move.
+
 For a solid rectangular cross section with long side $a = \max(w, t)$ and
 short side $b = \min(w, t)$, the Saint-Venant torsion constant is approximated
 by (Young and Budynas, *Roark's Formulas for Stress and Strain*, 7th ed., 2002)
@@ -391,8 +411,12 @@ $$
 J_\text{eff} = J \left( 1 + \beta \frac{a^2}{L^2} \right), \qquad \beta = 0.63 \text{ by default}. \tag{21}
 $$
 
-The coefficient $\beta$ is fitted empirically to short-beam FEA results. This
-torsional correction tends to unity as $L/a$ increases. The torsional term
+The coefficient $\beta$ has no source here: it was set from short-beam
+finite-element results whose data and range of $L / a$ were not kept, no
+test checks it beyond its own algebra, and restrained warping, the mechanism
+behind such stiffening, scales as $a / L$ for a thin strip rather than
+$a^2 / L^2$. Take the correction as unverified. It tends to unity as $L / a$
+increases. The torsional term
 $k_t$ in (19) uses $J_\text{eff}$, computed per beam from its own $w$, $t$,
 and $L$. Setting $\beta = 0$ disables the correction.
 
@@ -557,7 +581,10 @@ is the mechanical mode.
     or a radian, and the direction it pulls in turns with the bodies. None
     of that is in the model, and nothing warns of it. Compare the travel of
     a result with the range of its flexures before trusting it, most of all
-    for motors driven over many pitches.
+    for motors driven over many pitches. Shear deformation, beam mass,
+    residual stress, thermal expansion, root and anchor compliance, and the
+    anisotropy of silicon are left out as well; the beam stiffness section
+    says what each costs.
 
 ## Electrodes and links
 
@@ -591,7 +618,7 @@ electrode by itself as well. An electrode moves with one body and lies in one
 conductor. For $E_j$ these are the body that owns $B_j$ and the conductor that
 contains it. A handle electrode moves with the body that owns its polygon. A
 candidate that touches no body polygon moves with the body whose oxide it
-overlaps over the largest area.
+overlaps over the largest area, or with the anchor when it overlaps none.
 
 Links conduct between electrodes:
 
@@ -981,11 +1008,11 @@ and adds $-\tfrac{1}{2} V^2\, \partial^2 C_{ab} / \partial \mathbf{q}\,
     common case: oxide under its middle and the undercut rim of width $d$
     around it, both between silicon of the anchor.
 
-    Fringing fields at the outline of the overlap and into release openings
-    are not modeled. They add capacitance, of relative order $g_0 / w$ times
-    a logarithmic factor for a plate of width $w$, and openings not much
-    wider than the gap recover part of the area they remove, so (43) is a
-    lower bound.
+    The plate itself holds no fringing field. With `include_fringe` the
+    field at device walls over the handle is added by the open cuts of
+    (162); the field into release openings is not modeled, and openings not
+    much wider than the gap recover part of the area they remove, so the
+    released part of (43) is a lower bound there.
 
     The reference point is the center of the bounding box of the overlap
     rather than the origin or a center of mass, so that $\mathbf{S}$,
@@ -1462,7 +1489,7 @@ the left, evaluated with the same pair derivatives (85) to (88). They pass
 through (93) and (94) as $\mathbf{c}^{(k)}$ does and are the exact
 derivatives of the matrix (94).
 
-The overlap is found for each window. It starts at $\delta_k = 4 h$ and
+The overlap is found for each window. It starts at $\delta_k = \min(4 h, d_i)$ and
 doubles until the charge on the core has settled,
 
 $$
@@ -1726,14 +1753,15 @@ the two sides and is far less affected.
     so nothing cancels as $m_j \to 0$.
 
     Where a wall lies exactly along the normal of another, as the end face
-    of a finger does beside the wall its flank faces, (97) has a kink in
-    rotation: a turn one way brings the end face into view and a turn the
-    other way does not. Derivatives are those with it out of view. The step
-    in $\partial c / \partial a_\psi$ is
-    $\tfrac{1}{2} \varepsilon \ln (1 + w / \gamma)$ for an end face of width
-    $w$ beside a gap $\gamma$, small against the
-    $\varepsilon L r / \gamma^2$ of a flank of length $L$ at distance $r$
-    from the pivot. Where marks set by end points of different bodies
+    of a finger does beside the wall its flank faces, the slope limit of
+    (101) keeps the end face out of view until a turn brings its slope seen
+    from the other wall below $1/10$, so (97) is smooth in rotation at the
+    square position and changes by a jump where that slope crosses $1/10$,
+    of up to $\tfrac{1}{2} \varepsilon\, \theta \ln (1 + w / \gamma)$ for an
+    end face of width $w$ beside a gap $\gamma$ at the turn $\theta$, less
+    where $d_i$ cuts the view, small against the $\varepsilon L r /
+    \gamma^2$ of a flank of length $L$ at distance $r$ from the pivot. Where
+    marks set by end points of different bodies
     coincide, as when a finger tip lines up exactly with a corner across
     the gap, there is a kink in travel too. Of coincident marks the one that
     sets an end of a piece is an end point of the edge faced if there is
@@ -2066,13 +2094,19 @@ field method the mesh is carried with the bodies and not made anew, and a
 cluster solved in windows keeps its cores, each window its elements while
 (164) holds, and each row its cells while (165) holds, so
 $\mathbf{C}(\mathbf{q})$ is smooth between changes of set and (95) its
-exact derivative there.
+exact derivative there. With `include_fringe` it also steps where a gap
+crosses a line of the grid of (160), by the residual of the rounding, of
+relative order $(\Delta / g)^2$ of the fringe part; Newton iteration can
+chatter at such a line, and the energy ledger of a transient counts the
+steps.
 The plates method finds its pieces anew on the carried outlines, since they
 are exact for any outlines; its kinks are those of (97). The limits are
 those of the parts: a plate is exact in rise, of second order in tilt, and
 of first order in in-plane travel, and the lever of (114) is that of a small
-tilt. Electrodes of different bodies that touch after the motion are an
-error.
+tilt. Electrodes of different bodies in one cluster that touch after the
+motion, and a plate whose gap closes at a corner of its overlap, are
+errors; electrodes farther apart than $d_i$ at rest are in no cluster and
+are not checked.
 
 !!! note "Implementation choices"
     The outline of a device electrode is that of the union of its body
@@ -2562,8 +2596,11 @@ $$
 $$
 
 A fixed matrix keeps the ledger of (145) exact. Under bias the modes
-soften, and a mode at $\omega'_n$ then has the quality factor
-$Q\, \omega'_n / \omega_n$, slightly below $Q$.
+soften: a mode that keeps its shape has the quality factor $Q\, \omega'_n
+/ \omega_n$ at its frequency $\omega'_n$, slightly below $Q$, and where
+bias mixes the shapes $\mathbf{D}$ couples the biased modes, so the damping
+of (132) about an equilibrium and that of a transient agree only without
+bias.
 
 ### Network
 
@@ -2612,7 +2649,10 @@ system without constraints.
 Resistance and capacitance of beams and sources give time constants that
 are often far shorter than mechanical periods, so the system is stiff. It
 is integrated by the fifth-order Radau IIA method, which is L-stable,
-with error control and its Jacobian in closed form. From (129) at node
+with error control and the Jacobian of (139) and (142) in closed form; the
+rows of the three energy states of (145) are left zero, since nothing feeds
+back from them, which slows the integrator's own Newton iteration at most.
+From (129) at node
 level, $\boldsymbol{\Gamma}$ with rows over nodes, and with $\tilde{\mathbf{G}}$
 the conductance $\mathbf{G}(t)$ of (141) with $s_k / R_k$ added on the
 diagonal at nodes fed through resistance and $\mathbf{E}_d$ the columns of
@@ -2672,11 +2712,13 @@ Each step keeps its error below $\tau_t$ times each state plus an absolute
 part, in units that make states of different kinds comparable:
 
 $$
-\tau_t\, g_0, \quad \tau_t\, \frac{g_0}{\sqrt{A_B}}, \quad \tau_t\, g_0\, \omega_1, \quad \tau_t\, C_{dd} V_0, \quad \tau_t\, \tfrac{1}{2} V_0^2 \sum_k C_{kk}, \tag{146}
+\tau_t\, g_0, \quad \tau_t\, \frac{g_0}{\sqrt{A_B}}, \quad \tau_t\, g_0\, \omega_1, \quad \tau_t\, \frac{g_0}{\sqrt{A_B}}\, \omega_1, \quad \tau_t\, C_{dd} V_0, \quad \tau_t\, \tfrac{1}{2} V_0^2 \sum_k C_{kk}, \tag{146}
 $$
 
-for translations, rotations of a body of area $A_B$, velocities, charges,
-and energies, with $g_0$ the gap of the buried oxide, $\omega_1$ the lowest
+for translations, rotations of a body of area $A_B$, its device silicon or
+its handle silicon when it has none, with $\sqrt{A_B}$ taken no smaller
+than $g_0$, translational and angular velocities, charges, and energies,
+with $g_0$ the gap of the buried oxide, $\omega_1$ the lowest
 frequency of (38), and $V_0$ the largest source value at the output times
 and breakpoints, at least one volt. The run starts at $\mathbf{q}_0$, rest
 or the displacement given, at zero velocity, with the potentials that
@@ -2754,7 +2796,7 @@ $$
 $$
 
 with $R_B$ the largest distance from the center of body $B$ to a corner of
-the bounding box of its silicon in the cluster, and $\Delta$ the change of
+the bounding box of any of its electrodes in the cluster, and $\Delta$ the change of
 rise and turns between the two motions. A solution at
 $\mathbf{m}_a$ is kept with a radius $r_a$. At a motion $\mathbf{m}$ within
 the radius of a kept solution, the nearest such one supplies the cluster
@@ -2784,7 +2826,9 @@ r_\text{first} = \sqrt{\tau_c}\; g_\text{min}, \tag{150}
 $$
 
 with $\tau_c$ the tolerance and $g_\text{min}$ the narrowest gap between
-electrodes of different bodies in the cluster at rest. A radius at most
+electrodes of different bodies in the cluster at rest. A new solution
+farther than four radii from the nearest kept one inherits that one's
+radius unchanged. A radius at most
 doubles per check, so it grows only as fast as evidence supports it, and
 a check along a step without motion in the plane can shrink a radius but
 never grows it: rise and tilt leave the sidewalls unchanged and say nothing
@@ -2797,7 +2841,9 @@ replaces the kept one and keeps its radius.
     of the order of $\sqrt{\tau_c}$, not $\tau_c$. It enters only Newton and
     integrator Jacobians, which change how fast a solve converges and not
     where it ends. An equilibrium therefore solves its result anew, so its
-    stiffness and model are exact; a transient keeps the expanded values.
+    stiffness and model are exact at its displacement, which converged on
+    the expanded forces and carries an error of order $\tau_c$; a transient
+    keeps the expanded values.
 
     Moving from one kept solution to the next changes the capacitance by up
     to about $\tau_c$ times itself. A transient's energy ledger counts that
@@ -2978,7 +3024,10 @@ which are solved once.
     each edge from its length and the angles at its ends, so congruent
     edges carry congruent elements. A row whose cells are not translates of
     each other, for instance one along a long straight edge that its
-    elements do not divide evenly, is left to the windows.
+    elements do not divide evenly, is left to the windows. So is an outline
+    whose repeating unit has more than 16 edges, as fingers with rounded
+    tips drawn as many segments: runs are sought over motifs of up to 16
+    edges, compared on a grid of $10^{-10}$ m.
 
 ## Fringe above and below the device layer
 
@@ -3003,12 +3052,13 @@ handle, where it lies beneath the cut, a slab:
 
 $$
 B_k = [s_k^-, s_k^+] \times [z_{c_k},\, z_{c_k} + t], \qquad
-H = \{ z \le z_h - g_0 \}, \tag{157}
+H = [-(d_i + 4 t),\, d_i + 4 t] \times [z_h - 2 g_0,\, z_h - g_0], \tag{157}
 $$
 
 with $z_c$ the rise of the body of conductor $c$ at the cut and $z_h$ that of
-the handle. The cut is solved as (63) on the outlines of these blocks and of
-the slab, which reaches $d_i + t$ past the cut on either side. Its core $K$ is
+the handle: a closed slab one box gap tall, whose lower face and ends carry
+charge too. The cut is solved as (63) on the outlines of these blocks and of
+the slab, which reaches $d_i + 4 t$ past the cut on either side. Its core $K$ is
 the wall face $s = 0$ and the halves of the top and bottom faces of the wall's
 block nearest it, and the charge on the core per unit length per volt on
 conductor $j$, as (92), is
@@ -3160,7 +3210,11 @@ shields them from it.
     Gradients are the exact derivatives of (163). Second derivatives are
     exact in travel and rise for the wall's body and the body it faces;
     walls of other bodies in a cut move as if square to it, which leaves
-    those in turn a few tenths of a percent of the fringe's off.
+    those in turn a few tenths of a percent of the fringe's off. A block in
+    a cut rises as a whole: the slope of a tilted body within the plane of
+    the cut is left out, a term of first order in the tilt $h$ and of
+    relative size $h w / (2 g_0)$ of the fringe to the handle for a block
+    of width $w$.
 
     A cross-section takes tens of milliseconds. Cuts that repeat, as in
     combs, are solved once for a structure, clusters sharing them. Displaced
