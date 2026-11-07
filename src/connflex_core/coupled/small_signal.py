@@ -241,9 +241,7 @@ def small_signal(
     if not ports:
         raise ValueError("small signal needs at least one port")
     places = electrode_indices(structure, ports, equilibrium.floating, "port")
-    with stage("assemble", progress) as current:
-        system = assemble(structure)
-        current.count(dofs=len(system.dofs), beams=len(structure.beams))
+    system = assemble(structure, progress=progress)
     with stage("small signal", progress) as current:
         nodes, floating, conductance = network_nodes(
             structure, equilibrium.floating, places, "port"

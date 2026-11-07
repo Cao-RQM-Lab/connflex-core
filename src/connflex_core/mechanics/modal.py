@@ -12,7 +12,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 from numpy.typing import NDArray
 
-from connflex_core.mechanics.assembly import Dof, assemble
+from connflex_core.mechanics.assembly import Dof, applied_loads, assemble
 from connflex_core.model import Structure
 from connflex_core.params import SolveOptions
 from connflex_core.progress import Progress, stage
@@ -60,9 +60,7 @@ def modal(
     through the ``connflex_core`` logger and report to ``progress``.
     """
     options = options or SolveOptions()
-    with stage("assemble", progress) as current:
-        system = assemble(structure)
-        current.count(dofs=len(system.dofs), beams=len(structure.beams))
+    system = assemble(structure, progress=progress)
     size = system.mass.shape[0]
     if size == 0:
         raise ValueError("structure has no movable bodies")
@@ -103,17 +101,8 @@ def static(
     center of mass. The result has one entry per row of the assembled matrices. Stages
     assemble and solve log through the ``connflex_core`` logger and report to ``progress``.
     """
-    with stage("assemble", progress) as current:
-        system = assemble(structure)
-        current.count(dofs=len(system.dofs), beams=len(structure.beams))
-    rows = {body: row for row, (body, name) in enumerate(system.dofs) if name == "ux"}
-    force = np.zeros(len(system.dofs))
-    for body, load in loads.items():
-        if body not in rows:
-            raise ValueError(f"body {body} is the anchor or does not exist")
-        if len(load) != 6:
-            raise ValueError(f"load on body {body} must have six components")
-        force[rows[body] : rows[body] + 6] = load
+    system = assemble(structure, progress=progress)
+    force = applied_loads(system, loads)
     with stage("solve", progress):
         try:
             displacement: NDArray[np.float64] = scipy.linalg.solve(

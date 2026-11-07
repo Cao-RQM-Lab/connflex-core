@@ -7,12 +7,11 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import networkx as nx
 import numpy as np
 import scipy.linalg
 from numpy.typing import ArrayLike, NDArray
 
-from connflex_core.mechanics.assembly import Dof, assemble
+from connflex_core.mechanics.assembly import Dof, anchored, applied_loads, assemble
 from connflex_core.params import StaticOptions
 from connflex_core.progress import Progress, stage
 
@@ -118,21 +117,9 @@ def equilibrium(
         raise ValueError("a net cannot have both a potential and a charge")
     driven = np.setdiff1d(np.arange(len(volts)), floating)
     tie = (model.net[:, None] == np.arange(len(volts))).astype(float)
-    with stage("assemble", progress) as current:
-        system = assemble(structure)
-        current.count(dofs=len(system.dofs), beams=len(structure.beams))
-    joined = nx.node_connected_component(structure.graph, structure.anchor.index)
-    kept = np.array([body in joined for body, _ in system.dofs], dtype=bool)
-    if not kept.any():
-        raise ValueError("no movable body is joined to the anchor by beams")
-    rows = {body: row for row, (body, name) in enumerate(system.dofs) if name == "ux"}
-    applied = np.zeros(len(system.dofs))
-    for body, load in (loads or {}).items():
-        if body not in rows:
-            raise ValueError(f"body {body} is the anchor or does not exist")
-        if len(load) != 6:
-            raise ValueError(f"load on body {body} must have six components")
-        applied[rows[body] : rows[body] + 6] = load
+    system = assemble(structure, progress=progress)
+    kept = anchored(structure, system)
+    applied = applied_loads(system, loads)
     origin = _origin(model, start, kept, workers)
 
     def drive(here: CapacitanceModel) -> tuple[Array, Array]:
@@ -181,7 +168,9 @@ def equilibrium(
         margin=margin,
         stable=softest > 0,
         iterations=iterations,
-        loose=tuple(sorted({body for body, _ in system.dofs if body not in joined})),
+        loose=tuple(
+            sorted({body for (body, _), held in zip(system.dofs, kept, strict=True) if not held})
+        ),
         floating=tuple(floating.tolist()),
         model=here,
     )

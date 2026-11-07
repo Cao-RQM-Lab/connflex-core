@@ -17,7 +17,7 @@ from numpy.typing import ArrayLike, NDArray
 from connflex_core.coupled.static import Equilibrium
 from connflex_core.electrical.drivers import Capacitor, CurrentSource, Resistor, Source, Switch
 from connflex_core.electrical.network import electrode_indices, network_nodes
-from connflex_core.mechanics.assembly import Dof, assemble
+from connflex_core.mechanics.assembly import Dof, anchored, applied_loads, assemble
 from connflex_core.params import TransientOptions
 from connflex_core.progress import Progress, stage
 
@@ -381,21 +381,9 @@ def transient(
         )
         for part in circuit
     ]
-    with stage("assemble", progress) as current:
-        system = assemble(structure)
-        current.count(dofs=len(system.dofs), beams=len(structure.beams))
-    joined_to_anchor = nx.node_connected_component(structure.graph, structure.anchor.index)
-    kept = np.array([body in joined_to_anchor for body, _ in system.dofs], dtype=bool)
-    if not kept.any():
-        raise ValueError("no movable body is joined to the anchor by beams")
-    rows = {body: row for row, (body, name) in enumerate(system.dofs) if name == "ux"}
-    applied = np.zeros(len(system.dofs))
-    for body, load in (loads or {}).items():
-        if body not in rows:
-            raise ValueError(f"body {body} is the anchor or does not exist")
-        if len(load) != 6:
-            raise ValueError(f"load on body {body} must have six components")
-        applied[rows[body] : rows[body] + 6] = load
+    system = assemble(structure, progress=progress)
+    kept = anchored(structure, system)
+    applied = applied_loads(system, loads)
     origin = _origin(model, start, kept)
 
     reached = [*feeding, *(end for pair in ends for end in pair)]
@@ -650,7 +638,9 @@ def _scales(
     return scale
 
 
-def _origin(model: CapacitanceModel, start: Equilibrium | ArrayLike | None, kept: Array) -> Array:
+def _origin(
+    model: CapacitanceModel, start: Equilibrium | ArrayLike | None, kept: NDArray[np.bool_]
+) -> Array:
     if start is None:
         return np.zeros(len(model.dofs))
     if isinstance(start, Equilibrium):
