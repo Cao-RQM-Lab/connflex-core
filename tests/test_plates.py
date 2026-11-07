@@ -3,6 +3,7 @@ from collections.abc import Callable
 import numpy as np
 import pytest
 from shapely import Polygon, box
+from shapely.affinity import rotate
 
 from connflex_core import (
     ElectrostaticParams,
@@ -40,6 +41,32 @@ def overhang(stack: Stack, params: Params, layout_um: LayoutUm) -> Structure:
     perforated = Polygon(PLATE.exterior, [hole.exterior])
     layout = layout_um([ANCHOR, BEAM, perforated], [box(-50, -50, 650, 450)])
     return extract(layout, stack, params(release_distance=60 * UM))
+
+
+@pytest.fixture
+def turned(stack: Stack, params: Params, layout_um: LayoutUm) -> Structure:
+    """A released 500 by 100 um plate on the beam, the whole layout turned by 45 degrees."""
+    long_plate = box(600, 150, 1100, 250)
+    parts = [rotate(part, 45, origin=(0, 0)) for part in (ANCHOR, BEAM, long_plate)]
+    handle = rotate(box(-50, -50, 1150, 450), 45, origin=(0, 0))
+    return extract(layout_um(parts, [handle]), stack, params(release_distance=60 * UM))
+
+
+def test_lowest_gap_is_at_a_corner_of_the_overlap_at_any_orientation(turned: Structure) -> None:
+    """Tilted about its own long axis, the plate closes its gap by half its width times the
+    tilt at the far long edge, whichever way the layout is drawn; the corners of the
+    bounding box of the overlap lie far outside the plate."""
+    (plate,) = [p for p in turned.plates() if p.bodies == (1, 0)]
+    along = np.array([np.cos(np.pi / 4), np.sin(np.pi / 4)])
+    for theta in (2e-2, -2e-2):
+        tilt = [0, 0, 0, theta * along[0], theta * along[1], 0]
+        assert plate.lowest(device=tilt) == pytest.approx(GAP - 50 * UM * abs(theta), rel=1e-9)
+        value, _, _ = plate.evaluate(device=tilt)
+        assert value > plate.released
+    closing = [0, 0, 0, 4.4e-2 * along[0], 4.4e-2 * along[1], 0]
+    assert plate.lowest(device=closing) < 0
+    with pytest.raises(ValueError, match="closes"):
+        plate.evaluate(device=closing)
 
 
 def test_released_plate_over_the_handle_is_a_parallel_plate(shuttle: Structure) -> None:

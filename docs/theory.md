@@ -2228,15 +2228,16 @@ of a displacement is the smallest ratio of such a gap to its width at rest,
 
 $$
 \chi(\mathbf{q}) = \min \Bigl\{
-\min_{\text{plates}} \frac{g_0 + h_0 - |h_x|\, e_x - |h_y|\, e_y}{g_0},\;
+\min_{\text{plates}}\, \min_{\mathbf{r} \in V_{ab}} \frac{g_0 + h_0 + h_x\, r_x + h_y\, r_y}{g_0},\;
 \min_{(a, b)} \frac{\operatorname{dist}\bigl( E_a(\mathbf{q}), E_b(\mathbf{q}) \bigr)}{\operatorname{dist}(E_a, E_b)}
 \Bigr\}. \tag{126}
 $$
 
 The first runs over plates between two bodies, with the rise $h_0$ and
-slopes $h_x$, $h_y$ of (45) and the half widths $e_x$, $e_y$ of the bounding
-box of the overlap about its reference point: its numerator is the gap (45)
-at the corner of that box that comes closest. The second runs over pairs of
+slopes $h_x$, $h_y$ of (45) and $V_{ab}$ the vertices of the convex hull of
+the overlap $G_{ab}$, measured from the reference point: the gap (45) is a
+plane, so over the overlap it is smallest at one of them, and its numerator
+is the gap at that corner. The second runs over pairs of
 device electrodes of one cluster that move with different bodies and lie
 within $d_i$ of each other at rest, with the outlines carried by (118), and
 is the exact distance between their silicon. The model at every
@@ -2292,12 +2293,12 @@ every floating net has capacitance to a driven one.
     the iteration steps back and forth across it at any potential. Such a
     device needs the field method.
 
-    The bounding box of a plate reaches at least as far as the plate, so
-    (126) reports how far a tilted plate has closed no later than it does, and
-    earlier for a plate that does not fill its box. A tilted plate is also
-    where the capacitance of (55), of second order in tilt, is least
-    accurate: at a clearance of one half its integrand is 12 percent low
-    at the closest corner.
+    A plate whose gap (45) closes at a corner of its overlap is an error
+    when evaluated, as electrodes of one cluster that touch are, so a Newton
+    step that would close it is halved like one into contact. A tilted plate
+    is also where the capacitance of (55), of second order in tilt, is least
+    accurate: at a clearance of one half its integrand is 12 percent low at
+    the closest corner.
 
     An iteration can fail from a distant start where it succeeds from a
     near one, so a failure from far away says little about pull-in.

@@ -22,6 +22,15 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The clearance of a tilted plate, equation (126), is the gap at the corner
+  of its overlap that comes closest, found over the vertices of the overlap's
+  hull, where it was the gap at a corner of the bounding box of the overlap:
+  a plate drawn at an angle to the layout axes reported a clearance up to
+  several times too small. `Plate.corners` holds those vertices.
+- A plate whose gap closes at a corner of its overlap is an error when
+  evaluated, as a gap closing at the reference point was, so a tilt that
+  drives an edge through the handle is halved by `equilibrium` and ends a
+  `transient` in contact instead of passing through.
 - The surrogate's radius counts the error of the expanded fringe as well as
   of the sidewalls, and a step without motion in the plane can shrink it but
   not grow it, so rise and tilt no longer widen a radius that then reuses a

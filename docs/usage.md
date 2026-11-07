@@ -386,8 +386,10 @@ rest. A window keeps its elements until travel brings walls into its
 overlap that it does not hold, and then takes those around its core where
 they are, and a row of identical cells stops counting cells that travel has
 carried near its ends, so teeth slid past each other by many pitches keep
-the accuracy they had at rest. Bodies that touch after the motion raise an
-error.
+the accuracy they had at rest. Device electrodes of one cluster that touch
+after the motion, and a plate whose gap closes at a corner of its overlap,
+raise an error; electrodes farther apart than `interaction_distance` at
+rest are in no cluster and are not checked.
 
 Equilibria and transients evaluate many displacements close to each other.
 With `surrogate_tolerance` set, a cluster solved by the field method reuses

@@ -247,9 +247,10 @@ class CapacitanceModel:
         rows of identical cells follow travel, equations (164) and (165). With
         ``surrogate_tolerance`` set, clusters solved by the field method come from the
         expansion of an earlier solution where it holds, equations (148) to (150), unless
-        ``exact``. Bodies that touch are an error, and so is a displacement at which the
-        model is not finite. ``workers`` threads solve the pieces, as many as at rest by
-        default. Stage sidewalls logs through the ``connflex_core`` logger and reports to
+        ``exact``. Device electrodes of one cluster that touch, a plate whose gap closes
+        at a corner of its overlap, and a displacement at which the model is not finite
+        are errors. ``workers`` threads solve the pieces, as many as at rest by default.
+        Stage sidewalls logs through the ``connflex_core`` logger and reports to
         ``progress`` as it does at rest.
         """
         moved = np.asarray(displacement, dtype=float)

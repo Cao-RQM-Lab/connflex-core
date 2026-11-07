@@ -40,6 +40,8 @@ class Plate:
         origin: Reference point (x, y, z) in meters: center of the bounding box of the
             overlap, at mid-height of the gap.
         extent: Half the width of that bounding box along x and along y.
+        corners: Vertices of the convex hull of the overlap, measured from ``origin``,
+            one row each: the gap of a tilted plate is smallest at one of them.
         moments: 3 by 3 integrals over the released overlap of products of 1, x, and y
             measured from ``origin``, equation (48).
         edges: 3 by 3 integrals along the handle outline under device silicon,
@@ -56,6 +58,7 @@ class Plate:
     permittivity: float
     origin: Array
     extent: Array
+    corners: Array
     moments: Array
     edges: Array
     centers: Array
@@ -66,13 +69,16 @@ class Plate:
         return float(self.permittivity * self.moments[0, 0] / self.gap)
 
     def lowest(self, device: ArrayLike | None = None, handle: ArrayLike | None = None) -> float:
-        """Smallest gap over the bounding box of the overlap, in meters, equation (126).
+        """Smallest gap over the overlap, in meters, equation (126).
 
         ``device`` and ``handle`` are as for ``evaluate``. Zero or less means that a
-        corner of the box has reached the other plate.
+        corner of the overlap has reached the other plate.
         """
-        local = self._local(device, handle)
-        return float(self.gap + local[3] - np.abs(local[4:]) @ self.extent)
+        return self._lowest(self._local(device, handle))
+
+    def _lowest(self, local: Array) -> float:
+        """Gap of equation (45) at the corner of the overlap where it is smallest."""
+        return float(self.gap + local[3] + np.min(self.corners @ local[4:], initial=0.0))
 
     def _local(self, device: ArrayLike | None, handle: ArrayLike | None) -> Array:
         """Travel, rise, and slopes at ``origin`` for displacements of the two bodies."""
@@ -98,8 +104,8 @@ class Plate:
         local = self._local(device, handle)
         travel, rise, slope = local[:3], local[3], local[4:]
         gap = self.gap + rise
-        if gap <= 0:
-            raise ValueError(f"gap between plates closes: {gap} m at the reference point")
+        if (lowest := self._lowest(local)) <= 0:
+            raise ValueError(f"gap between plates closes: {lowest} m at a corner of the overlap")
         area = self.moments[0, 0] - travel @ self.edges[:, 0]
         first = self.moments[0, 1:] - travel @ self.edges[:, 1:]
         second = self.moments[1:, 1:]
@@ -166,6 +172,7 @@ def find_plates(
                 )
                 west, south, east, north = overlap.bounds
                 origin = np.array([(west + east) / 2, (south + north) / 2, height])
+                hull = shapely.get_coordinates(overlap.convex_hull)
                 outline = _crossings(under.region, silicon, openings, opening_tree)
                 plates.append(
                     Plate(
@@ -177,6 +184,7 @@ def find_plates(
                         permittivity=VACUUM_PERMITTIVITY * params.ambient_permittivity,
                         origin=origin,
                         extent=np.array([(east - west) / 2, (north - south) / 2]),
+                        corners=hull - origin[:2],
                         moments=_about(area_moments(overlap) - bonded - opened, origin),
                         edges=_edge_integrals(*outline, origin),
                         centers=np.array(
