@@ -13,7 +13,7 @@ from shapely import MultiPolygon, STRtree
 
 from connflex_core.electrostatics.outlines import Mesh
 from connflex_core.electrostatics.pairs import pair_derivatives, pair_integrals
-from connflex_core.electrostatics.translates import KEY_GRID, canonical, repivot
+from connflex_core.electrostatics.translates import KEY_GRID, canonical, repivot, taylor
 
 Array = NDArray[np.float64]
 Complex = NDArray[np.complex128]
@@ -556,8 +556,9 @@ def solve_rows(
                     step[3 * j : 3 * j + 2] = shift.real, shift.imag
                     arm = _placed(turn, int(b), complex(*center)) - complex(*pivots[b])
                     arms[j] = arm.real, arm.imag
-                total += held + flat @ step + 0.5 * (curve @ step) @ step
-                moved_slope, moved_bend = repivot(flat + curve @ step, curve, arms)
+                value, slope = taylor(held, flat, curve, step)
+                total += value
+                moved_slope, moved_bend = repivot(slope, curve, arms)
                 tilt += moved_slope
                 swing += moved_bend
                 charge[np.ix_(row.cells[k][order], present)] = cell_charge

@@ -51,6 +51,14 @@ def canonical(
     return order, present, moving, key
 
 
+def taylor(value: Array, slope: Array, bend: Array, step: Array) -> tuple[Array, Array]:
+    """Value and gradient a step away from a kept solution, to second order with the
+    Hessian held, equation (149): ``slope`` holds the parameters in its last axis and
+    ``bend`` in its last two."""
+    turned = bend @ step
+    return value + slope @ step + 0.5 * turned @ step, slope + turned
+
+
 def repivot(slope: Array, bend: Array, arms: Array) -> tuple[Array, Array]:
     """Gradient and Hessian for rigid motion of bodies about their pivots, from those
     about points ``arms`` away from the pivots, equation (155).

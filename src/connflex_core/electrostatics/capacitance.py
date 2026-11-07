@@ -25,6 +25,7 @@ from connflex_core.electrostatics.sidewalls import (
     plan_sidewalls,
     solve_sidewalls,
 )
+from connflex_core.electrostatics.translates import taylor
 from connflex_core.geometry.heal import as_multipolygon
 from connflex_core.mechanics.assembly import DOF_NAMES, Dof
 from connflex_core.params import ElectrostaticParams
@@ -802,13 +803,13 @@ def _expand(anchor: _Anchor, motion: Array) -> SidewallCapacitance:
     found = anchor.found
     size, bodies = found.capacitance.shape[0], found.gradient.shape[2]
     step = (motion[:bodies, :3] - anchor.motion[:bodies, :3]).ravel()
-    slope = found.gradient.reshape(size, size, step.size)
-    turned = found.hessian.reshape(size, size, step.size, step.size) @ step
-    return replace(
-        found,
-        capacitance=found.capacitance + slope @ step + 0.5 * turned @ step,
-        gradient=(slope + turned).reshape(found.gradient.shape),
+    value, slope = taylor(
+        found.capacitance,
+        found.gradient.reshape(size, size, step.size),
+        found.hessian.reshape(size, size, step.size, step.size),
+        step,
     )
+    return replace(found, capacitance=value, gradient=slope.reshape(found.gradient.shape))
 
 
 def _expand_fringe(anchor: _Anchor, motion: Array) -> FringeCapacitance | None:
@@ -818,13 +819,14 @@ def _expand_fringe(anchor: _Anchor, motion: Array) -> FringeCapacitance | None:
         return None
     size = found.capacitance.shape[0]
     step = (motion - anchor.motion).ravel()
-    slope = found.gradient.reshape(size, size, step.size)
-    turned = found.hessian.reshape(size, size, step.size, step.size) @ step
+    value, slope = taylor(
+        found.capacitance,
+        found.gradient.reshape(size, size, step.size),
+        found.hessian.reshape(size, size, step.size, step.size),
+        step,
+    )
     return FringeCapacitance(
-        found.capacitance + slope @ step + 0.5 * turned @ step,
-        (slope + turned).reshape(found.gradient.shape),
-        found.hessian,
-        found.sections,
+        value, slope.reshape(found.gradient.shape), found.hessian, found.sections
     )
 
 
