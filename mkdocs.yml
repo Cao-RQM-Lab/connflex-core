@@ -38,6 +38,7 @@ nav:
   - Input conventions: conventions.md
   - Parameters: parameters.md
   - Theory of operation: theory.md
+  - Assumptions and limits: assumptions.md
   - API reference: api/index.md
   - Contributing: contributing.md
   - Changelog: changelog.md

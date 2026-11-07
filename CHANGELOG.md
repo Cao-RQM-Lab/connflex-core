@@ -7,6 +7,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Documentation page "Assumptions and limits": every assumption,
+  idealization, and left-out effect of each stage, with what it costs and
+  how to check it.
 - `anchors` and `sections` of each cluster in `CapacitanceModel.to_dict`.
 - `CapacitanceModel.charge_gradient(potentials)`: change of the charge on each
   electrode with each degree of freedom, which the force is half the

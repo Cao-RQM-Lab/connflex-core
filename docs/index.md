@@ -37,4 +37,5 @@ structure. Static equilibrium, small signal, and transients take both.
 - [Input conventions](conventions.md)
 - [Parameters](parameters.md)
 - [Theory of operation](theory.md)
+- [Assumptions and limits](assumptions.md)
 - [API reference](api/index.md)
