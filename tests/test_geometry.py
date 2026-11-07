@@ -1,5 +1,6 @@
 import pytest
 from shapely import MultiPolygon, Polygon, box, unary_union
+from shapely.affinity import rotate
 
 from connflex_core.geometry.bodies import layered_components, select_anchor
 from connflex_core.geometry.heal import as_multipolygon, heal, opening
@@ -22,6 +23,17 @@ def test_opening_removes_narrow_features_and_restores_wide_ones_exactly() -> Non
     opened = opening(as_multipolygon(unary_union([pad, strip])), radius=10 * UM)
     assert opened.area == pytest.approx(pad.area)
     assert opened.bounds == pytest.approx(pad.bounds)
+
+
+def test_opening_a_turned_comb_leaves_no_vertex_on_its_straight_edges() -> None:
+    """Mitre buffers leave vertices a few femtometers off a straight edge wherever a
+    feature was removed along it, unless the edge lies along an axis."""
+    spine = box(0, 0, 200 * UM, 12 * UM)
+    fingers = [box((10 + 6 * k) * UM, 12 * UM, (11.5 + 6 * k) * UM, 52 * UM) for k in range(30)]
+    comb = rotate(unary_union([spine, *fingers]), 20, origin=(0, 0))
+    (opened,) = opening(as_multipolygon(comb), radius=5 * UM).geoms
+    assert len(opened.exterior.coords) == 5
+    assert opened.area == pytest.approx(spine.area)
 
 
 def test_small_holes_are_filled_and_reported() -> None:

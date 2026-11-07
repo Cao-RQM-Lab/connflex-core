@@ -184,11 +184,14 @@ def test_periodic_row_matches_whole_solution_at_rest_and_displaced(long_comb: St
             )
 
 
-def two_sided_comb(offset: tuple[float, float]) -> Structure:
+def two_sided_comb(
+    offset: tuple[float, float], angle: float = 0.0, pitch: float = 6.0
+) -> Structure:
     """Twenty fingers on either side of a released spine, each side against its own
-    anchored stator, 1.5 um fingers and gaps at a 6 um pitch, drawn ``offset`` from the
-    origin in micrometers; the tips on the two sides are mirror images across the spine."""
-    pitch, finger, length, overlap, spine = 6.0, 1.5, 40.0, 30.0, 12.0
+    anchored stator, 1.5 um fingers and gaps at ``pitch``, drawn ``offset`` from the
+    origin in micrometers and turned by ``angle`` degrees about it; the tips on the two
+    sides are mirror images across the spine."""
+    finger, length, overlap, spine = 1.5, 40.0, 30.0, 12.0
     count, half = 20, 60.0
     device = [box(-half - 12, -spine / 2, half + 12, spine / 2)]
     for sign in (1, -1):
@@ -210,8 +213,12 @@ def two_sided_comb(offset: tuple[float, float]) -> Structure:
         device.append(box(x1, -2, x2, 2))
         p1, p2 = sorted((sign * (half + 162), sign * (half + 222)))
         device.append(box(p1, -30, p2, 30))
-    device = [affinity.translate(part, *offset) for part in device]
-    handle = affinity.translate(box(-400, -300, 400, 300), *offset)
+    device = [
+        affinity.rotate(affinity.translate(part, *offset), angle, origin=(0, 0)) for part in device
+    ]
+    handle = affinity.rotate(
+        affinity.translate(box(-400, -300, 400, 300), *offset), angle, origin=(0, 0)
+    )
     layout = Layout.from_shapely(device=device, handle=[handle], unit=UM)
     undercut = ExtractionParams(
         release_hole_max_area=100 * UM * UM, release_distance=7 * UM, body_min_width=10 * UM
@@ -245,6 +252,25 @@ def test_mirror_image_tips_do_not_break_a_row(monkeypatch: pytest.MonkeyPatch) -
     assert found[0] == found[1]
     assert found[0]
     assert min(found[0]) >= 8
+
+
+def test_rows_are_found_at_any_angle_and_pitch() -> None:
+    """A comb turned against the layout axes, or at a pitch off the grid that groups
+    runs, repeats its cells as exactly as one drawn along an axis."""
+    params = ElectrostaticParams(
+        element_size=0.75 * UM,
+        interaction_distance=20 * UM,
+        include_plates=False,
+        include_fringe=False,
+    )
+    straight = rows_of(two_sided_comb((0.0, 0.0)).capacitance(params))
+    assert straight
+    for angle, pitch in ((20.0, 6.0), (7.0, 6.0), (0.0, 6.00009)):
+        comb = two_sided_comb((0.0, 0.0), angle, pitch)
+        assert [
+            len(part.exterior.coords) for body in comb.bodies for part in body.device.geoms
+        ] == [5] * 5
+        assert rows_of(comb.capacitance(params)) == straight
 
 
 def test_remainder_stays_finite_far_across_the_row(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -22,6 +22,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Rows of identical cells are found on combs at any angle to the layout axes
+  and at any pitch: the period is the translation as drawn rather than rounded
+  to a grid, and the body opening drops the vertices a few femtometers off a
+  straight edge that mitre buffers leave at an angle, which also cut boundary
+  elements there.
 - Rows of identical cells are found on a comb whose fingers stand on both
   sides of a spine wherever it is drawn: the elements of a cell are ordered by
   position rounded to the translate tolerance, so a tie between mirror-image

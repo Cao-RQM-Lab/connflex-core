@@ -219,7 +219,7 @@ def find_rows(regions: Sequence[MultiPolygon], mesh: Mesh, reach: float, fewest:
     corners, and its cells hold every element in the band across the row that such runs
     of two or more conductors span.
     """
-    runs: dict[tuple[int, int], list[tuple[int, Array]]] = {}
+    runs: dict[tuple[int, int], list[tuple[int, Array, Array]]] = {}
     for conductor, region in enumerate(regions):
         for polygon in region.geoms:
             for ring in [polygon.exterior, *polygon.interiors]:
@@ -227,15 +227,18 @@ def find_rows(regions: Sequence[MultiPolygon], mesh: Mesh, reach: float, fewest:
                     if shift[0] < 0 or (shift[0] == 0 and shift[1] < 0):
                         shift = -shift
                     key = (round(shift[0] / GRID), round(shift[1] / GRID))
-                    runs.setdefault(key, []).append((conductor, points))
+                    runs.setdefault(key, []).append((conductor, points, shift))
     center = (mesh.start + mesh.end) / 2
     tree = STRtree(np.asarray(shapely.points(center)))
     arrays: list[Row] = []
-    for key, found in runs.items():
-        period = np.array(key, dtype=float) * GRID
+    for found in runs.values():
+        period = np.mean([shift for _, _, shift in found], axis=0)
+        on_grid = np.round(period / GRID) * GRID
+        if np.allclose(period, on_grid, rtol=1e-12, atol=0.0):  # drawn on the grid, read back
+            period = on_grid  # with rounding; otherwise as drawn
         along = period / np.linalg.norm(period)
         across = np.array([-along[1], along[0]])
-        spans = [(conductor, points @ along, points @ across) for conductor, points in found]
+        spans = [(conductor, points @ along, points @ across) for conductor, points, _ in found]
         linked: nx.Graph[int] = nx.Graph()
         linked.add_nodes_from(range(len(spans)))
         for i, (_, s_i, u_i) in enumerate(spans):

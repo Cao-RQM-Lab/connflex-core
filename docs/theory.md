@@ -143,6 +143,11 @@ straight leg is a beam of its own.
     polygon by polygon. An opening never leaves its polygon, so the parts of a
     disjoint set stay disjoint and the result is the same as opening the set as
     a whole, without the union that a single buffer over the set performs.
+    Along an edge at an angle to the axes, the mitre buffers leave a vertex a
+    few $10^{-15}$ m off the line wherever a feature was removed; vertices
+    within $10^{-12}$ m of the line through their neighbors are dropped after
+    the opening, so that an outline repeats its edges exactly where its
+    features repeat and no boundary element is cut at such a vertex.
 
     Stubs are kept apart from the body polygons. A body's device polygons are
     the output of the opening in (3): they define connectivity through the
@@ -2932,6 +2937,14 @@ which are solved once.
     pull is off by $1.5 \times 10^{-2}$. On a comb of 80 cells rows put
     capacitance $5 \times 10^{-4}$ high and windows of 30 micrometers $1.5
     \times 10^{-3}$.
+
+    The period of a row is the translation measured on the runs of corners
+    that repeat, as drawn, taken to the grid of $10^{-10}$ m on which runs
+    are grouped only when it lies within rounding of a grid point. A period
+    rounded to that grid would miss the cells of a row at an angle to the
+    axes, or at a pitch off the grid, by a growing amount, since the translate
+    test below holds the elements of every cell to a thousandth of the
+    shortest element.
 
     The elements of a cell are matched to those of the first cell in one
     order: by conductor, then by position along and across the row, each
