@@ -11,6 +11,7 @@ import networkx as nx
 from shapely import Point, Polygon, STRtree
 from shapely.geometry import mapping
 
+from connflex_core._union import UnionFind
 from connflex_core.geometry.heal import overlapping
 
 
@@ -190,14 +191,7 @@ def find_nets(
     A wire joins the conductors that cover its two ends; an end that no conductor of its
     layer covers is an error. Nets are numbered in order of their first conductor.
     """
-    parent = list(range(len(device) + len(handle)))
-
-    def root(i: int) -> int:
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
-
+    sets = UnionFind(len(device) + len(handle))
     trees = (STRtree(list(device)), STRtree(list(handle)))
     joined: list[Via] = []
     for index, via in enumerate(vias):
@@ -209,9 +203,8 @@ def find_nets(
             warnings.warn(f"via {index} overlaps no {missing} conductor; ignored", stacklevel=2)
             continue
         members = [*on_device, *on_handle]
-        first = root(members[0])
         for member in members[1:]:
-            parent[root(member)] = first
+            sets.union(members[0], member)
 
     connections: list[Connection] = []
     for index, wire in enumerate(wires):
@@ -227,13 +220,13 @@ def find_nets(
                 )
             under.append(offset + hits[0])
         connections.append(Connection(index, wire, (under[0], under[1])))
-        parent[root(under[1])] = root(under[0])
+        sets.union(under[0], under[1])
 
     numbers: dict[int, int] = {}
     conductors: list[Conductor] = []
     layered = [*(("device", p) for p in device), *(("handle", p) for p in handle)]
     for index, (layer, polygon) in enumerate(layered):
-        net = numbers.setdefault(root(index), len(numbers))
+        net = numbers.setdefault(sets.find(index), len(numbers))
         conductors.append(Conductor(index, layer, polygon, net))
     return Nets(tuple(conductors), tuple(joined), len(numbers), tuple(connections))
 

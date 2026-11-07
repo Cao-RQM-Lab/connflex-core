@@ -12,6 +12,7 @@ import shapely
 from numpy.typing import NDArray
 from shapely import MultiPolygon, STRtree
 
+from connflex_core._union import UnionFind
 from connflex_core.electrostatics.jets import Jet
 
 Array = NDArray[np.float64]
@@ -627,23 +628,16 @@ def feature_sizes(walls: FacingWalls, net: Index) -> dict[tuple[int, int], float
     starts: dict[tuple[int, int, int, int], list[int]] = {}
     for k, (x, y) in enumerate(np.round(walls.start / grid).astype(np.int64).tolist()):
         starts.setdefault((x, y, int(own[k]), int(faced[k])), []).append(k)
-    parent = list(range(count))
-
-    def root(i: int) -> int:
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
-
+    sets = UnionFind(count)
     ends = np.round(walls.end / grid).astype(np.int64).tolist()
     for k, (x, y) in enumerate(ends):
         for j in starts.get((x, y, int(own[k]), int(faced[k])), []):
             jump = float(np.hypot(*(hit[1][k] - hit[0][j])))
             if j != k and jump <= RUN_JUMP * min(walls.gap[k, 1], walls.gap[j, 0]):
-                parent[root(j)] = root(k)
+                sets.union(k, j)
     runs: dict[int, list[float]] = {}
     for k in range(count):
-        run = runs.setdefault(root(k), [0.0, float(own[k]), float(faced[k])])
+        run = runs.setdefault(sets.find(k), [0.0, float(own[k]), float(faced[k])])
         run[0] += weight[k]
     totals: dict[tuple[int, int], list[float]] = {}
     for run_weight, a, b in runs.values():
