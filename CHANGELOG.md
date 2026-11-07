@@ -76,6 +76,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   other, as healing can leave them, no longer make a boundary element of that
   length, whose row of the field matrix was noise.
 
+### Removed
+
+- `Material.torsion_model`: it accepted one value and nothing read it; the
+  torsion constant is that of a solid rectangle, equation (20), with the
+  short-beam correction of `torsion_beta`.
+
 ### Changed
 
 - Window planning counts the elements of a trial window through the index of

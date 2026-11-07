@@ -43,7 +43,6 @@ stiffness uses the device-layer material.
 | `Material.youngs_modulus` | $E$ | 169 GPa for silicon | Young's modulus. Silicon's default is the in-plane $\langle 110 \rangle$ value; beams along $\langle 100 \rangle$ see about 130 GPa. |
 | `Material.poisson_ratio` | $\nu$ | 0.28 | Used to derive $G = E / (2(1 + \nu))$ when `shear_modulus` is not given. |
 | `Material.shear_modulus` | $G$ | derived | Shear modulus for the torsional term, equation (19). |
-| `Material.torsion_model` | $J$ | `"rectangle"` | Saint-Venant torsion constant of a solid rectangle, equation (20). |
 | `Material.torsion_beta` | $\beta$ | 0.63 | Short-beam torsional stiffening coefficient, equation (21). Zero disables the correction. |
 | `Material.resistivity` | $\rho_e$ | none | Electrical resistivity. Sets resistance of beam links, equation (41); without it that resistance is unknown. Only the device layer's value is used. |
 | `Material.relative_permittivity` | $\varepsilon_\text{ox}$ | oxide 3.9, silicon none | Static dielectric constant. Only the box layer's value is used, for capacitance through buried oxide, equation (43): silicon is a conductor in the electrical model. |

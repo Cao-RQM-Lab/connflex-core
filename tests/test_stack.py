@@ -29,7 +29,6 @@ def test_explicit_shear_modulus_is_kept() -> None:
         ({"density": -1.0}, "density"),
         ({"youngs_modulus": 0.0}, "youngs_modulus"),
         ({"poisson_ratio": 0.5}, "poisson_ratio"),
-        ({"torsion_model": "circle"}, "torsion_model"),
         ({"torsion_beta": -0.1}, "torsion_beta"),
         ({"resistivity": 0.0}, "resistivity"),
         ({"relative_permittivity": 0.5}, "relative_permittivity"),

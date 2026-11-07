@@ -3272,5 +3272,4 @@ and validation rules are on the [parameters page](parameters.md).
 | $\chi_c$ | clearance at which a transient ends with a contact event | `TransientOptions.contact_clearance` |
 | $R_k$ | series resistance of a source | `Source.resistance` |
 | $E$, $G$ | Young's and shear modulus of the device layer | `Material.youngs_modulus`, `Material.shear_modulus` or `Material.poisson_ratio` |
-| $J$ | torsion constant model | `Material.torsion_model` |
 | $\beta$ | short-beam torsional stiffening coefficient | `Material.torsion_beta` |

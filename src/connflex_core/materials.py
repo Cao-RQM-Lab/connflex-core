@@ -7,8 +7,6 @@ from typing import Any
 
 from connflex_core._validation import require_at_least, require_nonnegative, require_positive
 
-TORSION_MODELS = ("rectangle",)
-
 
 @dataclass(frozen=True)
 class Material:
@@ -19,9 +17,9 @@ class Material:
         youngs_modulus: Young's modulus in pascals.
         poisson_ratio: Poisson's ratio, used to derive shear modulus when it is not given.
         shear_modulus: Shear modulus in pascals. Derived as E / (2 (1 + nu)) when omitted.
-        torsion_model: Torsion constant model for beams. "rectangle" is the Saint-Venant
-            constant of a solid rectangle.
-        torsion_beta: Short-beam torsional stiffening coefficient. Zero disables the correction.
+        torsion_beta: Short-beam torsional stiffening coefficient of equation (21) on the
+            Saint-Venant torsion constant of a solid rectangle, equation (20). Zero disables
+            the correction.
         resistivity: Electrical resistivity in ohm meters. None leaves resistance of beam
             links unknown. Only the device layer's value is used.
         relative_permittivity: Static dielectric constant. None means the material is not
@@ -32,7 +30,6 @@ class Material:
     youngs_modulus: float
     poisson_ratio: float
     shear_modulus: float | None = None
-    torsion_model: str = "rectangle"
     torsion_beta: float = 0.63
     resistivity: float | None = None
     relative_permittivity: float | None = None
@@ -47,10 +44,6 @@ class Material:
             object.__setattr__(self, "shear_modulus", derived)
         else:
             require_positive("shear_modulus", self.shear_modulus)
-        if self.torsion_model not in TORSION_MODELS:
-            raise ValueError(
-                f"torsion_model must be one of {TORSION_MODELS}, got {self.torsion_model!r}"
-            )
         require_nonnegative("torsion_beta", self.torsion_beta)
         if self.resistivity is not None:
             require_positive("resistivity", self.resistivity)
