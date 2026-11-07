@@ -14,6 +14,7 @@ import scipy.linalg
 import scipy.optimize
 from numpy.typing import ArrayLike, NDArray
 
+from connflex_core._validation import require_ascending
 from connflex_core.coupled.static import Equilibrium
 from connflex_core.electrical.drivers import Capacitor, CurrentSource, Resistor, Source, Switch
 from connflex_core.electrical.network import electrode_indices, network_nodes, tie_matrix
@@ -338,8 +339,9 @@ def transient(
     if model.rest.structure is not structure:
         raise ValueError("capacitance model was built from another structure")
     stamps = np.atleast_1d(np.asarray(times, dtype=float))
-    if stamps.ndim != 1 or len(stamps) < 2 or np.any(np.diff(stamps) <= 0):
-        raise ValueError("times must hold at least two strictly ascending values")
+    if stamps.ndim != 1:
+        raise ValueError("times must be one sequence of values")
+    stamps = np.asarray(require_ascending("times", stamps.tolist(), 2), dtype=float)
     if not np.all(np.isfinite(stamps)):
         raise ValueError("times must be finite")
     stored = dict(charges or {})

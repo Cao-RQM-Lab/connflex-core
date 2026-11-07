@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from connflex_core._validation import require_nonnegative, require_positive
+from connflex_core._validation import require_ascending, require_nonnegative, require_positive
 from connflex_core.electrical.electrodes import Electrode
 
 Waveform = float | Callable[[float], float]
@@ -26,14 +26,12 @@ class PiecewiseLinear:
     values: tuple[float, ...]
 
     def __init__(self, times: Sequence[float], values: Sequence[float]) -> None:
-        stamps = tuple(float(time) for time in times)
+        stamps = require_ascending("times", times, 1)
         levels = tuple(float(value) for value in values)
-        if not stamps or len(stamps) != len(levels):
-            raise ValueError("times and values must be equally long and not empty")
-        if not np.all(np.isfinite(stamps + levels)):
-            raise ValueError("times and values must be finite")
-        if np.any(np.diff(stamps) <= 0):
-            raise ValueError("times must be strictly ascending")
+        if len(stamps) != len(levels):
+            raise ValueError("times and values must be equally long")
+        if not np.all(np.isfinite(levels)):
+            raise ValueError("values must be finite")
         object.__setattr__(self, "times", stamps)
         object.__setattr__(self, "values", levels)
 
@@ -68,12 +66,7 @@ class Switch:
     closed: bool = True
 
     def __init__(self, times: Sequence[float], closed: bool = True) -> None:
-        stamps = tuple(float(time) for time in times)
-        if not np.all(np.isfinite(stamps)):
-            raise ValueError("switch times must be finite")
-        if np.any(np.diff(stamps) <= 0):
-            raise ValueError("switch times must be strictly ascending")
-        object.__setattr__(self, "times", stamps)
+        object.__setattr__(self, "times", require_ascending("switch times", times, 0))
         object.__setattr__(self, "closed", bool(closed))
 
     def closed_at(self, time: float) -> bool:
