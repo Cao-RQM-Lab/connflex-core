@@ -8,7 +8,7 @@ from typing import NamedTuple
 import shapely
 from shapely import MultiPolygon, Polygon, STRtree
 
-from connflex_core.geometry.heal import as_multipolygon, opening
+from connflex_core.geometry.heal import as_multipolygon, opening, overlapping
 from connflex_core.model import Beam, RejectedCandidate
 
 
@@ -69,9 +69,8 @@ def find_beams(
             advance()
         expanded = candidate.buffer(margin, join_style="mitre")
         touched: dict[int, list[int]] = {}
-        for j in tree.query(expanded, predicate="intersects"):
-            if expanded.intersection(body_parts[j]).area > 0:
-                touched.setdefault(body_of[j], []).append(int(j))
+        for j in overlapping(tree, body_parts, expanded):
+            touched.setdefault(body_of[j], []).append(j)
         parts = tuple(sorted(j for group in touched.values() for j in group))
         if len(touched) != 2:
             noun = "body" if len(touched) == 1 else "bodies"

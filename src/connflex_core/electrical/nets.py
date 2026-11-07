@@ -11,6 +11,8 @@ import networkx as nx
 from shapely import Point, Polygon, STRtree
 from shapely.geometry import mapping
 
+from connflex_core.geometry.heal import overlapping
+
 
 @dataclass(frozen=True)
 class Conductor:
@@ -239,5 +241,4 @@ def find_nets(
 def _overlapping(
     tree: STRtree, polygons: Sequence[Polygon], via: Polygon, offset: int
 ) -> tuple[int, ...]:
-    hits = tree.query(via, predicate="intersects")
-    return tuple(sorted(offset + int(j) for j in hits if via.intersection(polygons[j]).area > 0))
+    return tuple(sorted(offset + j for j in overlapping(tree, polygons, via)))

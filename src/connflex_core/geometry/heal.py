@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import shapely
 from numpy.typing import NDArray
-from shapely import MultiPolygon, Polygon
+from shapely import MultiPolygon, Polygon, STRtree
 from shapely.geometry.base import BaseGeometry
 
 RESIDUE = 1e-12
@@ -23,6 +25,16 @@ def polygon_parts(geometry: BaseGeometry | NDArray[np.object_]) -> list[Polygon]
 def as_multipolygon(geometry: BaseGeometry | NDArray[np.object_]) -> MultiPolygon:
     """Collect polygonal parts of a geometry, or of an array of geometries, into a MultiPolygon."""
     return MultiPolygon(polygon_parts(geometry))
+
+
+def overlapping(tree: STRtree, polygons: Sequence[Polygon], geometry: BaseGeometry) -> list[int]:
+    """Indices of ``polygons``, which ``tree`` indexes, that ``geometry`` overlaps with
+    positive area, in the order the tree returns them."""
+    return [
+        int(j)
+        for j in tree.query(geometry, predicate="intersects")
+        if geometry.intersection(polygons[j]).area > 0
+    ]
 
 
 def heal(geometry: MultiPolygon, distance: float, tolerance: float) -> MultiPolygon:

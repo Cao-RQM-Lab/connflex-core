@@ -7,6 +7,8 @@ from collections.abc import Callable, Iterator, Sequence
 
 from shapely import Point, Polygon, STRtree
 
+from connflex_core.geometry.heal import overlapping
+
 Node = tuple[int, int]
 
 
@@ -65,6 +67,5 @@ def _overlapping_neighbors(
     polygon = layers[layer][index]
     for adjacent in (layer - 1, layer + 1):
         if 0 <= adjacent < len(layers):
-            for j in trees[adjacent].query(polygon, predicate="intersects"):
-                if polygon.intersection(layers[adjacent][j]).area > 0:
-                    yield (adjacent, int(j))
+            for j in overlapping(trees[adjacent], layers[adjacent], polygon):
+                yield (adjacent, j)
