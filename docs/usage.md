@@ -151,19 +151,20 @@ integrals and with release openings removed from the device layer;
 `body.inertial.matrix` is the 6 by 6 mass matrix in body degrees of freedom.
 
 A candidate that touches one body is a stub, one that touches three or more
-is a junction, and one that keeps surviving oxide underneath, as a candidate
-wider than twice `release_distance` over the handle does, is bonded; all
+is a junction, one that keeps surviving oxide underneath, as a candidate
+wider than twice `release_distance` over the handle does, is bonded, and
+one with too little of its area along its chord is not straight; all
 appear in `structure.rejected` with that reason and the bodies touched,
 which is the first place to look when an expected beam is missing. A stub, such as a comb finger, is also attached to its body: it moves
 with it and adds mass and inertia but no stiffness, and it is listed in
 `body.stubs` rather than in `body.device`. A junction adds nothing.
 
 Only straight beams are supported. A candidate that touches two bodies is
-taken as a straight strip of uniform width, whatever its shape: a bent,
-forked, or stepped candidate, such as a folded flexure whose fold is
-narrower than `body_min_width`, becomes one straight beam along the chord
-between its attachment points, with the width its area gives, and nothing
-flags it. Draw each bend as a block wider than `body_min_width`, so that it
+taken as a straight strip of uniform width, and one with less than 0.9 of
+its area in such a strip along the chord between its attachment points,
+such as a folded flexure whose fold is narrower than `body_min_width`, is
+rejected with that reason, since as a beam along that chord it would be
+far stiffer. Draw each bend as a block wider than `body_min_width`, so that it
 is a body and each straight leg is a beam of its own.
 
 Polygons in `body.device`, `body.stubs`, and `electrode.region` are filled:

@@ -247,3 +247,23 @@ def test_anchor_index_counts_handle_polygons_by_descending_area(
     assert not structure.anchor.device.contains(at(50, 50))
     structure = extract(layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A, small]), stack, params(anchor=0))
     assert structure.anchor.device.contains(at(50, 50))
+
+
+def test_bent_candidates_are_rejected_as_not_straight(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    """A folded flexure of 5 um legs between two pads has little of its area in a straight
+    strip along its chord, so it is rejected with that reason instead of becoming a
+    straight beam along that chord; a slight taper passes as a strip of its mean width."""
+    pad_c = box(300, 200, 400, 300)
+    legs = [box(100, 47.5, 205, 52.5), box(200, 47.5, 205, 247.5), box(200, 242.5, 300, 247.5)]
+    structure = extract(layout_um([PAD_A, *legs, pad_c], [HANDLE_A]), stack, params())
+    assert structure.beams == ()
+    (candidate,) = structure.rejected
+    assert "straight" in candidate.reason
+    assert candidate.bodies == (0, 1)
+    taper = Polygon([(100, 46), (300, 45), (300, 55), (100, 54)])
+    tapered = extract(layout_um([PAD_A, taper, PAD_B], [HANDLE_A]), stack, params())
+    assert not tapered.rejected
+    (beam,) = tapered.beams
+    assert beam.width == pytest.approx(9 * UM, rel=1e-3)

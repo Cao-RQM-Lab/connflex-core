@@ -6,10 +6,12 @@ from collections.abc import Callable, Sequence
 from typing import NamedTuple
 
 import shapely
-from shapely import MultiPolygon, Polygon, STRtree
+from shapely import LineString, MultiPolygon, Polygon, STRtree
 
 from connflex_core.geometry.heal import as_multipolygon, opening, overlapping
 from connflex_core.model import Beam, RejectedCandidate
+
+STRAIGHT_FILL = 0.9
 
 
 def beam_candidates(
@@ -50,7 +52,10 @@ def find_beams(
 
     ``body_parts`` are the device-layer polygons of all bodies and ``body_of`` maps each part
     to its body index. ``oxide`` holds the surviving buried oxide: a candidate that keeps
-    more of it underneath than ``margin`` times its length is bonded and rejected.
+    more of it underneath than ``margin`` times its length is bonded and rejected. A
+    candidate with less than ``STRAIGHT_FILL`` of its area in a straight strip of its mean
+    width along the chord between its attachments, such as a folded flexure, is not a
+    straight uniform beam and rejected.
     ``net_of`` gives the net of a device-layer region. ``advance`` is called once per
     candidate.
     """
@@ -89,6 +94,15 @@ def find_beams(
             reject(candidate, f"rests on surviving oxide of {bonded:.3g} m^2", (a, b))
             continue
         width = candidate.area / length
+        chord = LineString([start, end]).buffer(width / 2 + margin, cap_style="square")
+        inside = candidate.intersection(chord).area / candidate.area
+        if inside < STRAIGHT_FILL:
+            reason = (
+                f"has {inside:.0%} of its area in a straight strip of its mean width, "
+                "not a straight beam"
+            )
+            reject(candidate, reason, (a, b))
+            continue
         if width < width_min:
             reason = f"width {width:.3g} m is below beam_width_min {width_min:.3g} m"
             reject(candidate, reason, (a, b))

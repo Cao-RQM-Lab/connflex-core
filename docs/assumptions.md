@@ -36,10 +36,12 @@ consequence, and a way to check or mitigate it.
   mitre limit of the opening. Watch `Body.box` for slivers.
 - **Beams are straight prisms**, (4): a candidate that touches two bodies is
   one Euler-Bernoulli beam of length the chord between its attachments and
-  width its area over that length, whatever its shape. A bent, forked, or
-  stepped candidate becomes a far stiffer straight beam without warning;
-  draw each bend as a block wider than `body_min_width`. A candidate that
-  keeps surviving oxide underneath is rejected.
+  width its area over that length. A candidate with less than 0.9 of its
+  area in the straight strip of that width along the chord, as a bent,
+  forked, or stepped one has, is rejected with that reason, as is one that
+  keeps surviving oxide underneath; draw each bend as a block wider than
+  `body_min_width`. A slanted end or a taper of up to two to one stays
+  within that share and passes as a uniform strip of the mean width.
 - **Beams carry no mass**; stubs carry mass and no stiffness; candidates
   touching no body or three or more carry neither. Resonances of a mass on
   heavy flexures are high by about half the ratio of flexure mass to proof

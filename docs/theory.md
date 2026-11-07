@@ -88,13 +88,16 @@ by dividing its geometric area by its length, and its thickness $t$ is the
 device layer thickness.
 
 Only straight beams are supported. A candidate is taken as a straight strip
-of uniform width between its two attachment points, and nothing tests that
-shape: a bent, forked, or stepped candidate that touches two bodies, such as
-a folded flexure whose fold is narrower than $w_\text{min}$, becomes one
-straight beam along the chord between its attachment points with the width
-its area gives, which overstates its stiffness by a large factor. A bend is
-drawn as a block wider than $w_\text{min}$, so that it is a body and each
-straight leg is a beam of its own.
+of uniform width between its two attachment points, and its shape is tested
+against that: with less than $f_s = 0.9$ of its area inside the strip of
+width $w$ along the chord, extended by $w / 2$ past either end for oblique
+end faces, as a bent, forked, or stepped candidate has, such as a folded
+flexure whose fold is narrower than $w_\text{min}$, it is rejected with that
+reason, since taken as one straight beam along the chord it would overstate
+its stiffness by a large factor. A bend is drawn as a block wider than
+$w_\text{min}$, so that it is a body and each straight leg is a beam of its
+own. A slanted end lies within the strip; a taper of two to one keeps 0.92
+of its area inside and passes as a strip of its mean width.
 
 !!! note "Implementation choices"
     Every polygon is put in canonical vertex order when a layout is built: the

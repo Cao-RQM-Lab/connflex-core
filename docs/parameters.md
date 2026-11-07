@@ -233,6 +233,7 @@ enters, and the synthetic tests that set it. A test checks the values.
 | `electrostatics.fringe.KEY_STEPS` | 4 | Fraction of the smallest of thickness, box, and narrowest gap that cuts are rounded to, equation (160). |
 | `electrostatics.fringe.ITEMS_PER_PASS` | 400 | Cuts assembled per pass, for memory. |
 | `electrostatics.capacitance.SAFETY` | 0.5 | Factor on the radius that the expansion error of a kept solution allows, equation (150). |
+| `geometry.beams.STRAIGHT_FILL` | 0.9 | Share of its area that a beam candidate must have in the straight strip of its mean width along its chord to count as a straight beam. |
 | `geometry.heal.RESIDUE` | 1e-12 | Distance in meters from the line through its neighbors below which a vertex left by the body opening is dropped, equation (3). |
 | `coupled.static.HALVINGS` | 12 | Most halvings of one Newton step that would close a gap, equation (121). |
 | `coupled.transient.RETRIES` | 8 | Most retries of a step that closed a gap, each four times shorter, before a contact event. |

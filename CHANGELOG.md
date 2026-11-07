@@ -108,6 +108,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A beam candidate with less than `STRAIGHT_FILL` = 0.9 of its area in the
+  straight strip of its mean width along the chord between its attachments,
+  as a folded or stepped flexure has, is rejected with that reason instead
+  of becoming a straight beam along that chord. Slanted ends and mild tapers
+  pass.
 - The surrogate's radius factor, `SAFETY` in equation (150), is 0.5 instead
   of 0.8: at 0.8 the gradient error reached 1.4 times `surrogate_tolerance`
   on a comb closing its side gaps, at 0.5 it stays within 0.6 of it, from
