@@ -22,7 +22,7 @@ Python 3.11 or newer.
 ```sh
 pip install connflex-core          # core
 pip install "connflex-core[gds]"   # gdstk reader for GDS files
-pip install "connflex-core[all]"   # every reader: gdstk, KLayout, gdsfactory
+pip install "connflex-core[all]"   # every reader plus numba: gdstk, KLayout, gdsfactory, fast
 ```
 
 ## Usage

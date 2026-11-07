@@ -16,8 +16,9 @@ is interpreted as an inverted mask, and no dark-field or clear-field semantics
 are applied. The `release` role follows the same rule: a release polygon says
 there is a release opening here.
 
-Readers check that polygons are non-empty and valid. Overlapping or touching
-polygons within one role are unioned.
+Readers reject invalid polygons, drop empty ones, and require at least one
+polygon on each role given. Overlapping or touching polygons within one role
+are unioned.
 
 ## Optional layers
 

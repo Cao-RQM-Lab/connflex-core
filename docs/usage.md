@@ -272,7 +272,7 @@ model = structure.capacitance(params)
 fast = cf.ElectrostaticParams(element_size=2e-6, interaction_distance=30e-6, plates_cutoff=15.0)
 
 model.matrix  # n by n over structure.electrodes, farads
-model.oxide, model.released, model.sidewall  # the three parts it sums
+model.oxide, model.released, model.sidewall, model.fringe  # the four parts it sums
 -model.matrix[a, b]  # capacitance between electrodes a and b
 model.net_matrix  # between nets, electrodes of each net tied together
 model.clusters  # groups of device electrodes whose sidewalls were taken together
@@ -360,8 +360,10 @@ with `include_plates=False` the cuts have no handle. Formulas are in
 [fringe above and below the device layer](theory.md#fringe-above-and-below-the-device-layer).
 
 Each cluster reports `interactions`, the feature size and method of every
-pair of its nets, `windows` and `asymmetry`, which is rounding for one
-dense system and a measure of the error for windows, and `walls`, the
+pair of its nets, `windows`, the field solutions planned for it, `asymmetry`,
+which is rounding for one dense system and, for windows, the mismatch
+between the charges that overlapping windows find, not a bound on what they
+leave out, and `walls`, the
 pieces of wall that face another electrode, for a check against the
 layout. `element_size` is needed as soon as one pair is solved by the
 field; a structure whose pairs are all plates needs none.
@@ -478,7 +480,7 @@ result.feature_size  # n by n: facing wall length over gap for each interacting 
 result.method  # n by n: "dense", "windowed", or "plates" for each interacting pair
 result.charge  # charge on each element per volt on each conductor, where counted
 result.mesh.start, result.mesh.end, result.mesh.conductor  # boundary elements
-result.windows, result.asymmetry  # field solutions it took, and their mismatch
+result.windows, result.asymmetry  # windows planned, solved or not, plus rows; mismatch of overlapping windows
 result.walls.start, result.walls.end  # pieces of wall facing another conductor
 result.walls.conductor, result.walls.facing, result.walls.gap
 
@@ -519,11 +521,15 @@ rotates about travels with it.
 
 A pair solved by the field requires `element_size`. Outlines are cut into
 straight elements of at most that length, shorter toward convex corners by up to `corner_grading`.
-The computed capacitance never exceeds the exact one and rises toward it as
-`element_size` shrinks, so halving it shows how far a value has settled. A
-mesh of at most `max_elements` is one dense solution; a larger one is solved
-in windows, as for the capacitance model, and `asymmetry` then measures what
-the windows leave out. Formulas are in
+For a pair solved as one dense system the computed capacitance never
+exceeds the exact one and rises toward it as `element_size` shrinks, so
+halving it shows how far a value has settled; a sum of windows is not bounded
+so, and refining a windowed pair can move its force either way until
+`interaction_distance` is large against its facing walls. When every pair
+is dense and the mesh holds at most `max_elements`, it is one dense
+solution; otherwise pairs solved by the field are solved in windows, as for
+the capacitance model, and `asymmetry` measures the mismatch of overlapping
+windows. Formulas are in
 [sidewall capacitance](theory.md#sidewall-capacitance) and
 [sidewalls as facing plates](theory.md#sidewalls-as-facing-plates).
 
@@ -574,6 +580,7 @@ result.force  # electrostatic forces at the equilibrium
 result.potentials, result.charge  # per electrode
 result.model  # capacitance model at the equilibrium
 result.model.clearance, result.model.closest  # narrowest gap against its width at rest, and where
+result.iterations  # Newton iterations the solve took
 result.loose  # bodies that no beam holds, kept at rest
 result.floating  # nets that held a fixed charge
 
@@ -781,7 +788,7 @@ run.clearance  # narrowest gap between two bodies against its width at rest
 run.contact  # electrodes across the gap whose closing ended the run, or None; (-1, -1) when no step could be taken
 run.energy.supplied, run.energy.resistive, run.energy.damped  # since the start, joules
 run.energy.imbalance  # zero but for the error of integration
-run.steps, run.evaluations  # accepted time steps, capacitance model evaluations
+run.steps, run.evaluations  # accepted time steps, distinct displacements evaluated; a cache serves repeats
 ```
 
 `structure.transient` follows motion, potentials, and charges over time
@@ -906,7 +913,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
 ```text
 2026-11-03 12:00:01,452 heal: started
-2026-11-03 12:00:13,850 heal: done in 12.40 s, device 1203, handle 7
+2026-11-03 12:00:13,850 heal: done in 12.40 s, device 1203, handle 7, holes 0
 ```
 
 For a progress bar, pass any object with `start(stage, total)`, `advance(n)`,
@@ -934,14 +941,19 @@ result = structure.modal(progress=Bar())
 
 `extract` reports heal, release, prune, nets, opening, bodies, candidates,
 beams, mass, and electrodes, in that order. `modal` and `static` report
-assemble and solve, and `equilibrium` reports assemble and equilibrium. Prune and bodies advance once per polygon, beams once per
-candidate, mass once per body, and electrodes once per beam, rejected
-candidate, and via; the other stages are single operations. `plates` reports
-one stage, plates, that advances once per device electrode.
-`sidewall_capacitance` with method `"field"` reports mesh, assemble, solve,
-derivatives, and curvature; assemble advances once per block of rows and
-derivatives once per pair of bodies. For a mesh solved in windows it reports
-mesh and windows, which advances once per window. With method `"plates"` it
-reports one stage, facing. `capacitance` reports plates, clusters, and
-sidewalls; sidewalls advances once per cluster, and once per window for a
-cluster solved in windows.
+assemble and solve; `equilibrium` reports assemble and equilibrium;
+`small_signal` reports assemble and small signal; `transient` reports
+assemble and transient, which advances once per output time of the result,
+so a contact event leaves it short of its total. Prune and bodies advance
+once per polygon, beams once per candidate, mass once per body, and
+electrodes once per beam, rejected candidate, via, and wire; the other
+stages are single operations. `plates` reports one stage, plates, that
+advances once per device electrode. `sidewall_capacitance` reports facing,
+then, when a pair is solved by the field, mesh and either assemble, solve,
+derivatives, and curvature for one dense system, where assemble advances
+once per block of rows and derivatives once per pair of bodies, or windows,
+which advances once per window and once per row of identical cells; when
+every pair is plates it reports facing alone. `capacitance` reports plates,
+clusters, and sidewalls; sidewalls advances once per cluster and per device
+electrode alone over the handle, and once per window for a cluster solved
+in windows.
