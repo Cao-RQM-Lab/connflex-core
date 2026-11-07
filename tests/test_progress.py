@@ -11,12 +11,17 @@ from connflex_core import (
     ElectrostaticParams,
     ExtractionParams,
     Layout,
+    PiecewiseLinear,
+    SmallSignalOptions,
+    Source,
     Stack,
+    TransientOptions,
     extract,
     sidewall_capacitance,
 )
 from connflex_core.electrostatics.dense import PAIRS_PER_PASS
 from connflex_core.progress import stage
+from test_equilibrium import HANDLE_ALONE, net_at, plate_on_beams
 
 EXTRACT_STAGES = [
     "heal",
@@ -143,6 +148,39 @@ def test_plates_report_one_stage_that_advances_once_per_device_electrode(
     recorder = Recorder()
     assert len(structure.plates(progress=recorder)) == 1
     assert recorder.runs == [Run("plates", 2, 2, True)]
+
+
+def test_coupled_analyses_report_their_stages() -> None:
+    """Equilibrium and small signal report assemble and their own stage; a transient
+    advances once per output time of its result, a contact frame included, so a run
+    that contact ends leaves the stage short of its total."""
+    plate = plate_on_beams()
+    model = plate.capacitance(HANDLE_ALONE)
+    handle = net_at(plate, 0, 0, "handle")
+    recorder = Recorder()
+    bias = plate.equilibrium(model, {handle: 100.0}, progress=recorder)
+    assert recorder.runs == [Run("assemble", None, 0, True), Run("equilibrium", None, 0, True)]
+    recorder = Recorder()
+    island = plate.electrode_at((0.0, 0.0), "handle")
+    plate.small_signal(bias, [island], SmallSignalOptions(quality_factor=10.0), progress=recorder)
+    assert recorder.runs == [Run("assemble", None, 0, True), Run("small signal", None, 0, True)]
+
+    modal = plate.modal()
+    spring, mass = modal.stiffness[2, 2], modal.mass[2, 2]
+    period = 2 * math.pi / math.sqrt(spring / mass)
+    pull_in = math.sqrt(8 * spring * (2e-6) ** 3 / (27 * 8.8541878188e-12 * (100e-6) ** 2))
+    pad = plate.electrode_at((-300e-6, 0.0), "device")
+    times = [k * period / 10 for k in range(21)]
+    for volts in (0.5 * pull_in, 1.3 * pull_in):
+        source = Source(pad, PiecewiseLinear([0.0, 1e-3 * period], [0.0, volts]))
+        recorder = Recorder()
+        run = plate.transient(
+            model, [source], times, TransientOptions(quality_factor=2.0), progress=recorder
+        )
+        assert recorder.runs[0] == Run("assemble", None, 0, True)
+        assert recorder.runs[1] == Run("transient", len(times), len(run.times), True)
+        assert (run.contact is None) == (volts < pull_in)
+    assert len(run.times) < len(times)
 
 
 def test_sidewall_capacitance_reports_its_stages() -> None:

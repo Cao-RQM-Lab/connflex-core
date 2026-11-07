@@ -777,7 +777,7 @@ run.displacement, run.velocity  # one row per time; columns follow run.dofs
 run.potentials, run.charge  # one row per time, one column per electrode
 run.current  # current each source drives into its electrode, in source order
 run.clearance  # narrowest gap between two bodies against its width at rest
-run.contact  # electrodes across the gap whose closing ended the run, or None
+run.contact  # electrodes across the gap whose closing ended the run, or None; (-1, -1) when no step could be taken
 run.energy.supplied, run.energy.resistive, run.energy.damped  # since the start, joules
 run.energy.imbalance  # zero but for the error of integration
 run.steps, run.evaluations  # accepted time steps, capacitance model evaluations

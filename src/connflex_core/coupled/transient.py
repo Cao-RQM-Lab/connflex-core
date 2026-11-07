@@ -82,7 +82,10 @@ class Transient:
         clearance: Clearance of equation (126) at each time.
         energy: Energy ledger at each time.
         contact: Electrodes across the gap whose closing to ``contact_clearance`` ended
-            the run. None when the run reached its last time.
+            the run. None when the run reached its last time. ``(-1, -1)`` when the
+            integrator could not step on from a state with no gap narrower than at
+            rest, as from a start beyond pull-in: the last frame is that state, with
+            its clearance still above ``contact_clearance``.
         dofs: (body index, degree of freedom) of each column of ``displacement``.
         loose: Bodies that no chain of beams joins to the anchor, kept at rest.
         floating: Nets that kept a fixed charge.
@@ -329,7 +332,8 @@ def transient(
     Integration restarts where a waveform or switch changes. ``workers`` threads
     evaluate the model, as many as at rest by default. Stages assemble and transient
     log through the ``connflex_core`` logger and report to ``progress``, which advances
-    once per output time.
+    once per entry of ``times`` of the result, so a contact event leaves the stage
+    short of its total.
     """
     if model.rest.structure is not structure:
         raise ValueError("capacitance model was built from another structure")
@@ -497,6 +501,7 @@ def transient(
                     if tries > RETRIES:
                         contact = run.at(state_before[: run.count]).closest or (-1, -1)
                         frames.append((before, state_before))
+                        current.advance()
                         break
                     limit = last / 4**tries
                     solver = _solver(
@@ -518,6 +523,7 @@ def transient(
                     final = dense(moment)
                     frames.append((moment, final))
                     contact = run.at(final[: run.count]).closest or (-1, -1)
+                    current.advance()
                     break
                 while pending < len(stamps) and stamps[pending] <= solver.t:
                     frames.append((float(stamps[pending]), dense(stamps[pending])))

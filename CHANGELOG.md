@@ -22,6 +22,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The transient stage advances once for the frame of a contact event too, so
+  `progress` sees one step per entry of `Transient.times`; the `(-1, -1)`
+  that `Transient.contact` carries when no step could be taken is documented.
 - The expansion of a rounded fringe cut carries the body a wall faces by the
   gap ahead of the wall, as the rate it is given assumes, also where that
   body has silicon nearer behind the wall; the rounding residual was taken
