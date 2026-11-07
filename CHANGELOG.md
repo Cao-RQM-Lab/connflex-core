@@ -19,6 +19,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A beam candidate that keeps surviving buried oxide underneath, as one wider
+  than twice `release_distance` over the handle does, is rejected with the
+  oxide area as its reason instead of qualifying as a free beam of full
+  length while its oxide was credited to the anchor.
 - Two consecutive outline vertices within `1e-6` of `element_size` of each
   other, as healing can leave them, no longer make a boundary element of that
   length, whose row of the field matrix was noise.

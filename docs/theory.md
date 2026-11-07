@@ -69,8 +69,11 @@ $$
 P = (D - B) \oplus \epsilon. \tag{4}
 $$
 
-Beam candidates must overlap with exactly two different bodies in order to
-qualify as a real beam. A discarded candidate that overlaps exactly one body is
+Beam candidates must overlap with exactly two different bodies and keep no
+surviving oxide $O$ of (2) underneath in order to qualify as a real beam: a
+candidate wider than $2d$ keeps oxide under its middle, is bonded to the
+handle there, and is rejected with the oxide area as its reason. A discarded
+candidate that overlaps exactly one body is
 a stub, such as a comb finger: it is rigidly attached to that body and
 contributes mass and moment of inertia, but no stiffness. Discarded
 candidates that overlap no body or three or more bodies carry neither mass
@@ -130,7 +133,11 @@ straight leg is a beam of its own.
     qualification, since the body opening in (3) does not reproduce device edges
     exactly and would otherwise leave hairlines that join separate candidates.
     Candidates whose width falls outside the configured bounds are discarded
-    like any other rejected candidate. Beams carry stiffness but no mass.
+    like any other rejected candidate. Oxide under a candidate is measured on
+    the unexpanded candidate and counts when its area exceeds $\epsilon L$:
+    the eroded oxide of (2) is polygonized with arcs at reflex corners, and
+    where a candidate meets a body the arc's chords can cross the candidate's
+    root by a sliver that is no bond. Beams carry stiffness but no mass.
 
     The opening in (3) and the sliver removal on the candidates are applied
     polygon by polygon. An opening never leaves its polygon, so the parts of a

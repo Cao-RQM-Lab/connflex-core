@@ -37,6 +37,7 @@ def find_beams(
     candidates: MultiPolygon,
     body_parts: Sequence[Polygon],
     body_of: Sequence[int],
+    oxide: Sequence[Polygon],
     *,
     margin: float,
     width_min: float,
@@ -48,10 +49,13 @@ def find_beams(
     """Qualify beam candidates as beams joining exactly two bodies.
 
     ``body_parts`` are the device-layer polygons of all bodies and ``body_of`` maps each part
-    to its body index. ``net_of`` gives the net of a device-layer region. ``advance`` is
-    called once per candidate.
+    to its body index. ``oxide`` holds the surviving buried oxide: a candidate that keeps
+    more of it underneath than ``margin`` times its length is bonded and rejected.
+    ``net_of`` gives the net of a device-layer region. ``advance`` is called once per
+    candidate.
     """
     tree = STRtree(list(body_parts))
+    oxide_tree = STRtree(list(oxide))
     z = -thickness / 2
     found = Qualified([], [], [], [])
     beams = found.beams
@@ -79,6 +83,11 @@ def find_beams(
         length = start.distance(end)
         if length <= 0:
             reject(candidate, "zero length", (a, b))
+            continue
+        under = oxide_tree.query(candidate, predicate="intersects")
+        bonded = sum(candidate.intersection(oxide[int(j)]).area for j in under)
+        if bonded > margin * length:
+            reject(candidate, f"rests on surviving oxide of {bonded:.3g} m^2", (a, b))
             continue
         width = candidate.area / length
         if width < width_min:

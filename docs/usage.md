@@ -146,9 +146,10 @@ integrals and with release openings removed from the device layer;
 `body.inertial.matrix` is the 6 by 6 mass matrix in body degrees of freedom.
 
 A candidate that touches one body is a stub, one that touches three or more
-is a junction; both appear in `structure.rejected` with that reason and the
-bodies touched, which is the first place to look when an expected beam is
-missing. A stub, such as a comb finger, is also attached to its body: it moves
+is a junction, and one that keeps surviving oxide underneath, as a candidate
+wider than twice `release_distance` over the handle does, is bonded; all
+appear in `structure.rejected` with that reason and the bodies touched,
+which is the first place to look when an expected beam is missing. A stub, such as a comb finger, is also attached to its body: it moves
 with it and adds mass and inertia but no stiffness, and it is listed in
 `body.stubs` rather than in `body.device`. A junction adds nothing.
 

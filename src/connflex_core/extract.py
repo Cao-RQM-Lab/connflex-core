@@ -39,8 +39,9 @@ def extract(
     through the opened device layer, oxide, and handle; each gets mass properties from the
     stack, with the moments of the release openings inside it subtracted from its device
     layer. Device regions removed by
-    the opening are qualified as beams; a candidate touching exactly one body is a stub that
-    adds mass to that body. Remaining device and handle polygons are conductors of the
+    the opening are qualified as beams when they touch exactly two bodies, keep no surviving
+    oxide underneath, and lie within the width bounds; a candidate touching exactly one body
+    is a stub that adds mass to that body. Remaining device and handle polygons are conductors of the
     nets, joined through vias and through ``wires``, connections made off the die between
     pads that the layout leaves apart. Each body polygon with the stubs that touch it
     alone is an electrode, and beams, candidates that touch several body polygons, vias,
@@ -132,6 +133,7 @@ def extract(
             candidates,
             body_parts,
             owner[0],
+            box_parts,
             margin=margin,
             width_min=params.beam_width_min,
             width_max=width_max,

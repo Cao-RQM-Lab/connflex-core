@@ -100,6 +100,23 @@ def test_beam_width_bounds_reject_slivers(
     assert any("beam_width_min" in candidate.reason for candidate in structure.rejected)
 
 
+def test_candidate_resting_on_surviving_oxide_is_rejected(
+    stack: Stack, params: Params, layout_um: LayoutUm
+) -> None:
+    wide = box(100, 42.5, 300, 57.5)  # 15 um across, undercut 5 um from either edge
+    structure = extract(layout_um([PAD_A, wide, PAD_B], [HANDLE_A]), stack, params())
+    assert structure.beams == ()
+    (candidate,) = structure.rejected
+    assert "oxide" in candidate.reason
+    assert candidate.bodies == (0, 1)
+    assert structure.anchor.box.intersects(at(125, 50))
+    assert all(body.stubs.is_empty for body in structure.bodies)
+
+    structure = extract(layout_um([PAD_A, BEAM, PAD_B], [HANDLE_A]), stack, params())
+    assert len(structure.beams) == 1
+    assert structure.rejected == ()
+
+
 def test_anchor_can_be_chosen_by_point(stack: Stack, params: Params, layout_um: LayoutUm) -> None:
     handle_b = box(250, -50, 450, 150)
     structure = extract(
