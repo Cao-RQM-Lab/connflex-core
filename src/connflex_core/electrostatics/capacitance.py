@@ -106,6 +106,17 @@ class HessianBlock:
     values: Array
 
 
+@dataclass(eq=False)
+class _Beyond:
+    """Pairs of device electrodes on different bodies that no cluster measures, with
+    their gaps at rest, over every pair within ``distance`` at rest; found once and
+    found again at least twice as far out when a motion could bring farther pairs
+    within reach."""
+
+    distance: float = 0.0
+    pairs: list[tuple[int, int, float]] = field(default_factory=list)
+
+
 @dataclass(frozen=True, eq=False)
 class RestGeometry:
     """What a capacitance model keeps as its bodies move.
@@ -120,8 +131,11 @@ class RestGeometry:
             assembly.
         electrodes: Indices of the device electrodes.
         silicon: Silicon of each of them, as one region.
+        radius: Distance from the center of each one's body to the farthest corner of
+            its bounding box: how far a turn of the body can carry a point of it.
         paired: Pairs of device electrodes whose gap a cluster measures.
-        gaps: Gap at rest of every other pair that has come within reach.
+        beyond: Every other pair that a motion so far could have brought within reach,
+            with its gap at rest.
     """
 
     structure: Structure
@@ -131,8 +145,9 @@ class RestGeometry:
     workers: Workers = field(default_factory=Workers)
     electrodes: tuple[int, ...] = ()
     silicon: tuple[MultiPolygon, ...] = ()
+    radius: tuple[float, ...] = ()
     paired: frozenset[tuple[int, int]] = frozenset()
-    gaps: dict[tuple[int, int], float] = field(default_factory=dict)
+    beyond: _Beyond = field(default_factory=_Beyond)
 
 
 @dataclass(frozen=True, eq=False)
@@ -150,6 +165,9 @@ class RestCluster:
         near: Pairs of its electrodes on different bodies within ``interaction_distance``
             of each other, as positions in ``electrodes``, each with the distance between
             their silicon.
+        radius: Distance from the center of each electrode's body to the farthest
+            corner of its bounding box: how far a turn of the body can carry a point of
+            it.
         surrogate: Field solutions kept for reuse at nearby displacements.
         fringe: Handle beneath and cross-sections met, without ``include_fringe`` None.
         beneath: Handle electrodes of ``fringe``.
@@ -164,6 +182,7 @@ class RestCluster:
     near: tuple[tuple[int, int, float], ...]
     plan: SidewallPlan
     facing: Facing
+    radius: Array = field(default_factory=lambda: np.zeros(0))
     surrogate: _Surrogate = field(default_factory=lambda: _Surrogate())
     fringe: FringePlan | None = None
     beneath: tuple[int, ...] = ()
@@ -457,6 +476,12 @@ def find_capacitance(
                     (device[members[i]].index, device[members[j]].index) for i, j, _ in apart
                 )
                 pivots = np.array([structure.bodies[b].inertial.center[:2] for b in bodies])
+                radius = np.array(
+                    [
+                        _corner_reach(region, pivots[b])
+                        for region, b in zip(regions, body, strict=True)
+                    ]
+                )
                 facing = facing_plates(regions, body, pivots, reach)
                 nets = np.array([device[k].net for k in members], dtype=np.intp)
                 narrowest = min((width for _, _, width in apart), default=np.inf)
@@ -476,6 +501,7 @@ def find_capacitance(
                         near=apart,
                         plan=plan_sidewalls(regions, nets, facing[3], params),
                         facing=facing,
+                        radius=radius,
                         fringe=plan,
                         beneath=beneath,
                         held=held,
@@ -493,6 +519,10 @@ def find_capacitance(
         Workers(workers),
         electrodes=tuple(electrode.index for electrode in device),
         silicon=tuple(silicon),
+        radius=tuple(
+            _corner_reach(region, structure.bodies[electrode.body].inertial.center[:2])
+            for region, electrode in zip(silicon, device, strict=True)
+        ),
         paired=frozenset(paired),
     )
     return _evaluate(
@@ -601,8 +631,11 @@ def _evaluate(
                 motion = full[:size, :3]
                 centers = rests[:size, :2]
                 pivots = centers + motion[:, :2]
-                regions = _displaced(group, centers, motion)
-                for i, j, width in group.near if motion.any() else ():
+                travel = _travel(motion[group.body], group.radius)
+                regions = _displaced(group, centers, motion, travel, interaction_reach(params))
+                for i, j, width in group.near:
+                    if width - travel[i] - travel[j] >= clearance * width:
+                        continue  # cannot be the narrowest gap so far
                     ratio = float(regions[i].distance(regions[j])) / width
                     if ratio < clearance:
                         clearance, closest = ratio, (group.electrodes[i], group.electrodes[j])
@@ -901,12 +934,34 @@ def _carry(region: MultiPolygon, center: Array, motion: Array) -> MultiPolygon:
     return as_multipolygon(affinity.affine_transform(region, matrix))
 
 
-def _displaced(group: RestCluster, centers: Array, motion: Array) -> list[MultiPolygon]:
-    """Silicon of a cluster with each body moved in the plane, equation (118)."""
+def _travel(motion: Array, radius: Array) -> Array:
+    """Farthest any point of each electrode has moved: travel of its body plus its turn
+    times ``radius``, for ``motion`` rows of travel and turn of the electrode's body."""
+    travel: Array = np.hypot(motion[:, 0], motion[:, 1]) + np.abs(motion[:, 2]) * radius
+    return travel
+
+
+def _corner_reach(region: MultiPolygon, center: Array) -> float:
+    """Distance from ``center`` to the farthest corner of the bounding box of ``region``."""
+    low_x, low_y, high_x, high_y = region.bounds
+    corners = np.array([[low_x, low_y], [low_x, high_y], [high_x, low_y], [high_x, high_y]])
+    return float(np.max(np.hypot(*(corners - center).T)))
+
+
+def _displaced(
+    group: RestCluster, centers: Array, motion: Array, travel: Array, reach: float
+) -> list[MultiPolygon]:
+    """Silicon of a cluster with each body moved in the plane, equation (118), checked
+    for electrodes of different bodies that touch unless ``travel``, how far a point of
+    each electrode may have moved, rules it out: pairs not in ``near`` were farther than
+    ``reach`` apart at rest."""
     regions = [
         _carry(region, centers[k], motion[k])
         for region, k in zip(group.regions, group.body, strict=True)
     ]
+    farthest = float(np.max(travel, initial=0.0))
+    if 2 * farthest < reach and all(width > travel[i] + travel[j] for i, j, width in group.near):
+        return regions
     first, second = STRtree(regions).query(regions, predicate="intersects")
     touching = group.body[first] != group.body[second]
     if touching.any():
@@ -924,29 +979,56 @@ def _beyond_clusters(
     closest: tuple[int, int] | None,
 ) -> tuple[float, tuple[int, int] | None]:
     """Clearance over the gaps that no cluster measures: device electrodes on different
-    bodies within reach of each other where the bodies are, equation (126), with the
-    gap at rest of each such pair found once and kept."""
+    bodies within reach of each other where the bodies are, equation (126).
+
+    How far a point of each electrode may have moved bounds how far its gaps have
+    closed, so only pairs that may have come within reach are carried and measured,
+    among those within reach plus twice that bound at rest, which ``rest.beyond`` keeps
+    with their gaps at rest.
+    """
     structure = rest.structure
     thickness = structure.stack.device.thickness
     bodies = [structure.electrodes[index].body for index in rest.electrodes]
-    regions = []
-    for body, region in zip(bodies, rest.silicon, strict=True):
+    motions = {}
+    centers = []
+    for body in bodies:
         center = structure.bodies[body].inertial.center
-        motion = _in_plane(-thickness / 2 - center[2]) @ moved(body)
-        regions.append(_carry(region, center[:2], motion))
+        centers.append(center[:2])
+        if body not in motions:
+            motions[body] = _in_plane(-thickness / 2 - center[2]) @ moved(body)
+    travel = _travel(np.array([motions[body] for body in bodies]), np.array(rest.radius))
     reach = interaction_reach(rest.params)
-    first, second = STRtree(regions).query(regions, predicate="dwithin", distance=reach)
-    for i, j in zip(first.tolist(), second.tolist(), strict=True):
+    needed = reach + 2 * float(np.max(travel, initial=0.0))
+    beyond = rest.beyond
+    if needed > beyond.distance:
+        needed = max(needed, 2 * beyond.distance)  # so that a motion growing slowly asks once
+        first, second = STRtree(rest.silicon).query(
+            rest.silicon, predicate="dwithin", distance=needed
+        )
+        beyond.pairs = [
+            (i, j, float(rest.silicon[i].distance(rest.silicon[j])))
+            for i, j in zip(first.tolist(), second.tolist(), strict=True)
+            if i < j
+            and bodies[i] != bodies[j]
+            and (rest.electrodes[i], rest.electrodes[j]) not in rest.paired
+        ]
+        beyond.distance = needed
+    carried: dict[int, MultiPolygon] = {}
+
+    def region(k: int) -> MultiPolygon:
+        if k not in carried:
+            carried[k] = _carry(rest.silicon[k], centers[k], motions[bodies[k]])
+        return carried[k]
+
+    for i, j, at_rest in beyond.pairs:
+        if at_rest - travel[i] - travel[j] > reach:
+            continue  # cannot have come within reach
+        gap = float(region(i).distance(region(j)))
         pair = (rest.electrodes[i], rest.electrodes[j])
-        if i >= j or bodies[i] == bodies[j] or pair in rest.paired:
-            continue
-        gap = float(regions[i].distance(regions[j]))
         if gap <= 0:
             raise ValueError(f"electrodes {pair[0]} and {pair[1]} touch at this displacement")
-        if pair not in rest.gaps:
-            rest.gaps[pair] = float(rest.silicon[i].distance(rest.silicon[j]))
-        ratio = gap / rest.gaps[pair]
-        if ratio < clearance:
+        ratio = gap / at_rest
+        if gap <= reach and ratio < clearance:
             clearance, closest = ratio, pair
     return clearance, closest
 

@@ -199,6 +199,21 @@ every floating net has capacitance to a driven one.
     accurate: at a clearance of one half its integrand is 12 percent low at
     the closest corner.
 
+!!! note "Bounds spare most distances"
+    A body moved by $(a_x, a_y, a_\psi)$ of (118) carries no point of an
+    electrode farther than $\sqrt{a_x^2 + a_y^2} + |a_\psi|\, R$, with $R$
+    the distance from the body's center to the farthest corner of the
+    electrode's bounding box, so a gap closes by at most the sum of the two
+    electrodes' bounds. A pair whose gap cannot have fallen below the
+    smallest ratio found so far is not measured, a cluster whose pairs
+    cannot have closed is not checked for electrodes that touch, and of the
+    pairs that no cluster measures only those that may have come within the
+    interaction distance are carried and measured. Those pairs are found
+    once at rest, within the interaction distance plus twice the largest
+    bound, and found again at least twice as far out when a larger motion
+    could bring farther pairs within reach. The values are those of the
+    full check.
+
 !!! note "A failure from far away"
     An iteration can fail from a distant start where it succeeds from a
     near one, so a failure from far away says little about pull-in.

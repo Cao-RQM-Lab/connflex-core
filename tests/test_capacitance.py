@@ -619,3 +619,20 @@ def test_bodies_of_different_clusters_closing_on_each_other_are_seen() -> None:
     place[toward] = 41 * UM
     with pytest.raises(ValueError, match="touch"):
         model.at(place)
+
+
+def test_turn_that_swings_finger_tips_into_the_stator_is_seen(
+    comb: Structure, at: dict[str, int]
+) -> None:
+    """Clearance and touching follow a turn of the shuttle as they follow its travel: the
+    tips of its fingers, far from its center, sweep across the gap."""
+    rest = comb.capacitance(
+        ElectrostaticParams(
+            dense_cutoff=0.0, plates_cutoff=0.0, interaction_distance=10 * UM, include_fringe=False
+        )
+    )
+    turned = rest.at([0.0, 0.0, 0.0, 0.0, 0.0, 0.004])
+    assert 0.0 < turned.clearance < 1.0
+    assert turned.closest == (at["stator"], at["shuttle"])
+    with pytest.raises(ValueError, match="touch"):
+        rest.at([0.0, 0.0, 0.0, 0.0, 0.0, 0.05])

@@ -133,6 +133,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Clearance at a displacement skips the geometry that a bound on the motion
+  rules out: how far a rigid motion carries any point of an electrode bounds
+  how far each gap can have closed, so pairs that cannot be the narrowest,
+  clusters whose electrodes cannot touch, and pairs that cannot have come
+  within the interaction distance are passed over, and the pairs that no
+  cluster measures are found once at rest instead of at every evaluation. The
+  values do not change.
 - The second derivative of a kept field solution, which its expansion leaves
   as it is, is mapped onto the degrees of freedom once and shared by every
   evaluation that expands it, instead of being mapped again at each.
