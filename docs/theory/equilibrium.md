@@ -227,8 +227,10 @@ every floating net has capacitance to a driven one.
 !!! note "Cost of an iterate"
     Every iterate costs one evaluation of the capacitance model at
     displaced bodies. That is a fraction of a second with plates alone or
-    with the plates method, and as long as the model at rest took with the
-    field method.
+    with the plates method, and with the field method as long as the model
+    at rest took for the clusters whose bodies have moved in the plane; a
+    cluster with none moved keeps the field solved at rest, since rise and
+    tilt do not enter the sidewalls.
 
 !!! note "Limits that carry over"
     Beams stay linear at any displacement, and the limits of the

@@ -169,6 +169,8 @@ class RestCluster:
             corner of its bounding box: how far a turn of the body can carry a point of
             it.
         surrogate: Field solutions kept for reuse at nearby displacements.
+        settled: Sidewall solution with no body of the cluster moved in the plane, which
+            every evaluation with none moved takes as it is; None until one is solved.
         fringe: Handle beneath and cross-sections met, without ``include_fringe`` None.
         beneath: Handle electrodes of ``fringe``.
         held: Bodies of ``fringe``: ``bodies``, then those of handle electrodes that
@@ -184,6 +186,7 @@ class RestCluster:
     facing: Facing
     radius: Array = field(default_factory=lambda: np.zeros(0))
     surrogate: _Surrogate = field(default_factory=lambda: _Surrogate())
+    settled: SidewallCapacitance | None = None
     fringe: FringePlan | None = None
     beneath: tuple[int, ...] = ()
     held: tuple[int, ...] = ()
@@ -667,8 +670,12 @@ def _evaluate(
                 shell: FringeCapacitance | None = None
                 anchor: _Anchor | None = None
                 plan = group.plan
+                still = not motion.any()
                 if reused is not None:
                     anchor, found, shell = reused
+                    current.advance(group.plan.windows)
+                elif still and group.settled is not None:
+                    found = group.settled  # no body moved in the plane: the field is as it was
                     current.advance(group.plan.windows)
                 elif not alone:
                     facing = group.facing
@@ -698,9 +705,10 @@ def _evaluate(
                         full,
                         pool,
                     )
-                if fielded and reused is None and found is not None:
+                if fielded and reused is None and found is not None and found is not group.settled:
                     anchor = _remember(group, full, found, shell, params, structure)
-                groups.append(replace(group, plan=plan))
+                settled = found if still and found is not None else group.settled
+                groups.append(replace(group, plan=plan, settled=settled))
                 if found is not None:
                     clusters.append(
                         Cluster(

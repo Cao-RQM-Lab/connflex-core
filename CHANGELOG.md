@@ -141,6 +141,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- An evaluation at a displacement solves the sidewall field of a cluster only
+  where one of its bodies has moved in the plane; a cluster with none moved
+  keeps the solution found at rest, which rise and tilt do not change. The
+  final exact evaluation of an equilibrium and models without a surrogate
+  solved every cluster again.
 - Assembly of a dense field system integrates each unordered pair of elements
   once and mirrors the value, since the matrix is symmetric; the two entries
   of a pair differed by rounding before, so results move by that much.

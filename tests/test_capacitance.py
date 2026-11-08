@@ -1,5 +1,6 @@
 import json
 from dataclasses import replace
+from typing import Any
 
 import numpy as np
 import pytest
@@ -636,3 +637,68 @@ def test_turn_that_swings_finger_tips_into_the_stator_is_seen(
     assert turned.closest == (at["stator"], at["shuttle"])
     with pytest.raises(ValueError, match="touch"):
         rest.at([0.0, 0.0, 0.0, 0.0, 0.0, 0.05])
+
+
+def two_combs() -> Structure:
+    """Two copies of the comb one above the other, each shuttle its own body."""
+    device = []
+    for shift in (0.0, 600.0):
+        stator = [
+            box(300, shift + 100 + PITCH * k, 360, shift + 100 + PITCH * k + WIDTH)
+            for k in range(FINGERS + 1)
+        ]
+        rotor = [
+            box(
+                320,
+                shift + 100 + PITCH * k + WIDTH + GAP,
+                380,
+                shift + 100 + PITCH * k + 2 * WIDTH + GAP,
+            )
+            for k in range(FINGERS)
+        ]
+        spine = box(380, shift + 60, 420, shift + 200)
+        beams = [box(420, shift + 70, 620, shift + 80), box(420, shift + 180, 620, shift + 190)]
+        device += [box(0, shift, 300, shift + 300), *stator, *rotor, spine, *beams]
+        device.append(box(620, shift, 920, shift + 300))
+    layout = Layout.from_shapely(device=device, handle=[box(-50, -50, 970, 950)], unit=UM)
+    stack = Stack(
+        device=Layer(thickness=THICKNESS, material=Material.silicon()),
+        box=Layer(thickness=BOX, material=Material.oxide()),
+        handle=Layer(thickness=400 * UM, material=Material.silicon()),
+    )
+    params = ExtractionParams(
+        release_hole_max_area=100 * UM * UM, release_distance=60 * UM, body_min_width=20 * UM
+    )
+    return extract(layout, stack, params)
+
+
+def test_clusters_whose_bodies_did_not_move_keep_their_rest_solution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An exact evaluation solves the field of a cluster only where one of its bodies
+    has moved in the plane; the others keep the solution found at rest."""
+    from connflex_core.electrostatics import capacitance as module
+    from connflex_core.electrostatics.sidewalls import solve_sidewalls as original
+
+    structure = two_combs()
+    params = ElectrostaticParams(
+        element_size=4 * UM, interaction_distance=10 * UM, include_fringe=False
+    )
+    model = structure.capacitance(params)
+    assert len(model.clusters) == 2
+    solved: list[int] = []
+
+    def counted(*args: Any, **kwargs: Any) -> Any:
+        solved.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(module, "solve_sidewalls", counted)
+    lower = next(k for k, (body, name) in enumerate(model.dofs) if name == "ux")
+    place = np.zeros(len(model.dofs))
+    place[lower] = 0.5 * UM
+    moved = model.at(place, exact=True)
+    assert solved == [1]
+    assert moved.at(np.zeros(len(model.dofs)), exact=True).sidewall == pytest.approx(
+        model.sidewall, rel=1e-12, abs=1e-30
+    )
+    assert solved == [1]
