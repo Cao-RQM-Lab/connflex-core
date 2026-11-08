@@ -17,6 +17,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   idealization, and left-out effect of each stage, with what it costs and
   how to check it.
 - `anchors` and `sections` of each cluster in `CapacitanceModel.to_dict`.
+- `CapacitanceModel.expand(displacement)`: the model at a nearby displacement
+  by second-order expansion of an evaluated one, equation (149) over the
+  whole model, with the clearance from the geometry; what transient outputs
+  between steps now use.
 - `CapacitanceModel.charge_gradient(potentials)`: change of the charge on each
   electrode with each degree of freedom, which the force is half the
   potentials times; the coupled solvers take their charge sensitivities from
@@ -133,6 +137,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Transient outputs between steps come from the model evaluated at the end
+  of their step, expanded at the output's displacement, instead of a field
+  evaluation at every output time; `Transient.evaluations` counts the
+  integration alone and a finer output grid costs only its samples. The
+  model of the result is still evaluated at the last time.
 - Clearance at a displacement skips the geometry that a bound on the motion
   rules out: how far a rigid motion carries any point of an electrode bounds
   how far each gap can have closed, so pairs that cannot be the narrowest,

@@ -304,6 +304,42 @@ class CapacitanceModel:
             raise ValueError("capacitance is not finite at this displacement")
         return model
 
+    def expand(self, displacement: ArrayLike) -> CapacitanceModel:
+        """The model at a nearby ``displacement`` by expansion of this one, equation
+        (149) taken over the whole model.
+
+        ``matrix`` is carried to second order and ``gradient`` to first in the step from
+        ``self.displacement``, with the second derivative of ``blocks`` held; the parts
+        ``oxide``, ``released``, ``sidewall``, and ``fringe`` stay those of this model.
+        ``clearance`` and ``closest`` are those of the geometry at ``displacement``, and
+        a plate that closes or electrodes that touch there are errors, as for ``at``.
+        Meant for outputs near a displacement the model was evaluated at, where ``at``
+        would solve the field again; the error grows with the cube of the step.
+        """
+        moved = np.asarray(displacement, dtype=float)
+        if moved.shape != (len(self.dofs),):
+            raise ValueError(
+                f"displacement must hold one value for each of {len(self.dofs)} degrees of freedom"
+            )
+        step = moved - self.displacement
+        matrix: Array = self.matrix + self.gradient @ step
+        gradient = self.gradient.copy()
+        for block in self.blocks:
+            dofs = np.asarray(block.dofs)
+            local = step[dofs]
+            turned: Array = block.values @ local
+            gradient[np.ix_(block.electrodes, block.electrodes, dofs)] += turned
+            matrix[np.ix_(block.electrodes, block.electrodes)] += 0.5 * turned @ local
+        clearance, closest = _clearance(self.rest, moved)
+        return replace(
+            self,
+            matrix=matrix,
+            gradient=gradient,
+            displacement=moved,
+            clearance=clearance,
+            closest=closest,
+        )
+
     @property
     def net_matrix(self) -> Array:
         """Capacitance matrix between nets, with the electrodes of each net tied together."""
@@ -582,14 +618,9 @@ def _evaluate(
     tolerance = params.surrogate_tolerance
     count = len(structure.electrodes)
     oxide, released, sidewall, fringe = (np.zeros((count, count)) for _ in range(4))
-    movable = [body.index for body in structure.bodies if not body.anchor]
-    first = {index: 6 * position for position, index in enumerate(movable)}
+    movable, first, moved = _mover(structure, displacement)
     gradient = np.zeros((count, count, 6 * len(movable)))
     blocks: list[HessianBlock] = []
-
-    def moved(body: int) -> Array:
-        return displacement[first[body] : first[body] + 6] if body in first else np.zeros(6)
-
     clearance, closest = 1.0, None
     for plate in rest.plates:
         value, slope, bend = plate.evaluate(moved(plate.bodies[0]), moved(plate.bodies[1]))
@@ -619,26 +650,14 @@ def _evaluate(
     if rest.groups:
         with stage("sidewalls", progress, total=steps) as current:
             for group in rest.groups:
-                rests = np.array([structure.bodies[b].inertial.center for b in group.held])
-                levers = [_in_plane(-thickness / 2 - center[2]) for center in rests]
-                full = np.array(
-                    [
-                        np.concatenate([lever @ moved(b), moved(b)[2:5]])
-                        for lever, b in zip(levers, group.held, strict=True)
-                    ]
-                )
+                rests, levers, full = _group_motion(structure, group, moved)
                 size = len(group.bodies)
                 motion = full[:size, :3]
                 centers = rests[:size, :2]
                 pivots = centers + motion[:, :2]
                 travel = _travel(motion[group.body], group.radius)
                 regions = _displaced(group, centers, motion, travel, interaction_reach(params))
-                for i, j, width in group.near:
-                    if width - travel[i] - travel[j] >= clearance * width:
-                        continue  # cannot be the narrowest gap so far
-                    ratio = float(regions[i].distance(regions[j])) / width
-                    if ratio < clearance:
-                        clearance, closest = ratio, (group.electrodes[i], group.electrodes[j])
+                clearance, closest = _nearest(group, regions, travel, clearance, closest)
                 alone = len(group.electrodes) == 1
                 fielded = tolerance is not None and any(
                     method != "plates" for method in group.plan.method
@@ -751,6 +770,89 @@ def _evaluate(
         closest=closest,
         rest=replace(rest, groups=tuple(groups)),
     )
+
+
+def _mover(
+    structure: Structure, displacement: Array
+) -> tuple[list[int], dict[int, int], Callable[[int], Array]]:
+    """Movable bodies, where the six degrees of freedom of each start in
+    ``displacement``, and the six of any body, zero for one that is anchored."""
+    movable = [body.index for body in structure.bodies if not body.anchor]
+    first = {index: 6 * position for position, index in enumerate(movable)}
+
+    def moved(body: int) -> Array:
+        return displacement[first[body] : first[body] + 6] if body in first else np.zeros(6)
+
+    return movable, first, moved
+
+
+def _group_motion(
+    structure: Structure, group: RestCluster, moved: Callable[[int], Array]
+) -> tuple[Array, list[Array], Array]:
+    """Centers at rest of the bodies of a cluster and of its handle, the matrix of each
+    that takes its six degrees of freedom to travel and turn in the plane at device
+    mid-plane, equation (114), and the six parameters of each body: those three, then
+    rise and the turns about x and y."""
+    thickness = structure.stack.device.thickness
+    rests = np.array([structure.bodies[b].inertial.center for b in group.held])
+    levers = [_in_plane(-thickness / 2 - center[2]) for center in rests]
+    full = np.array(
+        [
+            np.concatenate([lever @ moved(b), moved(b)[2:5]])
+            for lever, b in zip(levers, group.held, strict=True)
+        ]
+    )
+    return rests, levers, full
+
+
+def _nearest(
+    group: RestCluster,
+    regions: list[MultiPolygon],
+    travel: Array,
+    clearance: float,
+    closest: tuple[int, int] | None,
+) -> tuple[float, tuple[int, int] | None]:
+    """Clearance over the near pairs of a cluster, measured only where ``travel`` leaves
+    a gap room to be narrower than ``clearance`` times its width at rest."""
+    for i, j, width in group.near:
+        if width - travel[i] - travel[j] >= clearance * width:
+            continue  # cannot be the narrowest gap so far
+        ratio = float(regions[i].distance(regions[j])) / width
+        if ratio < clearance:
+            clearance, closest = ratio, (group.electrodes[i], group.electrodes[j])
+    return clearance, closest
+
+
+def _clearance(rest: RestGeometry, displacement: Array) -> tuple[float, tuple[int, int] | None]:
+    """Clearance of equation (126) at ``displacement`` and the electrodes across its gap,
+    from the geometry alone; a plate that closes or electrodes that touch raise as they
+    do when the model is evaluated."""
+    structure, params = rest.structure, rest.params
+    clearance, closest = 1.0, None
+    if not displacement.any():
+        return clearance, closest
+    _, _, moved = _mover(structure, displacement)
+    for plate in rest.plates:
+        if plate.bodies[0] != plate.bodies[1]:
+            lowest = plate.lowest(moved(plate.bodies[0]), moved(plate.bodies[1]))
+            if lowest <= 0:
+                raise ValueError(
+                    f"gap between plates closes: {lowest} m at a corner of the overlap"
+                )
+            if lowest / plate.gap < clearance:
+                clearance, closest = lowest / plate.gap, plate.electrodes
+    for group in rest.groups:
+        rests, _, full = _group_motion(structure, group, moved)
+        size = len(group.bodies)
+        motion = full[:size, :3]
+        if not motion.any():
+            continue
+        travel = _travel(motion[group.body], group.radius)
+        regions = _displaced(group, rests[:size, :2], motion, travel, interaction_reach(params))
+        clearance, closest = _nearest(group, regions, travel, clearance, closest)
+    if params.interaction_distance is not None:
+        clearance, closest = _beyond_clusters(rest, moved, clearance, closest)
+    return clearance, closest
 
 
 def _add(

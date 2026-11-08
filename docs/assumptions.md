@@ -220,9 +220,11 @@ consequence, and a way to check or mitigate it.
 - **The transient integrator** is Radau IIA of order 5 with the tolerance of
   (146); waveforms must be continuous, a callable one is differentiated
   numerically, and a run starts at zero velocity with current-free potentials
-  and cannot be resumed from another run's end. The energy ledger of (145)
-  measures integrator error plus the steps of the surrogate and the fringe
-  grid.
+  and cannot be resumed from another run's end. Outputs between steps take
+  the model at the end of their step expanded to second order in the motion
+  within the step, (149), with the clearance from the geometry. The energy
+  ledger of (145) measures integrator error plus the steps of the surrogate
+  and the fringe grid.
 - **Left out:** time-varying mechanical loads and base acceleration, gas
   damping, thermoelastic and anchor loss, adhesion after contact, charging
   drift.

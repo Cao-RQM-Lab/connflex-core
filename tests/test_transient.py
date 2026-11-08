@@ -484,3 +484,28 @@ def test_max_step_longer_than_the_run_or_a_segment_is_allowed(plate: Structure) 
     switched = Source(pad, 1.0, resistance=1e6, switch=Switch([period / 100]))
     run = plate.transient(model, [switched], times, options, loads=load)
     assert run.times == pytest.approx(times)
+
+
+def test_outputs_between_steps_cost_no_evaluation_and_agree_across_grids(
+    plate: Structure,
+) -> None:
+    """Outputs come from the continuous extension of the step and the expansion of the
+    model at its end, so a finer output grid evaluates the model no more often and
+    gives the same values at the times the grids share."""
+    _, _, natural = plate_mode(plate)
+    model = plate.capacitance(HANDLE_ALONE)
+    pad = plate.electrode_at((-300 * UM, 0.0), "device")
+    period = 2 * np.pi / natural
+    step = PiecewiseLinear([0.0, 1e-3 * period], [0.0, 30.0])
+    coarse = np.linspace(0.0, 5 * period, 11)
+    fine = np.linspace(0.0, 5 * period, 101)
+    options = TransientOptions(quality_factor=5.0, tolerance=1e-8)
+    few = plate.transient(model, [Source(pad, step)], coarse, options)
+    many = plate.transient(model, [Source(pad, step)], fine, options)
+    assert many.steps == few.steps
+    assert many.evaluations == few.evaluations
+    assert many.displacement[::10] == pytest.approx(few.displacement, rel=1e-9, abs=1e-18)
+    assert many.potentials[::10] == pytest.approx(few.potentials, rel=1e-9, abs=1e-12)
+    assert many.charge[::10] == pytest.approx(few.charge, rel=1e-9, abs=1e-30)
+    assert many.clearance[::10] == pytest.approx(few.clearance, rel=1e-9)
+    assert np.max(abs(many.energy.imbalance)) < 1e-6 * many.energy.supplied[-1]

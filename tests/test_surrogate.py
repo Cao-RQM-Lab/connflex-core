@@ -194,3 +194,28 @@ def test_surrogate_hit_reuses_the_mapped_hessian_blocks(shuttle: Structure) -> N
         mine.values is theirs.values
         for mine, theirs in zip(second.blocks, first.blocks, strict=True)
     )
+
+
+def test_expand_follows_at_to_second_order_with_the_clearance_of_at(
+    exact: CapacitanceModel,
+) -> None:
+    """A model expanded at a nearby displacement, equation (149) over the whole model,
+    matches the model solved there to second order in the matrix and first in the
+    gradient, so halving the step cuts the errors by about eight and four, and its
+    clearance is that of the solved model."""
+    matrix_errors, gradient_errors = [], []
+    for scale in (1.0, 0.5):
+        place = np.zeros(len(exact.dofs))
+        place[0], place[1] = 0.3e-6 * scale, 0.15e-6 * scale
+        truth, near = exact.at(place), exact.expand(place)
+        matrix_errors.append(relative(near.matrix, truth.matrix))
+        gradient_errors.append(relative(near.gradient, truth.gradient))
+        assert near.displacement.tolist() == place.tolist()
+        assert near.clearance == truth.clearance
+        assert near.closest == truth.closest
+        assert near.blocks is exact.blocks
+    assert 6 < matrix_errors[0] / matrix_errors[1] < 10
+    assert 3 < gradient_errors[0] / gradient_errors[1] < 5
+    same = exact.expand(np.zeros(len(exact.dofs)))
+    assert same.matrix.tolist() == exact.matrix.tolist()
+    assert same.gradient.tolist() == exact.gradient.tolist()

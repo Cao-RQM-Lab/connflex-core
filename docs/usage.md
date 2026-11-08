@@ -892,9 +892,12 @@ The energy ledger adds up exactly in the equations: stored energy gained,
 plus what damping and resistance took, equals what sources and loads
 supplied. `run.energy.imbalance` is what the integration left of that, a
 check on `tolerance`. Each time step evaluates the capacitance model about
-ten times, and each output once more: fractions of a millisecond with
-plates to the handle, a few milliseconds with the plates method, and as long
-as the solve at rest with the field method. Formulas are in
+ten times; outputs between steps expand the model at the end of their step
+and cost no evaluation, so the output grid may be as fine as you like. An
+evaluation is fractions of a millisecond with plates to the handle, a few
+milliseconds with the plates method, and as long as the solve at rest with
+the field method. `CapacitanceModel.expand` gives that expansion of any
+evaluated model at a nearby displacement. Formulas are in
 [transient](theory/transient.md).
 
 ## Workers

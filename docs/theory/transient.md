@@ -196,9 +196,14 @@ result reports it last, with the electrodes across the closing gap.
     for (144) and should be continuous between breakpoints it lists.
 
 !!! note "Accuracy of outputs"
-    Outputs come from the continuous extension of the step that spans them,
-    which is less accurate than the ends of the steps. Every output
-    evaluates the capacitance model once more.
+    Outputs between the ends of steps come from the continuous extension of
+    the step that spans them, which is less accurate than its ends, and
+    from the capacitance model evaluated at the end of that step expanded
+    at the output's displacement, (149) taken over the whole model, exact
+    to second order in the motion within the step; the clearance of an
+    output comes from the geometry. An output therefore costs no field
+    evaluation, and a finer output grid costs nothing but the samples. The
+    model of the result is evaluated at the last time.
 
 !!! note "Every degree of freedom integrated"
     Every degree of freedom of the bodies that beams join to the anchor is

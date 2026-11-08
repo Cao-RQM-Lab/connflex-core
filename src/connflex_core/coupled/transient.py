@@ -91,9 +91,11 @@ class Transient:
         loose: Bodies that no chain of beams joins to the anchor, kept at rest.
         floating: Nets that kept a fixed charge.
         steps: Time steps the integrator accepted.
-        evaluations: Distinct displacements the capacitance model was evaluated at; a
-            cache of ``CACHE`` serves repeats.
-        model: Capacitance model at the last time.
+        evaluations: Distinct displacements the capacitance model was evaluated at by
+            the integration and at the last time; outputs between steps expand the model
+            at the end of their step, equation (149), and count none. A cache of
+            ``CACHE`` serves repeats.
+        model: Capacitance model evaluated at the last time.
     """
 
     times: Array
@@ -202,17 +204,27 @@ class _Run:
                 del self.cache[next(iter(self.cache))]
         return self.cache[key]
 
+    def near(self, place: Array, model: CapacitanceModel) -> CapacitanceModel:
+        """``model``, evaluated at a displacement of one step at most from ``place``,
+        expanded at ``place``, equation (149) over the whole model."""
+        full = np.zeros(self.dofs)
+        full[self.kept] = place
+        return model.expand(full)
+
     def emf(self, time: float) -> Array:
         return np.array([_value(source.waveform, time) for source in self.sources])
 
     def slope(self, time: float) -> Array:
         return np.array([_slope(source.waveform, time, self.duration) for source in self.sources])
 
-    def state(self, time: float, y: Array) -> _State:
-        """Potentials, rates of every state, and source currents, equations (139) to (144)."""
+    def state(self, time: float, y: Array, here: CapacitanceModel | None = None) -> _State:
+        """Potentials, rates of every state, and source currents, equations (139) to
+        (144), with the capacitance model evaluated at the displacement of ``y`` unless
+        ``here`` gives it."""
         n, d = self.count, len(self.dynamic)
         place, speed, held = y[:n], y[n : 2 * n], y[2 * n : 2 * n + d]
-        here = self.at(place)
+        if here is None:
+            here = self.at(place)
         joined = self.joined(here)
         emf = self.emf(time)
         nodes = np.zeros(len(joined))
@@ -466,11 +478,11 @@ def transient(
     breaks = sorted(
         {float(point) for points in changes for point in points if stamps[0] < point < stamps[-1]}
     )
-    frames: list[tuple[float, Array]] = []
+    frames: list[tuple[float, Array, CapacitanceModel]] = []
     contact: tuple[int, int] | None = None
     steps = 0
     with stage("transient", progress, total=len(stamps)) as current:
-        frames.append((float(stamps[0]), y))
+        frames.append((float(stamps[0]), y, run.at(start_place)))
         current.advance()
         pending = 1
         edges = [float(stamps[0]), *breaks, float(stamps[-1])]
@@ -488,8 +500,9 @@ def transient(
                 except _ClosedError:
                     tries += 1
                     if tries > RETRIES:
-                        contact = run.at(state_before[: run.count]).closest or (-1, -1)
-                        frames.append((before, state_before))
+                        stopped = run.at(state_before[: run.count])
+                        contact = stopped.closest or (-1, -1)
+                        frames.append((before, state_before, stopped))
                         current.advance()
                         break
                     limit = last / 4**tries
@@ -506,16 +519,17 @@ def transient(
                 if here.clearance <= options.contact_clearance:
                     moment = _contact_time(run, dense, before, solver.t, options.contact_clearance)
                     while pending < len(stamps) and stamps[pending] < moment:
-                        frames.append((float(stamps[pending]), dense(stamps[pending])))
+                        frames.append((float(stamps[pending]), dense(stamps[pending]), here))
                         current.advance()
                         pending += 1
                     final = dense(moment)
-                    frames.append((moment, final))
-                    contact = run.at(final[: run.count]).closest or (-1, -1)
+                    closed = run.at(final[: run.count])
+                    frames.append((moment, final, closed))
+                    contact = closed.closest or (-1, -1)
                     current.advance()
                     break
                 while pending < len(stamps) and stamps[pending] <= solver.t:
-                    frames.append((float(stamps[pending]), dense(stamps[pending])))
+                    frames.append((float(stamps[pending]), dense(stamps[pending]), here))
                     current.advance()
                     pending += 1
             if contact is not None:
@@ -658,21 +672,23 @@ def _origin(
 def _assemble(
     run: _Run,
     dofs: tuple[Dof, ...],
-    frames: list[tuple[float, Array]],
+    frames: list[tuple[float, Array, CapacitanceModel]],
     contact: tuple[int, int] | None,
     steps: int,
     stored: Mapping[int, float],
     structure: Structure,
 ) -> Transient:
+    """Result over ``frames`` of time, state, and the model evaluated within the step
+    that holds the time, expanded at the state's displacement."""
     n = run.count
     columns: dict[str, list[Any]] = {key: [] for key in ("place", "speed", "volts", "charge")}
     extra: dict[str, list[float]] = {
         key: [] for key in ("kinetic", "strain", "field", "damped", "lost", "supplied", "gap")
     }
     currents = []
-    for time, y in frames:
+    for time, y, model in frames:
         run.switch_to(time)
-        now = run.state(time, y)
+        now = run.state(time, y, run.near(y[:n], model))
         place = np.zeros(len(dofs))
         speed = np.zeros(len(dofs))
         place[run.kept], speed[run.kept] = y[:n], y[n : 2 * n]
@@ -688,9 +704,9 @@ def _assemble(
         extra["lost"].append(float(y[-2]))
         extra["supplied"].append(float(y[-1]))
         extra["gap"].append(now.here.clearance)
-    last = run.state(*frames[-1]).here
+    last = run.at(frames[-1][1][:n])
     return Transient(
-        times=np.array([time for time, _ in frames]),
+        times=np.array([time for time, _, _ in frames]),
         displacement=np.array(columns["place"]),
         velocity=np.array(columns["speed"]),
         potentials=np.array(columns["volts"]),
