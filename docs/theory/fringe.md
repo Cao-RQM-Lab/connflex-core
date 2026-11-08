@@ -197,6 +197,18 @@ shields them from it.
     relative size $h w / (2 g_0)$ of the fringe to the handle for a block
     of width $w$.
 
+!!! note "Silicon along a cut"
+    The silicon a cut line crosses is read off the edges of the polygons,
+    held in a spatial index, rather than from an overlay of the line with
+    each polygon, which costs far more on outlines with many vertices. An
+    edge whose envelope meets the line's is tested for a crossing by the
+    half-open rule, the line taken to lie a hair to its left so that a
+    vertex on it counts once; the state of the line just before its start
+    is read from the polygons a hair before and to the left of that point;
+    an edge along the line is silicon, as the closed polygon has it; and
+    envelopes are widened by the tolerance so that an edge a line ends on,
+    to rounding, is found. The stretches are those of the overlay.
+
 !!! note "Cost and reuse"
     A cross-section takes tens of milliseconds. Cuts that repeat, as in
     combs, are solved once for a structure, clusters sharing them. Displaced

@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
-from shapely import box
+from shapely import Polygon, box
 
 from connflex_core import (
     ElectrostaticParams,
@@ -294,3 +294,91 @@ def test_pull_stays_continuous_as_one_tooth_passes_another() -> None:
         assert abs(pull(passing + step) - pull(passing - step)) < 1e-3 * largest
     unsmoothed = 2 * 0.5 * 50.0**2 * 8.8541878188e-12 * 0.3
     assert unsmoothed > 1e-3 * largest
+
+
+def _spans_by_overlay(
+    polygons: list[Polygon], origin: np.ndarray, direction: np.ndarray, reach: float, ahead: bool
+) -> list[tuple[float, float, int]]:
+    """Silicon along a line by GEOS overlay of the line with each polygon: the reference
+    for ``Edges.spans``, which must give the same intervals on closed polygons."""
+    import shapely
+
+    tip = origin + direction * (reach if ahead else 0.0)
+    line = shapely.LineString([origin - direction * reach, tip])
+    found = []
+    for k, polygon in enumerate(polygons):
+        for part in shapely.get_parts(shapely.intersection(line, polygon)):
+            coords = shapely.get_coordinates(part)
+            if len(coords) < 2:
+                continue
+            along = (coords - origin) @ direction
+            found.append((float(along.min()), float(along.max()), k))
+    return sorted(found)
+
+
+@pytest.mark.parametrize(
+    ("polygons", "origin", "direction", "ahead"),
+    [
+        ([box(-50, -10, 0, 10), box(7, -10, 40, 10)], (0.0, 0.0), (1.0, 0.0), True),
+        ([box(-50, -10, 0, 10), box(7, -10, 40, 10)], (0.0, 0.0), (1.0, 0.0), False),
+        # the line runs along the edge of a release hole, which is silicon
+        (
+            [Polygon(box(-50, -10, 0, 10).exterior, [box(-30, 0, -18, 5).exterior])],
+            (0.0, 0.0),
+            (1.0, 0.0),
+            False,
+        ),
+        # the line runs along the outline of its own silicon
+        (
+            [Polygon([(-50, -10), (0, -10), (0, 10), (-18.2, 10), (-18.2, 0), (-50, 0)])],
+            (0.0, 0.0),
+            (1.0, 0.0),
+            False,
+        ),
+        # the silicon behind the wall is exactly as deep as the reach
+        ([box(-30, -6, 0, 6)], (0.0, 0.0), (1.0, 0.0), False),
+        # the line passes through vertices of a diamond ahead
+        (
+            [box(-20, -10, 0, 10), Polygon([(10, 0), (20, 10), (30, 0), (20, -10)])],
+            (0.0, 0.0),
+            (1.0, 0.0),
+            True,
+        ),
+        # a slanted line through a slanted gap
+        ([box(-40, -40, 0, 40), box(5, 5, 40, 40)], (0.0, 0.0), (0.6, 0.8), True),
+        # nothing along the line at all
+        ([box(100, 100, 120, 120)], (0.0, 0.0), (1.0, 0.0), True),
+    ],
+)
+def test_silicon_along_a_cut_matches_the_overlay_of_the_line_with_closed_polygons(
+    polygons: list[Polygon],
+    origin: tuple[float, float],
+    direction: tuple[float, float],
+    ahead: bool,
+) -> None:
+    from connflex_core.electrostatics.fringe import Edges
+
+    reach = 30.0
+    start, along = np.array([origin]), np.array([direction])
+    found = [
+        (low, high, polygon)
+        for _, low, high, polygon in Edges(polygons).spans(start, along, reach, ahead, 1e-6 * reach)
+    ]
+    expected = _spans_by_overlay(polygons, np.array(origin), np.array(direction), reach, ahead)
+    mine, theirs = _merged(found), _merged(expected)
+    assert len(mine) == len(theirs)
+    for span, reference in zip(mine, theirs, strict=True):
+        assert span[2] == reference[2]
+        assert span[0] == pytest.approx(reference[0], abs=1e-9)
+        assert span[1] == pytest.approx(reference[1], abs=1e-9)
+
+
+def _merged(spans: list[tuple[float, float, int]]) -> list[tuple[float, float, int]]:
+    """Stretches of one polygon that meet or overlap joined, as ``_cuts`` joins them."""
+    merged: list[tuple[float, float, int]] = []
+    for low, high, polygon in sorted(spans, key=lambda span: (span[2], span[0])):
+        if merged and merged[-1][2] == polygon and low <= merged[-1][1] + 1e-9:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], high), polygon)
+        else:
+            merged.append((low, high, polygon))
+    return sorted(merged)

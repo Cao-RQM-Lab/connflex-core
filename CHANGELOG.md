@@ -141,6 +141,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The silicon along each fringe cut is read off the polygon edges in a
+  spatial index, by the half-open crossing rule with edges along the line
+  counted as silicon, instead of an overlay of the line with each polygon;
+  the cuts are the same and large outlines with many vertices cut several
+  times faster.
 - An evaluation at a displacement solves the sidewall field of a cluster only
   where one of its bodies has moved in the plane; a cluster with none moved
   keeps the solution found at rest, which rise and tilt do not change. The

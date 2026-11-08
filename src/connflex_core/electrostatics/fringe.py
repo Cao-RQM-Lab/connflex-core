@@ -156,9 +156,10 @@ def find_fringe(
     facing_normal = normal[runs.edge]
     across = point + facing_normal * runs.gap.mean(axis=1)[:, None] / 2
     owners, polygons = solid_polygons(regions)
+    edges = Edges(polygons)
     piece_cuts = _cuts(
         plan,
-        polygons,
+        edges,
         owners,
         body,
         runs.conductor,
@@ -171,7 +172,7 @@ def find_fringe(
     )
     edge_cuts = _cuts(
         plan,
-        polygons,
+        edges,
         owners,
         body,
         conductor,
@@ -276,9 +277,113 @@ def _beneath(plan: FringePlan, points: Array) -> Index:
     return found
 
 
+class Edges:
+    """Edges of polygons in a spatial index, for the silicon along cut lines.
+
+    Attributes:
+        start: Start point of every edge of every ring of the polygons.
+        end: End point of each.
+        polygon: Polygon each edge belongs to.
+        tree: Index of the edges.
+        solids: Index of the polygons, for the state of a line before its start.
+    """
+
+    def __init__(self, polygons: Sequence[Polygon]) -> None:
+        rings, ring_of = shapely.get_rings(np.asarray(polygons, dtype=object), return_index=True)
+        coords, coord_ring = shapely.get_coordinates(rings, return_index=True)
+        same = coord_ring[:-1] == coord_ring[1:]
+        self.start: Array = coords[:-1][same]
+        self.end: Array = coords[1:][same]
+        self.polygon: Index = ring_of[coord_ring[:-1][same]]
+        segments = shapely.linestrings(np.stack([self.start, self.end], axis=1))
+        self.tree = STRtree(np.asarray(segments, dtype=object))
+        self.solids = STRtree(list(polygons))
+        for tree in (self.tree, self.solids):
+            tree.query(shapely.Point(0.0, 0.0))  # built here, before threads query it
+
+    def spans(
+        self, origin: Array, direction: Array, reach: float, ahead: bool, tolerance: float
+    ) -> list[tuple[int, float, float, int]]:
+        """Silicon along lines from ``reach`` behind each ``origin`` against ``direction``
+        to the origin, or as far ahead of it with ``ahead``: (line, start, end, polygon)
+        of each stretch, in distance along the line from the origin.
+
+        The polygons are closed, so an edge along a line is silicon, as the overlay of
+        the line with the polygon has it. A crossing of an edge follows the half-open
+        rule, the line taken to lie a hair on its left so that a vertex on it counts
+        once, and the state of a line just before its start is read from the polygons
+        a hair before and to the left of that point. Envelopes are ``tolerance`` wider
+        than the lines, so that an edge a line ends on, to rounding, is found.
+        """
+        far = reach if ahead else 0.0
+        tail = origin - direction * reach
+        tip = origin + direction * far
+        low, high = np.minimum(tail, tip) - tolerance, np.maximum(tail, tip) + tolerance
+        line_of, edge_of = self.tree.query(
+            shapely.box(low[:, 0], low[:, 1], high[:, 0], high[:, 1])
+        )
+        d = direction[line_of]
+        left = np.stack([-d[:, 1], d[:, 0]], axis=1)
+        ra, rb = self.start[edge_of] - origin[line_of], self.end[edge_of] - origin[line_of]
+        sa, sb = np.einsum("ij,ij->i", ra, left), np.einsum("ij,ij->i", rb, left)
+        ta, tb = np.einsum("ij,ij->i", ra, d), np.einsum("ij,ij->i", rb, d)
+        nudge = 1e-3 * tolerance  # above rounding, below any feature
+        before = -reach - nudge
+        crosses = (sa > 0.0) != (sb > 0.0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            at = ta + (tb - ta) * (sa / (sa - sb))
+        crosses &= (at > before) & (at <= far + tolerance)
+        line, polygon, at = line_of[crosses], self.polygon[edge_of[crosses]], at[crosses]
+        order = np.lexsort((at, polygon, line))
+        line, polygon, at = line[order], polygon[order], at[order]
+        width = len(self.solids.geometries) + 1
+        key = line.astype(np.int64) * width + polygon
+        side = np.stack([-direction[:, 1], direction[:, 0]], axis=1)
+        probe = tail - direction * nudge + side * nudge
+        held_line, held_polygon = self.solids.query(shapely.points(probe), predicate="intersects")
+        held = set((held_line.astype(np.int64) * width + held_polygon).tolist())
+        spans: list[tuple[int, float, float, int]] = []
+        firsts = (
+            np.flatnonzero(np.r_[True, key[1:] != key[:-1]]) if len(key) else np.zeros(0, np.intp)
+        )
+        lasts = np.r_[firsts[1:], len(key)] if len(key) else firsts
+        for first, last in zip(firsts.tolist(), lasts.tolist(), strict=True):
+            k = int(key[first])
+            inside = k in held
+            held.discard(k)
+            spans.extend(
+                (k // width, max(start, -reach), end, k % width)
+                for start, end in _stretches(at[first:last].tolist(), inside, before, far)
+                if end - max(start, -reach) > tolerance
+            )
+        spans.extend((k // width, -reach, far, k % width) for k in held)
+        along = (sa == 0.0) & (sb == 0.0)
+        for line_, polygon_, start, end in zip(
+            line_of[along].tolist(),
+            self.polygon[edge_of[along]].tolist(),
+            np.clip(np.minimum(ta, tb)[along], -reach, far).tolist(),
+            np.clip(np.maximum(ta, tb)[along], -reach, far).tolist(),
+            strict=True,
+        ):
+            if end - start > tolerance:
+                spans.append((line_, start, end, polygon_))
+        return spans
+
+
+def _stretches(
+    crossings: list[float], inside: bool, before: float, far: float
+) -> list[tuple[float, float]]:
+    """Stretches inside a polygon along a line from its crossings in order, given whether
+    the line is inside at ``before``; the last stretch ends at ``far``."""
+    edges = [before, *crossings] if inside else list(crossings)
+    if len(edges) % 2:
+        edges.append(far)
+    return list(zip(edges[0::2], edges[1::2], strict=True))
+
+
 def _cuts(
     plan: FringePlan,
-    polygons: list[Polygon],
+    edges: Edges,
     owners: Index,
     body: Index,
     wall: Index,
@@ -294,7 +399,8 @@ def _cuts(
     A cut reaches ``plan.reach`` behind the wall and, for a piece that faces conductor
     ``faced``, as far ahead of it. One that does not reach ahead holds the wall's own
     side alone and is taken only where the handle lies beneath. None where no cut is
-    taken. ``workers`` cut the lines in pieces.
+    taken. ``edges`` index the polygons the cuts cross, owned by the conductors
+    ``owners``. ``workers`` cut the lines in pieces.
     """
     reach = plan.reach
     ahead = faced is not None
@@ -302,37 +408,17 @@ def _cuts(
     wanted = np.arange(len(points)) if ahead else np.flatnonzero(beneath >= 0)
     if not len(wanted):
         return found
-    tree, solids = STRtree(polygons), np.asarray(polygons, dtype=object)
-    tree.query(shapely.Point(points[0]))  # built here, before threads query it
     tolerance = 1e-6 * reach
 
     def spans_of(first: int, last: int) -> list[tuple[int, float, float, int]]:
         """Silicon along the lines of ``wanted[first:last]``: line, start, end, owner."""
-        origin, direction = points[wanted[first:last]], normals[wanted[first:last]]
-        tips = origin + direction * (reach if ahead else 0.0)
-        lines = np.asarray(
-            shapely.linestrings(np.stack([origin - direction * reach, tips], axis=1))
-        )
-        line_of, polygon_of = tree.query(lines, predicate="intersects")
-        crossed = shapely.intersection(lines[line_of], solids[polygon_of])
-        parts, part_of = shapely.get_parts(crossed, return_index=True)
-        coords, coord_of = shapely.get_coordinates(parts, return_index=True)
-        line = line_of[part_of][coord_of]
-        along = np.einsum("ij,ij->i", coords - origin[line], direction[line])
-        low = np.full(len(parts), np.inf)
-        high = np.full(len(parts), -np.inf)
-        np.minimum.at(low, coord_of, along)
-        np.maximum.at(high, coord_of, along)
-        keep = np.flatnonzero(high - low > tolerance)
-        return list(
-            zip(
-                (first + line_of[part_of[keep]]).tolist(),
-                low[keep].tolist(),
-                high[keep].tolist(),
-                owners[polygon_of[part_of[keep]]].tolist(),
-                strict=True,
+        chosen = wanted[first:last]
+        return [
+            (first + line, start, end, int(owners[polygon]))
+            for line, start, end, polygon in edges.spans(
+                points[chosen], normals[chosen], reach, ahead, tolerance
             )
-        )
+        ]
 
     pool = workers or Workers(1)
     step = max(1, -(-len(wanted) // (4 * pool.count)))
