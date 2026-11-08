@@ -86,7 +86,9 @@ replaces the kept one and keeps its radius.
     where it ends. An equilibrium therefore solves its result anew, so its
     stiffness and model are exact at its displacement, which converged on
     the expanded forces and carries an error of order $\tau_c$; a transient
-    keeps the expanded values.
+    keeps the expanded values. Because the second derivative is held, its
+    map onto the degrees of freedom of the bodies is kept with the solution
+    and shared by every evaluation that expands it.
 
 !!! note "Steps between kept solutions"
     Moving from one kept solution to the next changes the capacitance by up

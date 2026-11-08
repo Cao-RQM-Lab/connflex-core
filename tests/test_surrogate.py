@@ -179,3 +179,18 @@ def test_surrogate_tolerance_is_checked() -> None:
         ElectrostaticParams(surrogate_tolerance=0.0)
     with pytest.raises(ValueError, match="surrogate_tolerance"):
         ElectrostaticParams(surrogate_tolerance=1.0)
+
+
+def test_surrogate_hit_reuses_the_mapped_hessian_blocks(shuttle: Structure) -> None:
+    """Expansion leaves the second derivative of a kept solution as it is, so its map to
+    the degrees of freedom is built once per kept solution and shared by every hit."""
+    model = shuttle.capacitance(replace(FIELD, surrogate_tolerance=1e-2))
+    place = path()[-2]
+    first = model.at(place)
+    second = model.at(place * 1.001)
+    assert second.clusters[0].anchors == first.clusters[0].anchors
+    assert len(second.blocks) == len(first.blocks) > 0
+    assert all(
+        mine.values is theirs.values
+        for mine, theirs in zip(second.blocks, first.blocks, strict=True)
+    )

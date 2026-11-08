@@ -173,12 +173,15 @@ class RestCluster:
 @dataclass(eq=False)
 class _Anchor:
     """One field solution of a cluster, at the motion of its bodies, and how far its
-    expansion holds."""
+    expansion holds; ``block`` and ``fringe_block`` keep its second derivatives mapped
+    onto the degrees of freedom, which expansion leaves as they are."""
 
     motion: Array
     found: SidewallCapacitance
     radius: float
     fringe: FringeCapacitance | None = None
+    block: Array | None = None
+    fringe_block: Array | None = None
 
 
 @dataclass(eq=False)
@@ -610,9 +613,10 @@ def _evaluate(
                 reused = None if exact or not fielded else _reuse(group, full)
                 found: SidewallCapacitance | None = None
                 shell: FringeCapacitance | None = None
+                anchor: _Anchor | None = None
                 plan = group.plan
                 if reused is not None:
-                    found, shell = reused
+                    anchor, found, shell = reused
                     current.advance(group.plan.windows)
                 elif not alone:
                     facing = group.facing
@@ -643,7 +647,7 @@ def _evaluate(
                         pool,
                     )
                 if fielded and reused is None and found is not None:
-                    _remember(group, full, found, shell, params, structure)
+                    anchor = _remember(group, full, found, shell, params, structure)
                 groups.append(replace(group, plan=plan))
                 if found is not None:
                     clusters.append(
@@ -658,32 +662,38 @@ def _evaluate(
                             shell.sections if shell is not None else 0,
                         )
                     )
-                    held = group.electrodes
-                    _add(
+                    kept = anchor.block if anchor is not None else None
+                    block = _add(
                         sidewall,
                         gradient,
                         blocks,
-                        held,
+                        group.electrodes,
                         thickness * found.capacitance,
                         thickness * found.gradient,
-                        thickness * found.hessian,
+                        None if kept is not None else thickness * found.hessian,
                         [(first.get(b), levers[k]) for k, b in enumerate(group.bodies)],
+                        kept,
                     )
+                    if anchor is not None:
+                        anchor.block = block
                 if shell is not None:
-                    members = group.electrodes + group.beneath
-                    _add(
+                    kept = anchor.fringe_block if anchor is not None else None
+                    block = _add(
                         fringe,
                         gradient,
                         blocks,
-                        members,
+                        group.electrodes + group.beneath,
                         permittivity * shell.capacitance,
                         permittivity * shell.gradient,
-                        permittivity * shell.hessian,
+                        None if kept is not None else permittivity * shell.hessian,
                         [
                             (first.get(b), np.vstack([levers[k], _RISE]))
                             for k, b in enumerate(group.held)
                         ],
+                        kept,
                     )
+                    if anchor is not None:
+                        anchor.fringe_block = block
                 current.advance()
 
     if displacement.any() and params.interaction_distance is not None:
@@ -717,31 +727,39 @@ def _add(
     electrodes: tuple[int, ...],
     value: Array,
     slope: Array,
-    bend: Array,
+    bend: Array | None,
     maps: list[tuple[int | None, Array]],
-) -> None:
+    kept: Array | None = None,
+) -> Array | None:
     """Add a part among ``electrodes`` whose derivatives are in local parameters of
     bodies, each mapped to the six degrees of freedom of its body by its matrix; bodies
-    without degrees of freedom have None."""
+    without degrees of freedom have None. Returns the second derivative mapped onto
+    those degrees of freedom, which ``kept`` passes back in place of ``bend`` when the
+    part is the expansion of a solution mapped before."""
     matrix[np.ix_(electrodes, electrodes)] += value
     free = [k for k, (start, _) in enumerate(maps) if start is not None]
     if not free:
-        return
+        return None
     size, local = len(electrodes), slope.shape[3]
     travel = scipy.linalg.block_diag(*(maps[k][1] for k in free))
     dofs = np.concatenate([int(maps[k][0] or 0) + np.arange(6) for k in free])
     flat = slope[:, :, free].reshape(size, size, local * len(free))
     gradient[np.ix_(electrodes, electrodes, dofs)] += flat @ travel
-    curved = bend[:, :, free][:, :, :, :, free].reshape(
-        size, size, local * len(free), local * len(free)
-    )
-    blocks.append(HessianBlock(electrodes, dofs, travel.T @ curved @ travel))
+    if kept is None:
+        assert bend is not None
+        curved = bend[:, :, free][:, :, :, :, free].reshape(
+            size, size, local * len(free), local * len(free)
+        )
+        kept = travel.T @ curved @ travel
+    blocks.append(HessianBlock(electrodes, dofs, kept))
+    return kept
 
 
 def _reuse(
     group: RestCluster, motion: Array
-) -> tuple[SidewallCapacitance, FringeCapacitance | None] | None:
-    """Expansion of the nearest solution whose radius reaches ``motion``, equation (149).
+) -> tuple[_Anchor, SidewallCapacitance, FringeCapacitance | None] | None:
+    """Nearest solution whose radius reaches ``motion`` and its expansion there,
+    equation (149).
 
     ``motion`` holds six parameters for each body of ``group.held``: travel and turn in
     the plane at device mid-plane, then rise and turns about x and y.
@@ -753,7 +771,7 @@ def _reuse(
             chosen, best = anchor, apart
     if chosen is None:
         return None
-    return _expand(chosen, motion), _expand_fringe(chosen, motion)
+    return chosen, _expand(chosen, motion), _expand_fringe(chosen, motion)
 
 
 def _remember(
@@ -763,9 +781,10 @@ def _remember(
     fringe: FringeCapacitance | None,
     params: ElectrostaticParams,
     structure: Structure,
-) -> None:
+) -> _Anchor:
     """Keep a new solution, and set the radius of the nearest kept one from how well
-    its expansion, sidewalls and fringe, predicted this one, equation (150).
+    its expansion, sidewalls and fringe, predicted this one, equation (150). Returns
+    the kept solution that holds the new one.
 
     A step without motion in the plane can shrink the radius but never grows it: rise
     and tilt leave the sidewalls unchanged and say nothing about their expansion in the
@@ -790,7 +809,8 @@ def _remember(
         apart = _apart(memo, motion, nearest.motion)
         if apart == 0:  # solved anew where a solution is kept: the new one stands for it
             nearest.found, nearest.fringe = found, fringe
-            return
+            nearest.block = nearest.fringe_block = None
+            return nearest
         if apart <= 4 * nearest.radius:
             guess, shell = _expand(nearest, motion), _expand_fringe(nearest, motion)
             errors = [
@@ -810,7 +830,9 @@ def _remember(
                 min(grown, SAFETY * apart * np.sqrt(tolerance / error)) if error else grown
             )
         radius = nearest.radius
-    memo.anchors.append(_Anchor(motion.copy(), found, radius, fringe))
+    anchor = _Anchor(motion.copy(), found, radius, fringe)
+    memo.anchors.append(anchor)
+    return anchor
 
 
 def _apart(memo: _Surrogate, motion: Array, anchor: Array) -> float:

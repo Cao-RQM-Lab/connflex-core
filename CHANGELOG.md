@@ -133,6 +133,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The second derivative of a kept field solution, which its expansion leaves
+  as it is, is mapped onto the degrees of freedom once and shared by every
+  evaluation that expands it, instead of being mapped again at each.
 - `Plate.jacobian`, the map from the degrees of freedom of its two bodies to
   travel, rise, and slopes at its origin, is built once per plate instead of
   twice per evaluation, where it was most of the cost of a plate.
