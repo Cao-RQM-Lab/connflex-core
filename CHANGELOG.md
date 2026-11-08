@@ -137,6 +137,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Assembly of a dense field system integrates each unordered pair of elements
+  once and mirrors the value, since the matrix is symmetric; the two entries
+  of a pair differed by rounding before, so results move by that much.
 - Transient outputs between steps come from the model evaluated at the end
   of their step, expanded at the output's displacement, instead of a field
   evaluation at every output time; `Transient.evaluations` counts the

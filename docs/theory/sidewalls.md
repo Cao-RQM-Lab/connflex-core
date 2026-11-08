@@ -565,6 +565,13 @@ stops short of two trench widths leaves out part of the field across it.
     are cut into cores that are. Windows cut by medians over a whole mesh
     are rarely translates; those of the groups of (156) often are.
 
+!!! note "Each pair integrated once"
+    The matrix of (64) is symmetric, so each unordered pair of elements is
+    integrated once and the value mirrored into both entries; blocks of
+    rows, each holding the pairs whose first element lies in it, share the
+    work. The two entries of a pair were computed separately before and
+    differed by rounding, so results moved by that much.
+
 !!! note "Processes, threads, and compiled kernels"
     Windows and the cross-sections of the fringe are independent pieces of
     work, and worker processes solve their fields: the numpy work around

@@ -382,3 +382,26 @@ def test_vertices_a_rounding_apart_make_no_element() -> None:
     assert np.hypot(*(mesh.end - mesh.start).T).min() > 1e-3 * UM
     square = mesh_outlines([MultiPolygon([um(box(0, 0, 10, 10))])], 2 * UM, 4.0)
     assert len(mesh.conductor) == len(square.conductor)
+
+
+def test_assembly_evaluates_each_pair_of_elements_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The matrix of equation (64) is symmetric, so assembly evaluates the pair integral
+    of each unordered pair once and mirrors it."""
+    from connflex_core.electrostatics import dense
+    from connflex_core.electrostatics.pairs import pair_integrals as original
+
+    squares = [MultiPolygon([box(0, 0, 1e-5, 1e-5)]), MultiPolygon([box(1.2e-5, 0, 2.2e-5, 1e-5)])]
+    mesh = mesh_outlines(squares, 2.5e-6, 1.0)
+    count = len(mesh.conductor)
+    sizes: list[int] = []
+
+    def counted(*ends: NDArray[np.complex128]) -> NDArray[np.float64]:
+        result = original(*ends)
+        sizes.append(result.size)
+        return result
+
+    monkeypatch.setattr(dense, "pair_integrals", counted)
+    charges = solve_charges(mesh, 2, quiet)
+    assert count > 8
+    assert sum(sizes) == count * (count + 1) // 2
+    assert charges.capacitance[0, 1] == pytest.approx(charges.capacitance[1, 0], rel=1e-12)

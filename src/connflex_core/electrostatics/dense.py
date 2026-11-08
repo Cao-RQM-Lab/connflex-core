@@ -76,8 +76,9 @@ def solve_charges(
     all do. With ``period``, a vector in meters, the mesh is one cell of a row repeated
     without end along it, equation (151). ``enter`` opens the stages assemble and solve:
     ``stage`` bound to a progress receiver, or ``quiet`` when the solution is one step of
-    a larger stage. ``workers`` share the assembly by blocks of rows, which assemble
-    advances once each.
+    a larger stage. The matrix of equation (64) is symmetric, so each unordered pair of
+    elements is integrated once and mirrored. ``workers`` share the assembly by blocks
+    of rows, which assemble advances once each.
     """
     count = len(mesh.conductor)
     corners = np.concatenate([mesh.start, mesh.end])
@@ -93,13 +94,20 @@ def solve_charges(
     blocks = [slice(first, first + rows) for first in range(0, count, rows)]
 
     def fill(block: slice) -> None:
+        """Pairs (i, j) with i in ``block`` and j at least i, mirrored into (j, i)."""
+        first, last = block.start, min(block.stop, count)
+        lengths = count - np.arange(first, last)
+        i = np.repeat(np.arange(first, last), lengths)
+        j = i + np.arange(lengths.sum()) - np.repeat(np.cumsum(lengths) - lengths, lengths)
         if step is None:
-            integral = pair_integrals(start[block, None], end[block, None], start, end)
+            integral = pair_integrals(start[i], end[i], start[j], end[j])
         else:
             from connflex_core.electrostatics.periodic import periodic_integrals
 
-            integral = periodic_integrals(start[block, None], end[block, None], start, end, step)
-        potential[block] = -integral / (2 * np.pi * length[block, None] * length)
+            integral = periodic_integrals(start[i], end[i], start[j], end[j], step)
+        values = -integral / (2 * np.pi * length[i] * length[j])
+        potential[i, j] = values
+        potential[j, i] = values
 
     with enter("assemble", total=len(blocks)) as current:
         (workers or Workers(1)).run([partial(fill, block) for block in blocks], current.advance)
