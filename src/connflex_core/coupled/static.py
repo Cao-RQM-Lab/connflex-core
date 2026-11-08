@@ -98,8 +98,8 @@ def equilibrium(
     holds. Iteration that has not converged within ``max_iterations``, whose steps stop
     shrinking, whose tangent is singular, or that meets no finite force (theory,
     Implementation choices) raises ``NoEquilibriumError``.
-    ``workers`` threads evaluate the model, as many as at rest by default. Stages
-    assemble and equilibrium log through the ``connflex_core`` logger and report to
+    ``workers`` threads and processes evaluate the model, as many as at rest by
+    default. Stages assemble and equilibrium log through the ``connflex_core`` logger and report to
     ``progress``.
     """
     options = options or StaticOptions()

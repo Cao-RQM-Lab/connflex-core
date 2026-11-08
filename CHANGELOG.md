@@ -26,9 +26,14 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   which cut off iterations started close to a gap that converge after more.
 - `workers=` on `Structure.capacitance`, `CapacitanceModel.at`,
   `Structure.equilibrium`, `Structure.transient`, and `sidewall_capacitance`:
-  threads that solve windows, cut and solve fringe cross-sections, and
-  assemble blocks of rows of one dense system, every processor by default. Sums are taken in a fixed
-  order, so the count changes results only within rounding.
+  threads that search windows, cut the fringe, and assemble blocks of rows of
+  one dense system, and as many child processes that solve the field of each
+  window and cross-section, every processor by default. The numpy work around
+  the kernels holds the interpreter's lock, which had kept threads from
+  sharing the machine; the children start on first use, about a second, stay
+  for the interpreter's life, and import the library, never the script, so
+  scripts need no main guard. Sums are taken in a fixed order, so the count
+  changes results only within rounding.
 - `fast` extra: with numba installed, the pair integrals of the field kernel
   and their derivatives run compiled, one pair at a time and outside the
   interpreter's lock; the numpy code remains the fallback, and

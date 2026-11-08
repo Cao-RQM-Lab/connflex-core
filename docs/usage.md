@@ -903,12 +903,21 @@ Solving the field is many independent pieces: the windows of a cluster, the
 cuts of its fringe across the outlines and their cross-sections, and the
 blocks of rows of one dense system.
 `capacitance`, `at`, `equilibrium`, `transient`, and `sidewall_capacitance`
-take `workers=`, the number of threads that run them: every processor of the
-machine by default, and `workers=1` runs them one after another. Sums are
-taken in a fixed order, so the count changes results only within rounding,
-by which of two translated windows solves their shared field first, and a
-model keeps the count it was built with for its evaluation at displaced
-bodies unless an analysis passes another.
+take `workers=`, the number of workers that run them: every processor of the
+machine by default, and `workers=1` runs everything in the calling thread
+and process. The field of each window and each cross-section is solved in a
+child process, an interpreter running the library's worker loop, because the numpy work around the kernels holds the interpreter's lock and
+threads could not share the machine; the first call that needs them starts
+as many children as there are workers, which takes about a second, and the
+interpreter keeps them until it exits. Each child holds the library's
+imports, on the order of a hundred megabytes. Searching windows, cutting the
+fringe lines, and assembling the blocks of one dense system stay in threads,
+in shapely and compiled code that release the lock. Scripts need no
+`if __name__ == "__main__"` guard: the children import the library, never
+the script. Sums are taken in a fixed order, so the count changes results
+only within rounding, by which of two translated windows solves their shared
+field first, and a model keeps the count it was built with for its
+evaluation at displaced bodies unless an analysis passes another.
 
 ```python
 model = structure.capacitance(params, workers=8)
@@ -917,16 +926,16 @@ settled = structure.equilibrium(model, {2: 40.0}, workers=8)
 
 Most of the field's time goes to the integrals over pairs of elements and
 their derivatives. With the `fast` extra installed, numba compiles them, one
-pair at a time and outside the interpreter's lock, so that each thread runs a
-few times faster and threads share the machine; without it the numpy code
-runs, in passes over blocks of pairs, and gains less from threads.
-`connflex_core.electrostatics.pairs.COMPILED` tells which is in use.
+pair at a time, a few times faster than the numpy code, which runs in passes
+over blocks of pairs. `connflex_core.electrostatics.pairs.COMPILED` tells
+which is in use.
 
 Planning stays serial: clusters, facing walls, meshing, and rows of identical
 cells, as do the derivatives of one dense system. A BLAS that runs its own
 threads, such as OpenBLAS, oversubscribes the machine when every worker calls
 it on a large matrix; limit its threads, for example with
-`OPENBLAS_NUM_THREADS=1`, unless one dense system dominates the run.
+`OPENBLAS_NUM_THREADS=1`, which the children inherit, unless one dense
+system dominates the run.
 
 ## Progress and logging
 

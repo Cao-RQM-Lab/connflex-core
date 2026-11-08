@@ -192,7 +192,7 @@ class Structure:
         progress: Progress | None = None,
     ) -> CapacitanceModel:
         """Capacitance between all electrodes at rest, from plates and sidewalls, solved
-        by ``workers`` threads, every processor by default."""
+        by ``workers`` threads and processes, every processor by default."""
         from connflex_core.electrostatics.capacitance import find_capacitance
 
         return find_capacitance(self, params, workers=workers, progress=progress)
@@ -211,7 +211,7 @@ class Structure:
     ) -> Equilibrium:
         """Equilibrium under potentials and charges on nets, found from rest or from
         ``start``, with the capacitance model of this structure evaluated by ``workers``
-        threads, as many as at rest by default."""
+        threads and processes, as many as at rest by default."""
         from connflex_core.coupled.static import equilibrium
 
         return equilibrium(
@@ -256,7 +256,8 @@ class Structure:
     ) -> Transient:
         """Motion, potentials, and charges over ``times`` under ``sources`` and with the
         resistors and capacitors of ``circuit``, with the capacitance model of this
-        structure evaluated by ``workers`` threads, as many as at rest by default."""
+        structure evaluated by ``workers`` threads and processes, as many as at rest by
+        default."""
         from connflex_core.coupled.transient import transient
 
         return transient(

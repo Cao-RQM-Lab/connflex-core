@@ -331,8 +331,8 @@ def transient(
     ``start``, at zero velocity, with the potentials that the sources hold without
     current at that time, equation (147), and ends at ``times[-1]`` or at contact. A
     start at which bodies touch is refused with the model's error.
-    Integration restarts where a waveform or switch changes. ``workers`` threads
-    evaluate the model, as many as at rest by default. Stages assemble and transient
+    Integration restarts where a waveform or switch changes. ``workers`` threads and
+    processes evaluate the model, as many as at rest by default. Stages assemble and transient
     log through the ``connflex_core`` logger and report to ``progress``, which advances
     once per entry of ``times`` of the result, so a contact event leaves the stage
     short of its total.

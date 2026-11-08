@@ -136,7 +136,7 @@ consequence, and a way to check or mitigate it.
   repeating unit has at most 16 edges; the derivatives in turn come from a
   finite window and hold while the turn times half the row length is small
   against the gap.
-- **Threads and compiled kernels** change results only by rounding; the
+- **Workers and compiled kernels** change results only by rounding; the
   compiled kernels run with fast-math flags, so a degenerate input that
   validation does not catch returns garbage rather than NaN.
 - **Gradient and Hessian are exact derivatives of the discretized, windowed

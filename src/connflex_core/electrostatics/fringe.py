@@ -132,7 +132,8 @@ def find_fringe(
     ``body`` gives the body of each region. ``pivots`` holds where each body of the
     group turns about in the plane now, ``centers`` its center at rest, and ``motion``
     its six parameters from rest, as for ``FringeCapacitance``. ``workers`` cut the
-    lines in pieces and solve the cross-sections not met before, one each.
+    lines in pieces in threads and solve the cross-sections not met before in
+    processes, one each.
     """
     if plan.last and np.array_equal(plan.last[0][0], motion):
         return plan.last[0][1]
@@ -185,11 +186,9 @@ def find_fringe(
     for cutting in [*piece_cuts, *edge_cuts]:
         if cutting is not None and cutting.key not in plan.sections:
             pending.setdefault(cutting.key, cutting.cut)
-    sections = (workers or Workers(1)).run(
-        [
-            partial(solve_section, cut, plan.thickness, plan.box, plan.reach, plan.grading)
-            for cut in pending.values()
-        ]
+    sections = (workers or Workers(1)).solve(
+        solve_section,
+        [(cut, plan.thickness, plan.box, plan.reach, plan.grading) for cut in pending.values()],
     )
     plan.sections.update(zip(pending, sections, strict=True))
 

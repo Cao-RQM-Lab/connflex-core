@@ -116,7 +116,8 @@ class RestGeometry:
         plates: Plates between device and handle electrodes.
         groups: Clusters of device electrodes at rest, and with ``include_fringe`` each
             device electrode alone over the handle that is in no cluster.
-        workers: Threads that run its windows, cross-sections, and assembly.
+        workers: Threads and processes that run its windows, cross-sections, and
+            assembly.
         electrodes: Indices of the device electrodes.
         silicon: Silicon of each of them, as one region.
         paired: Pairs of device electrodes whose gap a cluster measures.
@@ -265,7 +266,8 @@ class CapacitanceModel:
         expansion of an earlier solution where it holds, equations (148) to (150), unless
         ``exact``. Device electrodes on different bodies that touch, a plate whose gap closes
         at a corner of its overlap, and a displacement at which the model is not finite
-        are errors. ``workers`` threads solve the pieces, as many as at rest by default.
+        are errors. ``workers`` threads and processes solve the pieces, as many as at
+        rest by default.
         Stage sidewalls logs through the ``connflex_core`` logger and reports to
         ``progress`` as it does at rest.
         """
@@ -400,10 +402,10 @@ def find_capacitance(
     below the device layer along every wall adds to sidewalls, equations (157) to (163),
     for clusters and for device electrodes alone over the handle. Derivatives are in the
     six degrees of freedom of every movable body.
-    ``workers`` threads solve windows, cut and solve cross-sections of the fringe, and
-    assemble blocks of rows of one dense system, every processor by default; sums are
-    taken in a fixed order, so the count
-    changes results only within rounding, and the model keeps it for evaluation at
+    ``workers`` threads search windows, cut the fringe, and assemble blocks of rows of
+    one dense system, and as many processes solve the field of each window and
+    cross-section, every processor by default; sums are taken in a fixed order, so the
+    count changes results only within rounding, and the model keeps it for evaluation at
     displaced bodies.
     Stages plates, clusters, and sidewalls log through the
     ``connflex_core`` logger and report to ``progress``; sidewalls advances once per

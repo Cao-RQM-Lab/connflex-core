@@ -13,7 +13,7 @@ import shapely
 from numpy.typing import NDArray
 from shapely import STRtree
 
-from connflex_core.electrostatics.dense import Charges, charge_derivatives, solve_charges
+from connflex_core.electrostatics.dense import charge_derivatives, solve_charges
 from connflex_core.electrostatics.outlines import Mesh
 from connflex_core.electrostatics.translates import KEY_GRID, canonical, repivot
 from connflex_core.progress import quiet
@@ -113,16 +113,13 @@ class _Window(NamedTuple):
 @dataclass(eq=False)
 class _Solved:
     """Charge on the core of a window per volt on each of its conductors, in an order
-    that translates share, and its derivatives about the corner of the core, found once
-    under ``lock``; ``charges`` keeps the solution for them, in the coordinates of the
-    window that solved it, whose core corner is ``corner``, until they are found or that
-    window moves on to a wider one."""
+    that translates share, and its derivatives about the corner of the core, which are
+    the same for every translate; found under ``lock`` when the window that solved the
+    field did not know it was its last."""
 
     capacitance: Array
     charge: Array
-    charges: Charges | None
-    corner: Array
-    derivatives: tuple[Array, Array] | None = None
+    derivatives: tuple[Array, Array] | None
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -134,6 +131,30 @@ class _Found(NamedTuple):
     overlap: float
     elements: Index
     solved: tuple[Index, Index, Array, Array, Array, Index, Array] | None
+
+
+def solve_window(
+    mesh: Mesh,
+    conductors: int,
+    core: NDArray[np.bool_],
+    kinds: Index | None = None,
+    pivots: Array | None = None,
+) -> tuple[Array, Array, tuple[Array, Array] | None]:
+    """Field of one window: capacitance and charge on its ``core`` per volt on each of
+    its ``conductors``, equation (92), and with ``kinds``, the body rank of each
+    conductor, and ``pivots``, a point per body, the gradient and Hessian about those
+    points as two and four-dimensional arrays, equations (93) to (96). A function of
+    its own so that worker processes run it."""
+    charges = solve_charges(mesh, conductors, quiet, core)
+    derivatives = None
+    if kinds is not None and pivots is not None:
+        slope, bend = charge_derivatives(charges, kinds, pivots, quiet)
+        turning = 3 * len(pivots)
+        derivatives = (
+            slope.reshape(conductors, conductors, turning),
+            bend.reshape(conductors, conductors, turning, turning),
+        )
+    return charges.capacitance, charges.charge[core], derivatives
 
 
 def solve_windows(
@@ -166,8 +187,9 @@ def solve_windows(
     both conductors of a pair and its core lies on one of them; otherwise when it holds
     two conductors. A window that is a translate of one solved before, with its core,
     conductors, and bodies alike, takes that solution, its derivatives moved to its own
-    pivots by equation (155). ``workers`` run the windows, one piece each; sums are
-    taken in the order of ``cores``.
+    pivots by equation (155). ``workers`` run the windows in threads, one piece each,
+    and solve the field of each in a process; sums are taken in the order of
+    ``cores``.
     Returns capacitance, gradient, Hessian, and element charges per unit permittivity,
     in the layout of ``SidewallCapacitance`` and before capacitance is made symmetric,
     and the sets of elements of the windows. ``advance`` is called once per core.
@@ -181,6 +203,7 @@ def solve_windows(
     charge = np.zeros((count, conductors))
     three = np.arange(3)
     known: Memo[bytes, _Solved] = Memo()
+    pool = workers or Workers(1)
 
     def useful(present: Index, core: Index) -> bool:
         if pairs is None:
@@ -220,21 +243,25 @@ def solve_windows(
         sets.last[key] = len(options) - 1
         return inside
 
-    def charges_of(elements: Index, present: Index, mine: NDArray[np.bool_]) -> Charges:
-        return solve_charges(mesh.subset(elements, present), len(present), quiet, mine)
+    def field(window: _Window, corner: Array, derivatives: bool) -> _Solved:
+        """Field of ``window``, with its derivatives about ``corner`` when asked."""
+        elements, present, moving, kinds, mine = window
+        about = np.tile(corner, (len(moving), 1)) if derivatives else None
+        piece = mesh.subset(elements, present), len(present), mine
+        value, held, found = pool.apply(
+            solve_window, (*piece, kinds if derivatives else None, about)
+        )
+        return _Solved(value, held, found)
 
-    def solve(inside: Index, core: Index) -> tuple[_Window, _Solved]:
+    def solve(inside: Index, core: Index, last: bool) -> tuple[_Window, _Solved]:
+        """Window of ``inside`` and its field, with derivatives when ``last`` says that
+        no wider window will replace it."""
         corner = center[core].min(axis=0)
         order, present, moving, kinds, key = canonical(mesh, inside, body, corner, {})
         elements = inside[order]
         mine = np.isin(elements, core)
-        key += mine.tobytes()
-
-        def compute() -> _Solved:
-            charges = charges_of(elements, present, mine)
-            return _Solved(charges.capacitance, charges.charge[mine], charges, corner)
-
-        return _Window(elements, present, moving, kinds, mine), known.get(key, compute)
+        window = _Window(elements, present, moving, kinds, mine)
+        return window, known.get(key + mine.tobytes(), partial(field, window, corner, last))
 
     def window_of(number: int, core: Index) -> _Found:
         overlap = FIRST_OVERLAP * size if reach is None else min(FIRST_OVERLAP * size, reach)
@@ -244,7 +271,7 @@ def solve_windows(
         if windows is not None:
             elements = follow(number if keys is None else keys[number], core, windows)
             if len(elements):
-                held = solve(elements, core)
+                held = solve(elements, core, True)
         while windows is None:
             inside = around(tree, center, core, overlap)
             if len(inside) > limit:
@@ -261,37 +288,28 @@ def solve_windows(
             present = np.unique(mesh.conductor[inside])
             before, share = share, np.zeros((conductors, conductors))
             settled = False
+            widest = len(inside) == count or (reach is not None and overlap >= reach)
             if useful(present, core):
-                found = solve(inside, core)
+                found = solve(inside, core, widest)
                 ordered = found[0].present
                 share[np.ix_(ordered, ordered)] = found[1].capacitance
                 settled = held is not None and bool(
                     np.max(np.abs(share - before)) < tolerance * np.max(np.abs(share))
                 )
-                if held is not None and held[1] is not found[1]:
-                    held[1].charges = None
                 held = found
                 taken = overlap
-            if settled or len(inside) == count or (reach is not None and overlap >= reach):
+            if settled or widest:
                 break
             overlap = 2 * overlap if reach is None else min(2 * overlap, reach)
         if held is None:
             return _Found(taken, np.zeros(0, dtype=np.intp), None)
-        (elements, present, moving, kinds, mine), solved = held
-        corner, here, turning = center[core].min(axis=0), len(present), 3 * len(moving)
+        window, solved = held
+        elements, present, moving, _, mine = window
+        corner = center[core].min(axis=0)
         with solved.lock:
             if solved.derivatives is None:
-                charges, about = solved.charges, solved.corner
-                if charges is None:
-                    charges, about = charges_of(elements, present, mine), corner
-                slope, bend = charge_derivatives(
-                    charges, kinds, np.tile(about, (len(moving), 1)), quiet
-                )
-                solved.derivatives = (
-                    slope.reshape(here, here, turning),
-                    bend.reshape(here, here, turning, turning),
-                )
-                solved.charges = None
+                solved.derivatives = field(window, corner, True).derivatives
+        assert solved.derivatives is not None
         slope, bend = repivot(*solved.derivatives, corner - pivots[moving])
         return _Found(
             taken,
@@ -299,7 +317,7 @@ def solve_windows(
             (present, moving, slope, bend, solved.capacitance, elements[mine], solved.charge),
         )
 
-    found = (workers or Workers(1)).run(
+    found = pool.run(
         [partial(window_of, number, core) for number, core in enumerate(cores)], advance
     )
     for piece in found:

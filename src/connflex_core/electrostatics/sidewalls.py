@@ -166,8 +166,9 @@ def sidewall_capacitance(
     of one body move together. By default every conductor is its own body. ``centers``
     gives the point each body rotates about, by default the centroid of its conductors.
     Gradient and Hessian are the exact derivatives of the computed capacitance for rigid
-    motion of the bodies. ``workers`` threads solve windows and blocks of rows of one
-    dense system, every processor by default. Stage facing, and when the field is solved
+    motion of the bodies. ``workers`` threads search windows and assemble blocks of
+    rows of one dense system, and as many processes solve the field of each window,
+    every processor by default. Stage facing, and when the field is solved
     stage mesh and then assemble, solve, derivatives, and curvature or the one stage
     windows, log through the ``connflex_core`` logger and report to ``progress``.
     """

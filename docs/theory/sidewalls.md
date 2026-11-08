@@ -565,17 +565,20 @@ stops short of two trench widths leaves out part of the field across it.
     are cut into cores that are. Windows cut by medians over a whole mesh
     are rarely translates; those of the groups of (156) often are.
 
-!!! note "Threads and compiled kernels"
-    Windows are independent pieces of work, as are the cuts of the fringe
-    across the outlines and its cross-sections, and the blocks of rows of
-    one dense system, and threads run them; a translate met by two threads at once is solved by the first and
-    taken by the second, and the two differ by rounding of their
-    coordinates. Sums over windows are taken in the order of their cores,
-    so the number of threads changes results only within that rounding.
-    The pair integrals (67) and (69) and their derivatives (85) to (88)
-    are evaluated one pair at a time in code compiled by numba when it is
-    installed, which releases the interpreter's lock so that threads share
-    it; otherwise in numpy, in passes over blocks of pairs.
+!!! note "Processes, threads, and compiled kernels"
+    Windows and the cross-sections of the fringe are independent pieces of
+    work, and worker processes solve their fields: the numpy work around
+    the kernels holds the interpreter's lock, which threads cannot share.
+    Threads search the windows, cut the fringe lines across the outlines,
+    and assemble the blocks of rows of one dense system, in shapely and in
+    compiled code that release the lock. A translate met by two windows at
+    once is solved by the first and taken by the second, and the two differ
+    by rounding of their coordinates. Sums over windows are taken in the
+    order of their cores, so the number of workers changes results only
+    within that rounding. The pair integrals (67) and (69) and their
+    derivatives (85) to (88) are evaluated one pair at a time in code
+    compiled by numba when it is installed; otherwise in numpy, in passes
+    over blocks of pairs.
 
 !!! note "The pivot travels with the body"
     The point a body turns about travels with the body, as a center of mass

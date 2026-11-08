@@ -1,7 +1,8 @@
 """Pair integrals and derivatives of ``kernel`` compiled with numba, one pair at a time.
 
 Each function takes the arguments of its numpy namesake, broadcasts them, and runs the
-pairs in one compiled loop that releases the interpreter lock, so that threads share it.
+pairs in one compiled loop that releases the interpreter lock, so that threads share it
+when they assemble blocks of rows of one dense system.
 """
 
 from __future__ import annotations
