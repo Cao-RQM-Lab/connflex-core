@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import cached_property
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -50,6 +51,9 @@ class Plate:
             equation (52): one row for travel along x, along y, and about z, one column
             for weight 1, x, and y measured from ``origin``.
         centers: Centers of mass of the two bodies, one row each.
+        jacobian: 6 by 12 map from the degrees of freedom of the two bodies, the device
+            electrode's first, to travel along x and y, turn about z, rise, and the two
+            slopes at ``origin``, equation (46); built once, on first use.
     """
 
     index: int
@@ -85,10 +89,11 @@ class Plate:
     def _local(self, device: ArrayLike | None, handle: ArrayLike | None) -> Array:
         """Travel, rise, and slopes at ``origin`` for displacements of the two bodies."""
         displaced = [np.zeros(6) if q is None else np.asarray(q, float) for q in (device, handle)]
-        local: Array = self._jacobian() @ np.concatenate(displaced)
+        local: Array = self.jacobian @ np.concatenate(displaced)
         return local
 
-    def _jacobian(self) -> Array:
+    @cached_property
+    def jacobian(self) -> Array:
         return np.hstack(
             [_local(self.origin, self.centers[0]), -_local(self.origin, self.centers[1])]
         )
@@ -102,7 +107,7 @@ class Plate:
         body of each electrode, zero when omitted. The gradient has twelve entries and the
         Hessian is 12 by 12: degrees of freedom of the device electrode's body come first.
         """
-        jacobian = self._jacobian()
+        jacobian = self.jacobian
         local = self._local(device, handle)
         travel, rise, slope = local[:3], local[3], local[4:]
         gap = self.gap + rise

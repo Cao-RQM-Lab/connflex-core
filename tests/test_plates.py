@@ -194,3 +194,15 @@ def test_only_electrostatic_analysis_needs_the_dielectric_constant_of_the_box(
     assert structure.modal().frequencies_hz.size == 6
     with pytest.raises(ValueError, match="relative_permittivity"):
         structure.plates()
+
+
+def test_plate_jacobian_is_built_once_and_drives_its_evaluation(shuttle: Structure) -> None:
+    plate = shuttle.plates()[1]
+    jacobian = plate.jacobian
+    assert jacobian.shape == (6, 12)
+    assert plate.jacobian is jacobian
+    device = np.array([1e-7, -2e-7, -3e-7, 1e-4, -2e-4, 3e-4])
+    local = jacobian @ np.concatenate([device, np.zeros(6)])
+    assert plate.lowest(device) == pytest.approx(
+        plate.gap + local[3] + np.min(plate.corners @ local[4:], initial=0.0)
+    )

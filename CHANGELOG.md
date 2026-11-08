@@ -133,6 +133,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `Plate.jacobian`, the map from the degrees of freedom of its two bodies to
+  travel, rise, and slopes at its origin, is built once per plate instead of
+  twice per evaluation, where it was most of the cost of a plate.
+
 - The theory of operation is split into pages by block: layout and beams,
   mechanics, electrodes and links, plates, sidewall capacitance, facing
   plates and the method for each pair, capacitance of a structure, static
