@@ -218,7 +218,8 @@ consequence, and a way to check or mitigate it.
   `linearity` reports the voltage and gap ratios of (137) and only warns. A
   netlist that drops a mode drops its compliance too.
 - **The transient integrator** is Radau IIA of order 5 with the tolerance of
-  (146); waveforms must be continuous, a callable one is differentiated
+  (146), or backward differentiation formulas of variable order up to 5 when
+  `method` asks; waveforms must be continuous, a callable one is differentiated
   numerically, and a run starts at zero velocity with current-free potentials
   and cannot be resumed from another run's end. Outputs between steps take
   the model at the end of their step expanded to second order in the motion

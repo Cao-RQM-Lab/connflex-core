@@ -17,6 +17,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   idealization, and left-out effect of each stage, with what it costs and
   how to check it.
 - `anchors` and `sections` of each cluster in `CapacitanceModel.to_dict`.
+- `TransientOptions.method`: `"radau"`, the Radau IIA integrator as before, or
+  `"bdf"`, backward differentiation formulas of variable order up to 5, which
+  evaluate the capacitance model about half as often per step at lower
+  accuracy per step.
 - `CapacitanceModel.expand(displacement)`: the model at a nearby displacement
   by second-order expansion of an evaluated one, equation (149) over the
   whole model, with the clearance from the geometry; what transient outputs

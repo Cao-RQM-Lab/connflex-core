@@ -490,7 +490,7 @@ def transient(
             time = left
             run.switch_to(left)
             limit = options.max_step or np.inf
-            solver = _solver(run, time, y, right, options.tolerance, scale, limit)
+            solver = _solver(run, time, y, right, options, scale, limit)
             tries = 0
             while solver.status == "running":
                 before, state_before = solver.t, solver.y.copy()
@@ -506,9 +506,7 @@ def transient(
                         current.advance()
                         break
                     limit = last / 4**tries
-                    solver = _solver(
-                        run, before, state_before, right, options.tolerance, scale, limit
-                    )
+                    solver = _solver(run, before, state_before, right, options, scale, limit)
                     continue
                 tries = 0
                 if solver.status == "failed":
@@ -540,14 +538,32 @@ def transient(
 
 
 def _solver(
-    run: _Run, time: float, y: Array, end: float, tolerance: float, scale: Array, limit: float
-) -> scipy.integrate.Radau:
+    run: _Run,
+    time: float,
+    y: Array,
+    end: float,
+    options: TransientOptions,
+    scale: Array,
+    limit: float,
+) -> scipy.integrate.Radau | scipy.integrate.BDF:
+    if options.method == "bdf":
+        bdf: scipy.integrate.BDF = scipy.integrate.BDF(  # type: ignore[call-overload]
+            run.fun,
+            time,
+            y,
+            end,
+            rtol=options.tolerance,
+            atol=scale,
+            jac=run.jac,
+            max_step=limit,
+        )
+        return bdf
     return scipy.integrate.Radau(
         run.fun,
         time,
         y,
         end,
-        rtol=tolerance,
+        rtol=options.tolerance,
         atol=scale,  # type: ignore[arg-type]
         jac=run.jac,
         max_step=limit,

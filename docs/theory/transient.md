@@ -86,6 +86,10 @@ is integrated by the fifth-order Radau IIA method, which is L-stable,
 with error control and the Jacobian of (139) and (142) in closed form; the
 rows of the three energy states of (145) are left zero, since nothing feeds
 back from them, which slows the integrator's own Newton iteration at most.
+Radau evaluates the right side at three stages in each Newton iteration of
+a step; the backward differentiation formulas of variable order, which
+`method` may select instead, evaluate it once per iteration and so about
+half as often per step, at lower accuracy per step.
 From (129) at node
 level, $\boldsymbol{\Gamma}$ with rows over nodes, and with $\tilde{\mathbf{G}}$
 the conductance $\mathbf{G}(t)$ of (141) with $s_k / R_k$ added on the

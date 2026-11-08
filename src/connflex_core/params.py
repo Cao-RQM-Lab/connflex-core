@@ -174,18 +174,24 @@ class TransientOptions:
         max_step: Longest time step in seconds. None leaves step length to error control.
         contact_clearance: The run ends with a contact event when the clearance of
             equation (126) falls to this.
+        method: Integrator: ``"radau"``, Radau IIA of order 5, or ``"bdf"``, backward
+            differentiation formulas of variable order up to 5, which evaluate the
+            capacitance model about half as often per step at lower accuracy per step.
     """
 
     quality_factor: float
     tolerance: float = 1e-6
     max_step: float | None = None
     contact_clearance: float = 0.1
+    method: str = "radau"
 
     def __post_init__(self) -> None:
         require_positive("quality_factor", self.quality_factor)
         require_positive("tolerance", self.tolerance)
         if self.max_step is not None:
             require_positive("max_step", self.max_step)
+        if self.method not in ("radau", "bdf"):
+            raise ValueError(f'method must be "radau" or "bdf", got {self.method!r}')
         if not 0 < self.contact_clearance < 1:
             raise ValueError(
                 f"contact_clearance must lie between 0 and 1, got {self.contact_clearance}"

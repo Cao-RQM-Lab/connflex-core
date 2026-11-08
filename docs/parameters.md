@@ -102,6 +102,7 @@ keyword overrides.
 | `tolerance` | $\tau_t$ | 1e-6 | Error the integrator allows per step, relative to each state, and in absolute terms this times the scales of equation (146): the buried oxide gap for translations, the lowest frequency for velocities, and node capacitance times the largest source value for charges. |
 | `max_step` | | none | Longest time step in seconds. Needed only for drive features that error control could step over, such as a short pulse of a callable waveform without breakpoints. |
 | `contact_clearance` | $\chi_c$ | 0.1 | The run ends with a contact event when the narrowest gap between two bodies falls to this fraction of its width at rest, equation (126). Nothing in the model describes bodies that touch. |
+| `method` | | `"radau"` | Integrator: `"radau"`, Radau IIA of order 5, or `"bdf"`, backward differentiation formulas of variable order up to 5. BDF evaluates the capacitance model about half as often per step, at lower accuracy per step, which the error control pays for with more steps where the motion is fast. |
 
 ## `Source`
 

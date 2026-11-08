@@ -509,3 +509,29 @@ def test_outputs_between_steps_cost_no_evaluation_and_agree_across_grids(
     assert many.charge[::10] == pytest.approx(few.charge, rel=1e-9, abs=1e-30)
     assert many.clearance[::10] == pytest.approx(few.clearance, rel=1e-9)
     assert np.max(abs(many.energy.imbalance)) < 1e-6 * many.energy.supplied[-1]
+
+
+def test_bdf_integrator_settles_like_radau_with_fewer_evaluations(plate: Structure) -> None:
+    """``method="bdf"`` integrates the same problem with the backward differentiation
+    formulas, which evaluate the model fewer times per step, to the same equilibrium
+    within the tolerance; an unknown method is refused."""
+    _, _, natural = plate_mode(plate)
+    model = plate.capacitance(HANDLE_ALONE)
+    over = net_at(plate, 50, 50)
+    pad = plate.electrode_at((-300 * UM, 0.0), "device")
+    period = 2 * np.pi / natural
+    step = PiecewiseLinear([0.0, 1e-3 * period], [0.0, 30.0])
+    times = np.linspace(0.0, 30 * period, 61)
+    radau = plate.transient(model, [Source(pad, step)], times, TransientOptions(quality_factor=5.0))
+    bdf = plate.transient(
+        model, [Source(pad, step)], times, TransientOptions(quality_factor=5.0, method="bdf")
+    )
+    rest = plate.equilibrium(model, {over: 30.0})
+    for run in (radau, bdf):
+        assert run.displacement[-1] == pytest.approx(
+            rest.displacement, rel=1e-4, abs=1e-4 * abs(rest.displacement[2])
+        )
+        assert np.max(abs(run.energy.imbalance)) < 1e-3 * run.energy.supplied[-1]
+    assert bdf.evaluations / bdf.steps < radau.evaluations / radau.steps
+    with pytest.raises(ValueError, match="method"):
+        TransientOptions(quality_factor=5.0, method="rk45")
