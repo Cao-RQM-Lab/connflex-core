@@ -261,3 +261,22 @@ def test_interrupt_of_the_calling_thread_cancels_pieces_not_yet_started() -> Non
         Workers(2).run([partial(piece, k) for k in range(8)], interrupt)
     time.sleep(0.2)
     assert len(ran) < 8
+
+
+def _noisy(k: int) -> int:
+    os.write(1, b"noise from a C level write\n")
+    print("noise from print")
+    return k * k
+
+
+def test_what_a_piece_writes_to_standard_output_leaves_the_pipe_alone() -> None:
+    workers = Workers(2)
+    assert workers.apply(_noisy, (3,)) == 9
+    assert workers.apply(_noisy, (4,)) == 16
+
+
+def test_error_in_a_process_carries_its_traceback_as_a_note() -> None:
+    with pytest.raises(ValueError, match="piece 1") as caught:
+        Workers(2).solve(_fail_on_one, [(0,), (1,)])
+    notes = getattr(caught.value, "__notes__", [])
+    assert any("worker process" in note and "_fail_on_one" in note for note in notes)

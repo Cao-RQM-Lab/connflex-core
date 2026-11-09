@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import atexit
+import contextlib
 import os
 import pickle
 import signal
@@ -10,6 +11,7 @@ import struct
 import subprocess
 import sys
 import threading
+import traceback
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
@@ -65,7 +67,8 @@ class Workers:
 
         ``function`` must be importable by name, so defined in a module and not in
         ``__main__``, and its arguments and result picklable. An exception of the
-        function is raised here with its type; a child that dies raises ``RuntimeError``.
+        function is raised here with its type, a note holding its traceback in the
+        child; a child that dies raises ``RuntimeError``.
         """
         if self.count == 1:
             return function(*arguments)
@@ -130,6 +133,7 @@ class Memo(Generic[K, T]):
 
 
 HEADER = struct.Struct("<Q")
+LONGEST = 1 << 40  # a message longer than this announces a stream out of step
 
 
 def _pack(message: object) -> bytes:
@@ -148,6 +152,8 @@ def _read(stream: IO[bytes]) -> bytes:
     if len(header) < HEADER.size:
         raise EOFError
     (length,) = HEADER.unpack(header)
+    if length > LONGEST:
+        raise pickle.UnpicklingError(f"a message of {length} bytes is announced")
     data = stream.read(length)
     if len(data) < length:
         raise EOFError
@@ -223,7 +229,9 @@ class _Pool:
             succeeded, value = child.ask(message)
         except EOFError:
             self._drop(child)
-            raise RuntimeError("a worker process died; its error, if any, is above") from None
+            raise RuntimeError(
+                "a worker process died or lost its place; its error, if any, is above"
+            ) from None
         except BaseException:
             self._drop(child)  # its reply, if one comes, would answer the next question
             raise
@@ -284,8 +292,10 @@ if hasattr(os, "register_at_fork"):
 def serve() -> None:
     """Run pieces that a parent sends over stdin until it closes the pipe: the child's
     half of ``Workers``, which ``python -m connflex_core._serve`` starts."""
-    inbox, outbox = sys.stdin.buffer, sys.stdout.buffer
-    sys.stdout = sys.stderr  # nothing a piece prints may reach the pipe
+    inbox: IO[bytes] = sys.stdin.buffer
+    outbox: IO[bytes] = os.fdopen(os.dup(1), "wb")
+    os.dup2(2, 1)  # whatever a piece writes to standard output, even from C, goes to standard error
+    sys.stdout = sys.stderr
     signal.signal(signal.SIGINT, signal.SIG_IGN)  # the parent handles interrupts of its terminal
     sys.path[:] = _receive(inbox)
     while True:
@@ -301,6 +311,11 @@ def serve() -> None:
         try:
             message: tuple[bool, object] = (True, function(*arguments))
         except BaseException as exc:
+            with contextlib.suppress(Exception):
+                exc.add_note(
+                    f"Traceback in worker process {os.getpid()} (most recent call last):\n"
+                    + "".join(traceback.format_tb(exc.__traceback__)).rstrip()
+                )
             message = (False, exc)
         try:
             packed = _pack(message)
