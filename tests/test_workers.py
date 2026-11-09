@@ -1,7 +1,12 @@
 import os
+import pickle
+import sys
 import threading
 import time
+import types
+from collections.abc import Callable
 from functools import partial
+from typing import Any
 
 import pytest
 
@@ -126,3 +131,89 @@ def test_solve_from_inside_a_thread_worker_still_uses_processes() -> None:
     for found in workers.run([nested, nested]):
         assert [square for _, square in found] == [1, 4]
         assert all(pid != os.getpid() for pid, _ in found)
+
+
+class _Interrupted(BaseException):
+    """Stands in for an interrupt of the calling thread while it waits on a child."""
+
+
+def test_interrupt_while_waiting_discards_the_child_and_later_results_are_right(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child whose reply was never read is out of step with this process: it is
+    killed, not kept, so that no later piece reads the reply of an earlier one."""
+    from connflex_core import workers as module
+
+    workers = Workers(2)
+    workers.apply(_where, (0,))
+    receive = module._receive
+
+    def interrupted(stream: Any) -> Any:
+        monkeypatch.setattr(module, "_receive", receive)
+        raise _Interrupted
+
+    monkeypatch.setattr(module, "_receive", interrupted)
+    before = module._POOL.alive
+    with pytest.raises(_Interrupted):
+        workers.apply(_where_after_a_moment, (1,))
+    assert module._POOL.alive == before - 1
+    assert workers.apply(_where, (7,))[1] == 49
+    assert workers.apply(_where, (8,))[1] == 64
+
+
+def test_a_piece_that_cannot_be_sent_leaves_the_child_in_step() -> None:
+    from connflex_core.workers import _POOL
+
+    workers = Workers(2)
+    workers.apply(_where, (0,))
+    idle = len(_POOL.idle)
+    with pytest.raises((pickle.PicklingError, AttributeError)):
+        workers.apply(_where, (lambda: 0,))
+    assert len(_POOL.idle) == idle
+    assert workers.apply(_where, (3,))[1] == 9
+
+
+def _unsendable(k: int) -> Callable[[], int]:
+    return lambda: k
+
+
+def test_a_result_that_cannot_be_sent_is_an_error_and_the_child_goes_on() -> None:
+    workers = Workers(2)
+    with pytest.raises(RuntimeError, match="could not be sent"):
+        workers.apply(_unsendable, (1,))
+    assert workers.apply(_where, (3,))[1] == 9
+
+
+def test_a_function_defined_in_main_is_refused_before_it_is_sent() -> None:
+    def mine(k: int) -> int:
+        return k
+
+    mine.__module__ = "__main__"
+    with pytest.raises(ValueError, match="__main__"):
+        Workers(2).apply(mine, (1,))
+
+
+def test_a_piece_the_child_cannot_read_is_an_error_and_the_child_goes_on() -> None:
+    """A class that only this process knows pickles by reference and cannot be read in
+    the child, which says so and stays in step for the next piece."""
+    module = types.ModuleType("only_here")
+    module.Thing = type("Thing", (), {"__module__": "only_here"})  # type: ignore[attr-defined]
+    sys.modules["only_here"] = module
+    try:
+        workers = Workers(2)
+        pid, _ = workers.apply(_where, (0,))
+        with pytest.raises(RuntimeError, match="could not read"):
+            workers.apply(_where, (module.Thing(),))
+        assert workers.apply(_where, (3,)) == (pid, 9)
+    finally:
+        del sys.modules["only_here"]
+
+
+def test_close_forgets_its_children_and_the_pool_starts_anew() -> None:
+    from connflex_core.workers import _POOL
+
+    workers = Workers(2)
+    workers.solve(_where_after_a_moment, [(0,), (1,)])
+    _POOL.close()
+    assert (_POOL.alive, _POOL.idle) == (0, [])
+    assert workers.apply(_where, (2,))[1] == 4

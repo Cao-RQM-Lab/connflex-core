@@ -5,13 +5,14 @@ from __future__ import annotations
 import atexit
 import os
 import pickle
+import struct
 import subprocess
 import sys
 import threading
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
-from typing import Any, Generic, TypeVar
+from typing import IO, Any, Generic, TypeVar
 
 from connflex_core._validation import require_at_least
 
@@ -58,9 +59,9 @@ class Workers:
     def apply(self, function: Callable[..., T], arguments: tuple[Any, ...]) -> T:
         """``function(*arguments)`` in a child process, or in this one with one worker.
 
-        ``function`` must be importable by name and its arguments and result picklable.
-        An exception of the function is raised here with its type; a child that dies
-        raises ``RuntimeError``.
+        ``function`` must be importable by name, so defined in a module and not in
+        ``__main__``, and its arguments and result picklable. An exception of the
+        function is raised here with its type; a child that dies raises ``RuntimeError``.
         """
         if self.count == 1:
             return function(*arguments)
@@ -124,8 +125,39 @@ class Memo(Generic[K, T]):
             return value
 
 
+HEADER = struct.Struct("<Q")
+
+
+def _pack(message: object) -> bytes:
+    return pickle.dumps(message, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def _write(stream: IO[bytes], data: bytes) -> None:
+    """Send one message: its length, then its bytes, in one write."""
+    stream.write(HEADER.pack(len(data)) + data)
+    stream.flush()
+
+
+def _read(stream: IO[bytes]) -> bytes:
+    """Bytes of the next message; ``EOFError`` when the stream has ended."""
+    header = stream.read(HEADER.size)
+    if len(header) < HEADER.size:
+        raise EOFError
+    (length,) = HEADER.unpack(header)
+    data = stream.read(length)
+    if len(data) < length:
+        raise EOFError
+    return data
+
+
+def _receive(stream: IO[bytes]) -> Any:
+    return pickle.loads(_read(stream))
+
+
 class _Child:
-    """One child interpreter running ``serve``, spoken to over pipes."""
+    """One child interpreter running ``serve``, spoken to over pipes in messages of a
+    length then a pickle, so that a message either side cannot read costs it nothing
+    but that message."""
 
     def __init__(self) -> None:
         self.process = subprocess.Popen(
@@ -133,33 +165,36 @@ class _Child:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
         )
-        self._send(sys.path)
-
-    def _send(self, message: object) -> None:
         assert self.process.stdin is not None
-        pickle.dump(message, self.process.stdin, protocol=pickle.HIGHEST_PROTOCOL)
-        self.process.stdin.flush()
-
-    def ask(self, function: Callable[..., T], arguments: tuple[Any, ...]) -> T:
-        """Run ``function(*arguments)`` in the child; ``EOFError`` when it has died."""
         assert self.process.stdout is not None
+        self.outbox: IO[bytes] = self.process.stdin
+        self.inbox: IO[bytes] = self.process.stdout
+        _write(self.outbox, _pack(sys.path))
+
+    def ask(self, message: bytes) -> tuple[bool, Any]:
+        """Reply of the child to a packed ``(function, arguments)``: whether the function
+        returned, and its result or its exception. ``EOFError`` when the child has died."""
         try:
-            self._send((function, arguments))
-            succeeded, value = pickle.load(self.process.stdout)
+            _write(self.outbox, message)
+            reply: tuple[bool, Any] = _receive(self.inbox)
         except (OSError, EOFError, pickle.UnpicklingError) as exc:
             raise EOFError from exc
-        if succeeded:
-            result: T = value
-            return result
-        raise value
+        return reply
+
+    def alive(self) -> bool:
+        return self.process.poll() is None
 
     def close(self) -> None:
-        assert self.process.stdin is not None
+        """Let the child finish what it has and leave."""
         try:
-            self.process.stdin.close()
+            self.outbox.close()
             self.process.wait(timeout=5.0)
         except (OSError, subprocess.TimeoutExpired):
             self.process.kill()
+
+    def kill(self) -> None:
+        self.process.kill()
+        self.process.wait()
 
 
 class _Pool:
@@ -173,44 +208,73 @@ class _Pool:
     def apply(self, function: Callable[..., T], arguments: tuple[Any, ...], limit: int) -> T:
         """``function(*arguments)`` in an idle child, or a new one while fewer than
         ``limit`` are alive; otherwise wait for one."""
-        with self.room:
-            while not self.idle and self.alive >= limit:
-                self.room.wait()
-            child = self.idle.pop() if self.idle else None
-            if child is None:
-                self.alive += 1
-        if child is None:
-            try:
-                child = _Child()
-            except BaseException:
-                with self.room:
-                    self.alive -= 1
-                    self.room.notify()
-                raise
-        healthy = True
+        if getattr(function, "__module__", None) == "__main__":
+            raise ValueError(
+                f"{function.__name__} is defined in __main__, which a worker process cannot "
+                f"import: define it in a module"
+            )
+        message = _pack((function, arguments))
+        child = self._take(limit)
         try:
-            return child.ask(function, arguments)
+            succeeded, value = child.ask(message)
         except EOFError:
-            healthy = False
-            child.close()
+            self._drop(child)
             raise RuntimeError("a worker process died; its error, if any, is above") from None
-        finally:
+        except BaseException:
+            self._drop(child)  # its reply, if one comes, would answer the next question
+            raise
+        with self.room:
+            self.idle.append(child)
+            self.room.notify()
+        if succeeded:
+            result: T = value
+            return result
+        raise value
+
+    def _take(self, limit: int) -> _Child:
+        """An idle child that is alive, or a new one while fewer than ``limit`` are alive."""
+        with self.room:
+            while True:
+                while self.idle:
+                    child = self.idle.pop()
+                    if child.alive():
+                        return child
+                    self.alive -= 1  # died while idle
+                if self.alive < limit:
+                    self.alive += 1
+                    break
+                self.room.wait()
+        try:
+            return _Child()
+        except BaseException:
             with self.room:
-                if healthy:
-                    self.idle.append(child)
-                else:
-                    self.alive -= 1
+                self.alive -= 1
                 self.room.notify()
+            raise
+
+    def _drop(self, child: _Child) -> None:
+        child.kill()
+        with self.room:
+            self.alive -= 1
+            self.room.notify()
 
     def close(self) -> None:
         with self.room:
             children, self.idle = self.idle, []
+            self.alive -= len(children)
+            self.room.notify_all()
         for child in children:
             child.close()
+
+    def forget(self) -> None:
+        """Start afresh in a process forked from this one: its children are the parent's."""
+        self.idle, self.alive, self.room = [], 0, threading.Condition()
 
 
 _POOL = _Pool()
 atexit.register(_POOL.close)
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_POOL.forget)
 
 
 def serve() -> None:
@@ -218,19 +282,24 @@ def serve() -> None:
     half of ``Workers``, which ``python -m connflex_core._serve`` starts."""
     inbox, outbox = sys.stdin.buffer, sys.stdout.buffer
     sys.stdout = sys.stderr  # nothing a piece prints may reach the pipe
-    sys.path[:] = pickle.load(inbox)
+    sys.path[:] = _receive(inbox)
     while True:
         try:
-            function, arguments = pickle.load(inbox)
+            data = _read(inbox)
         except EOFError:
             return
+        try:
+            function, arguments = pickle.loads(data)
+        except Exception as exc:
+            _write(outbox, _pack((False, RuntimeError(f"a worker could not read a piece: {exc}"))))
+            continue
         try:
             message: tuple[bool, object] = (True, function(*arguments))
         except BaseException as exc:
             message = (False, exc)
         try:
-            pickle.dump(message, outbox, protocol=pickle.HIGHEST_PROTOCOL)
+            packed = _pack(message)
         except Exception as exc:
             failed = RuntimeError(f"result of {function.__name__} could not be sent: {exc}")
-            pickle.dump((False, failed), outbox, protocol=pickle.HIGHEST_PROTOCOL)
-        outbox.flush()
+            packed = _pack((False, failed))
+        _write(outbox, packed)
