@@ -706,7 +706,7 @@ def _evaluate(
                         pool,
                     )
                 if fielded and reused is None and found is not None:
-                    anchor = _remember(group, full, found, shell, params, structure)
+                    anchor = _remember(group, full, found, shell, params)
                 settled = found if still and reused is None and found is not None else group.settled
                 groups.append(replace(group, plan=plan, settled=settled))
                 if found is not None:
@@ -923,7 +923,6 @@ def _remember(
     found: SidewallCapacitance,
     fringe: FringeCapacitance | None,
     params: ElectrostaticParams,
-    structure: Structure,
 ) -> _Anchor:
     """Keep a new solution, and set the radius of the nearest kept one from how well
     its expansion, sidewalls and fringe, predicted this one, equation (150). Returns
@@ -936,13 +935,8 @@ def _remember(
     memo = group.surrogate
     tolerance = params.surrogate_tolerance or 0.0
     if memo.reach is None:
-        centers = [structure.bodies[b].inertial.center[:2] for b in group.bodies]
         reach = np.zeros(len(group.held))
-        for k, region in enumerate(group.regions):
-            low_x, low_y, high_x, high_y = region.bounds
-            corners = np.array([[low_x, low_y], [low_x, high_y], [high_x, low_y], [high_x, high_y]])
-            body = int(group.body[k])
-            reach[body] = max(reach[body], float(np.max(np.hypot(*(corners - centers[body]).T))))
+        np.maximum.at(reach, group.body, group.radius)
         memo.reach = reach
         gaps = [width for _, _, width in group.near]
         memo.start = np.sqrt(tolerance) * (min(gaps) if gaps else interaction_reach(params))
