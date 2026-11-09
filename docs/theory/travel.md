@@ -1,9 +1,8 @@
 # Windows and rows over travel
 
-A window chosen at rest holds the elements within its overlap, and a row the
-cells that were translates of one another at rest. Bodies that travel farther
-than an overlap, as the teeth of a stepper or a rack do, carry walls into and
-out of both. This page gives the rule by which a window takes a new set of
+Bodies that travel farther than the overlap of a window chosen at rest, or
+than the cells of a row, as the teeth of a stepper or a rack do, carry walls
+into and out of both. This page gives the rule by which a window takes a new set of
 elements and a row stops counting cells that travel has carried near its
 ends, so that the capacitance model keeps the accuracy it had at rest over
 many pitches of travel. It acts inside `CapacitanceModel.at`.
@@ -80,7 +79,7 @@ overhang of the bar does, and with $d_i$ of 60 micrometers both stay within
 
 | Symbol | Meaning | In the code |
 | --- | --- | --- |
-| $\delta_k$ | overlap of window $k$, found at rest | `SidewallCapacitance.windows` counts the windows |
+| $\delta_k$ | overlap of window $k$, found at rest | `electrostatics.windows.WindowSets.overlap`; `SidewallCapacitance.windows` counts the windows |
 | $\mu$ | share of its overlap a window gives up to travel before it takes a new set | `electrostatics.windows.TRAVEL_MARGIN` |
 | $d_i$ | interaction distance, the margin a counted cell keeps from the ends of a row | `ElectrostaticParams.interaction_distance` |
 | $n_w$ | most elements in a window of cells a row no longer counts | `ElectrostaticParams.window_elements` |

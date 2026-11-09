@@ -22,7 +22,7 @@ alone. The pages follow that order.
 | [Electrodes and links](electrical.md) | nets, electrodes, and the links that conduct between them | (39) to (41) | `extract`, `Structure.nets`, `Structure.electrodes` |
 | [Plates between device and handle](plates.md) | capacitance of device silicon to the handle beneath, with its derivatives in the motion of both bodies | (42) to (60) | `Structure.plates`, `Plate.evaluate` |
 | [Sidewall capacitance](sidewalls.md) | field between sidewalls in the layout plane, in one dense system or in windows, with derivatives | (61) to (96) | `sidewall_capacitance` |
-| [Facing plates and the method for each pair](methods.md) | sidewalls as parallel plates, the feature size of each pair of nets, and which method it takes | (97) to (108) | `sidewall_capacitance`, `Structure.capacitance` |
+| [Facing plates and method for each pair of nets](methods.md) | sidewalls as parallel plates, the feature size of each pair of nets, and which method it takes | (97) to (108) | `sidewall_capacitance`, `Structure.capacitance` |
 | [Capacitance of a structure](capacitance.md) | the capacitance matrix between all electrodes, its forces and stiffness, and its evaluation at displaced bodies | (109) to (119) | `Structure.capacitance`, `CapacitanceModel.at` |
 | [Static equilibrium](equilibrium.md) | where the structure rests under potentials, its stability and margin, contact, floating nets | (120) to (128) | `Structure.equilibrium` |
 | [Small signal](small-signal.md) | linear model about an equilibrium: modes under bias, admittance, motional branches, netlist | (129) to (138) | `Structure.small_signal` |

@@ -8,8 +8,7 @@ pull-in, how close its gaps are to touching, and how a net that holds a fixed
 charge enters. `Structure.equilibrium` solves one operating point and returns
 an `Equilibrium`.
 
-With potentials on its nets a structure comes to rest where the pull of its
-beams balances the electrostatic forces. Nothing flows at rest, so no link
+Nothing flows at rest, so no link
 carries a voltage and the electrodes of a net share its potential:
 $\mathbf{v} = \mathbf{S}\, \mathbf{v}^\text{net}$ with $\mathbf{S}$ of (113).
 Beams are linear, with the stiffness $\mathbf{K}^\text{full}$ of (35), and

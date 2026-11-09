@@ -1,13 +1,11 @@
 # Capacitance of a structure
 
-The electrodes of a structure are the nodes of one capacitance matrix, which
-sums the plates between device and handle, the sidewalls between device
-electrodes found cluster by cluster, and the fringe above and below the device
-layer. This page assembles that matrix, gives the forces and the electrostatic
-stiffness that its derivatives in the motion of the bodies produce, and
-defines its evaluation with the bodies displaced from rest, on which every
-coupled analysis rests. `Structure.capacitance` builds the model at rest and
-`CapacitanceModel.at` evaluates it elsewhere.
+This page assembles the capacitance matrix of a structure from its plates,
+its sidewalls found cluster by cluster, and its fringe, gives the forces and
+the electrostatic stiffness that its derivatives in the motion of the bodies
+produce, and defines its evaluation with the bodies displaced from rest, on
+which every coupled analysis rests. `Structure.capacitance` builds the model
+at rest and `CapacitanceModel.at` evaluates it elsewhere.
 
 The electrodes of a structure, $n$ in all, are the nodes of one capacitance
 matrix $\mathbf{C}$, defined by the charges $\mathbf{Q} = \mathbf{C}

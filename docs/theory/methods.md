@@ -1,10 +1,9 @@
-# Facing plates and the method for each pair of nets
+# Facing plates and method for each pair of nets
 
 A field solution is the most accurate way to find sidewall capacitance and the
-most expensive. In a comb, though, most of the capacitance sits in narrow gaps
-between long walls, where the field is that of a parallel plate and a field
-solution spends its effort on what a closed form already gives. This page
-describes the plates method, which takes every wall that faces another
+most expensive, and in a comb it spends most of its effort on what a closed
+form already gives. This page describes the plates method, which takes every
+wall that faces another
 conductor as a plate with it, and the feature size by which each pair of
 interacting nets is sent to one dense field solution, to windows, or to
 plates. `sidewall_capacitance` and `Structure.capacitance` both choose this
@@ -176,11 +175,11 @@ the two sides and is far less affected.
     Where a wall lies exactly along the normal of another, as the end face
     of a finger does beside the wall its flank faces, the slope limit of
     (101) keeps the end face out of view until a turn brings its slope seen
-    from the other wall below $1/10$, so (97) is smooth in rotation at the
-    square position and changes by a jump where that slope crosses $1/10$,
-    of up to $\tfrac{1}{2} \varepsilon\, \theta \ln (1 + w / \gamma)$ for an
-    end face of width $w$ beside a gap $\gamma$ at the turn $\theta$, less
-    where $d_i$ cuts the view, small against the $\varepsilon L r /
+    from the other wall below $1/10$. So (97) is smooth in rotation at the
+    square position and changes by a jump where that slope crosses $1/10$.
+    The jump is up to $\tfrac{1}{2} \varepsilon\, \theta \ln (1 + w / \gamma)$
+    for an end face of width $w$ beside a gap $\gamma$ at the turn $\theta$,
+    less where $d_i$ cuts the view, and small against the $\varepsilon L r /
     \gamma^2$ of a flank of length $L$ at distance $r$ from the pivot. Where
     marks set by end points of different bodies
     coincide, as when a finger tip lines up exactly with a corner across

@@ -41,13 +41,13 @@ stiffness uses the device-layer material.
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
 | `Layer.thickness` | $t_l$ | **required** | Layer thickness, equations (5) and (8). |
-| `Material.density` | $\rho_l$ | silicon 2330, oxide 2200 | Mass density, equation (5). |
-| `Material.youngs_modulus` | $E$ | 169 GPa for silicon | Young's modulus. Silicon's default is the in-plane $\langle 110 \rangle$ value; beams along $\langle 100 \rangle$ see about 130 GPa. |
-| `Material.poisson_ratio` | $\nu$ | 0.28 | Used to derive $G = E / (2(1 + \nu))$ when `shear_modulus` is not given. Silicon is cubic, not isotropic: the derived 66 GPa lies between its 79.6 GPa through the thickness and 50.9 GPa in the plane for a $\langle 110 \rangle$ beam, so pass `shear_modulus` for the orientation when torsion matters. |
+| `Material.density` | $\rho_l$ | **required**; presets silicon 2330, oxide 2200 | Mass density, equation (5). |
+| `Material.youngs_modulus` | $E$ | **required**; preset 169 GPa for silicon | Young's modulus. The silicon preset is the in-plane $\langle 110 \rangle$ value; beams along $\langle 100 \rangle$ see about 130 GPa. |
+| `Material.poisson_ratio` | $\nu$ | **required**; preset 0.28 for silicon | Used to derive $G = E / (2(1 + \nu))$ when `shear_modulus` is not given. Silicon is cubic, not isotropic: the derived 66 GPa lies between its 79.6 GPa through the thickness and 50.9 GPa in the plane for a $\langle 110 \rangle$ beam, so pass `shear_modulus` for the orientation when torsion matters. |
 | `Material.shear_modulus` | $G$ | derived | Shear modulus for the torsional term, equation (19). |
 | `Material.torsion_beta` | $\beta$ | 0.63 | Short-beam torsional stiffening coefficient, equation (21). Zero disables the correction. |
 | `Material.resistivity` | $\rho_e$ | none | Electrical resistivity. Sets resistance of beam links, equation (41); without it that resistance is unknown. Only the device layer's value is used. |
-| `Material.relative_permittivity` | $\varepsilon_\text{ox}$ | oxide 3.9, silicon none | Static dielectric constant. Only the box layer's value is used, for capacitance through buried oxide, equation (43): silicon is a conductor in the electrical model. |
+| `Material.relative_permittivity` | $\varepsilon_\text{ox}$ | none; preset 3.9 for oxide | Static dielectric constant. Only the box layer's value is used, for capacitance through buried oxide, equation (43): silicon is a conductor in the electrical model. |
 
 `Material.silicon()` and `Material.oxide()` return these defaults and accept
 keyword overrides.
@@ -66,7 +66,7 @@ keyword overrides.
 | --- | --- | --- | --- |
 | `ambient_permittivity` | $\varepsilon_a$ | 1 | Relative permittivity of the medium that fills released gaps and trenches, equations (43) and (61). |
 | `element_size` | $h$ | none | Longest boundary element on conductor outlines, equation (73). Required when a pair of nets is solved by the field method, in one dense system or in windows; a structure whose pairs are all taken as plates needs none. Half of the narrowest trench is a starting value: computed capacitance rises toward the exact one as it shrinks. |
-| `corner_grading` | $g$ | 16 | Ratio of `element_size` to the element length asked for at a convex corner of a right angle or sharper, equation (72). 1 disables refinement. Also grades the elements of fringe cross-sections toward the corners of each block, equations (157) to (159). |
+| `corner_grading` | $g$ | 16 | Ratio of `element_size` to the element length asked for at a convex corner of a right angle or sharper, equation (72). 1 disables refinement. Also grades the elements of fringe cross-sections toward the corners of the blocks of equation (157). |
 | `max_elements` | | 8000 | Most boundary elements solved as one dense system. Memory grows with its square and time with its cube. Pairs asked to be dense whose problem needs more are solved in windows, equations (91) to (96), and reported as windowed; no window grows past this number. |
 | `window_elements` | $n_w$ | 500 | Most boundary elements in the core of a window. Each window is one dense solution of its core and the elements around it, and supplies the charge on its core, equation (92). Smaller cores mean more and smaller solutions. |
 | `window_tolerance` | $\tau$ | 0.001 | The overlap of a window around its core doubles until the charge on the core changes by less than this fraction, equation (96), or the overlap reaches `interaction_distance`. |
@@ -99,7 +99,7 @@ keyword overrides.
 | Field | Symbol | Default | Effect |
 | --- | --- | --- | --- |
 | `quality_factor` | $Q$ | **required** | Quality factor of every mode of the structure without potentials, which sets the damping matrix of a transient, equation (140). Under bias a mode keeps that damping and so has a slightly lower quality factor. |
-| `tolerance` | $\tau_t$ | 1e-6 | Error the integrator allows per step, relative to each state, and in absolute terms this times the scales of equation (146): the buried oxide gap for translations, the lowest frequency for velocities, and node capacitance times the largest source value for charges. |
+| `tolerance` | $\tau_t$ | 1e-6 | Error the integrator allows per step, relative to each state, and in absolute terms this times the scales of equation (146): the buried oxide gap for translations, that gap times the lowest angular frequency for velocities, and node capacitance times the largest source value for charges. |
 | `max_step` | | none | Longest time step in seconds. Needed only for drive features that error control could step over, such as a short pulse of a callable waveform without breakpoints. |
 | `contact_clearance` | $\chi_c$ | 0.1 | The run ends with a contact event when the narrowest gap between two bodies falls to this fraction of its width at rest, equation (126). Nothing in the model describes bodies that touch. |
 | `method` | | `"radau"` | Integrator: `"radau"`, Radau IIA of order 5, or `"bdf"`, backward differentiation formulas of variable order up to 5. BDF evaluates the capacitance model about half as often per step, at lower accuracy per step, which the error control pays for with more steps where the motion is fast. |
@@ -179,27 +179,34 @@ A connection made off the die between two pads, passed to `extract` in
 ## Validation
 
 Each object validates itself on construction and raises `ValueError` naming
-the field: lengths, areas, thicknesses, densities, moduli, and resistivity are positive;
-`0 <= poisson_ratio < 0.5`; `beam_width_min >= 0` and
-`beam_width_min < beam_width_max`; `beam_overlap_margin < body_min_width / 2`;
-`buffer_resolution >= 1`; `precision_grid > 0` when given; `anchor` a
-nonnegative index or an `(x, y)` pair when given; `n_modes >= 1` when given
-and `method` one of `"dense"`, `"sparse"` of `SolveOptions`;
-`torsion_beta >= 0`; `via_resistance >= 0`; `relative_permittivity >= 1`;
-`ambient_permittivity >= 1`; `element_size > 0` and `interaction_distance > 0`
-when given; `corner_grading >= 1`; `max_elements >= 1`; `window_elements >= 1`;
-`window_tolerance > 0`; `dense_cutoff >= 0` and `plates_cutoff >= dense_cutoff`;
-`periodic_min_cells >= 2` and `0 < surrogate_tolerance < 1` when given;
-`tolerance > 0`, `max_iterations >= 1`, and `patience >= 1` of `StaticOptions`;
-`quality_factor > 0` and `linear_tolerance > 0` of `SmallSignalOptions`;
-`quality_factor > 0`, `tolerance > 0`, `max_step > 0` when given, and
-`0 < contact_clearance < 1` of `TransientOptions`; `resistance >= 0` of a
-`Source`, and `resistance > 0` when it has a `switch`; `resistance > 0` of a
-`Resistor` and `capacitance > 0` of a `Capacitor`; `Switch` and
-`PiecewiseLinear` times finite and strictly ascending, at least one point and
-as many values as times for the latter; a `Wire` end is `(x, y)` or
-`(x, y, layer)` with layer `"device"` or `"handle"`, and its
-`resistance >= 0`; every stack layer has a thickness.
+the field.
+
+- Lengths, areas, thicknesses, densities, moduli, and resistivity are
+  positive; `0 <= poisson_ratio < 0.5`; `torsion_beta >= 0`;
+  `relative_permittivity >= 1`; every stack layer has a thickness.
+- `ExtractionParams`: `beam_width_min >= 0` and
+  `beam_width_min < beam_width_max`; `beam_overlap_margin < body_min_width / 2`;
+  `buffer_resolution >= 1`; `precision_grid > 0` when given; `anchor` a
+  nonnegative index or an `(x, y)` pair when given; `via_resistance >= 0`.
+- `SolveOptions`: `n_modes >= 1` when given and `method` one of `"dense"`,
+  `"sparse"`.
+- `ElectrostaticParams`: `ambient_permittivity >= 1`; `element_size > 0` and
+  `interaction_distance > 0` when given; `corner_grading >= 1`;
+  `max_elements >= 1`; `window_elements >= 1`; `window_tolerance > 0`;
+  `dense_cutoff >= 0` and `plates_cutoff >= dense_cutoff`;
+  `periodic_min_cells >= 2` and `0 < surrogate_tolerance < 1` when given.
+- `StaticOptions`: `tolerance > 0`, `max_iterations >= 1`, and `patience >= 1`.
+- `SmallSignalOptions`: `quality_factor > 0` and `linear_tolerance > 0`.
+- `TransientOptions`: `quality_factor > 0`, `tolerance > 0`, `max_step > 0`
+  when given, `0 < contact_clearance < 1`, and `method` one of `"radau"`,
+  `"bdf"`.
+- Sources and circuit: `resistance >= 0` of a `Source`, and `resistance > 0`
+  when it has a `switch`; `resistance > 0` of a `Resistor` and
+  `capacitance > 0` of a `Capacitor`; `Switch` and `PiecewiseLinear` times
+  finite and strictly ascending, at least one point and as many values as
+  times for the latter.
+- A `Wire` end is `(x, y)` or `(x, y, layer)` with layer `"device"` or
+  `"handle"`, and its `resistance >= 0`.
 
 ## Constants
 

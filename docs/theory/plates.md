@@ -9,9 +9,7 @@ travel, to second order in tilt, and to first order in travel in the plane.
 capacitance, gradient, and Hessian at a displacement of its two bodies; the
 [capacitance model](capacitance.md) sums them.
 
-Device silicon that lies over handle silicon forms a capacitor with it:
-through buried oxide where oxide survives, and across the gap that release
-leaves elsewhere. Silicon is treated as a perfect conductor, so an electrode
+Silicon is treated as a perfect conductor, so an electrode
 has one potential, and a plate is a pair of a device electrode $E_a$ and a
 handle electrode $E_b$ whose regions overlap. With $O$ the surviving oxide of
 (2) and $R$ the release openings, the overlap and its bonded and released

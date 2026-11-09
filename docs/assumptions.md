@@ -33,7 +33,7 @@ consequence, and a way to check or mitigate it.
   and bonded wherever any oxide survives under it. Plate and truss
   compliance is left out; a body held by a sliver of oxide is fully
   clamped. Acute corners sharper than about 23 degrees are beveled by the
-  mitre limit of the opening. Watch `Body.box` for slivers.
+  miter limit of the opening. Watch `Body.box` for slivers.
 - **Beams are straight prisms**, (4): a candidate that touches two bodies is
   one Euler-Bernoulli beam of length the chord between its attachments and
   width its area over that length. A candidate with less than 0.9 of its
@@ -181,9 +181,9 @@ consequence, and a way to check or mitigate it.
   the excess still moves by about a percent as it grows further.
 - **With `surrogate_tolerance`** a cluster is the second-order expansion of
   the nearest kept solution, (148) to (150), with its Hessian frozen: the
-  Hessian errs by order $\sqrt{\tau_c}$, which slows Newton and Radau but
-  does not move results; the radius is sized by the error of the sidewall
-  and fringe expansions.
+  Hessian errs by order $\sqrt{\tau_c}$, which slows Newton iteration and
+  the integrator but does not move results; the radius is sized by the error
+  of the sidewall and fringe expansions.
 - **Left out:** tapered walls, handle trenches, a lid electrode, squeeze-film
   damping in the vertical gap, Casimir and van der Waals forces, charging.
 

@@ -12,9 +12,8 @@ and rows follow bodies that travel far is on the [next page](travel.md).
 
 ## Surrogate for displaced bodies
 
-An equilibrium or a transient evaluates the capacitance model at many
-displacements close to each other, and with the field method every
-evaluation solves each cluster anew at the cost of the solve at rest. Each
+With the field method every evaluation of the model solves each cluster
+anew at the cost of the solve at rest. Each
 such solution gives more than values: with $\mathbf{m}$ the in-plane motion
 of the bodies of a cluster, $(a_x, a_y, a_\psi)$ of (114) for each, it gives
 the matrix $\mathbf{c}$ and its first and second derivatives in
@@ -44,12 +43,12 @@ $$
 Elsewhere the cluster is solved anew and the solution kept. The gradient is
 the exact derivative of the expanded matrix, so forces within one radius
 derive from one energy. The error of the gradient grows as $\rho^2$, which
-sets the radii: when a new solution at $\mathbf{m}_b$ lies within four
-radii of the nearest kept one, the error $e$ of that one's expansion there,
-the largest of the relative errors of $\mathbf{c}$ and of its gradient in
-the Frobenius norm, and of the fringe matrix and its gradient when the
-fringe is kept, resizes it, and the new solution starts with the
-result:
+sets the radii. When a new solution at $\mathbf{m}_b$ lies within four
+radii of the nearest kept one, the error $e$ of that one's expansion there
+resizes it, and the new solution starts with the result. The error is the
+largest of the relative errors, in the Frobenius norm, of $\mathbf{c}$ and
+of its gradient, and of the fringe matrix and its gradient when the fringe
+is kept:
 
 $$
 r_a \leftarrow \min\Bigl( 2\, r_a,\; 0.5\, \rho(\mathbf{m}_b, \mathbf{m}_a) \sqrt{\tau_c / e} \Bigr), \qquad

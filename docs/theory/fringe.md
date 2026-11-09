@@ -1,12 +1,11 @@
 # Fringe above and below the device layer
 
-The layout-plane field treats every sidewall as if it went on without end in
-height. Real walls end at the top and bottom faces of the device layer, and
-the field that leaves those ends arches across gaps and reaches down to the
-handle. This page adds that field: a two-dimensional cut across every wall,
-solved in the plane of its normal and the vertical, what the cut holds beyond
-the layout-plane field and the plates, and how the cuts are summed along the
-walls, expanded from a grid, and rounded where walls pass each other.
+This page adds the field that the layout-plane solution leaves out, the
+field that leaves the top and bottom ends of every wall: a two-dimensional
+cut across every wall, solved in the plane of its normal and the vertical,
+what the cut holds beyond the layout-plane field and the plates, and how the
+cuts are summed along the walls, expanded from a grid, and rounded where
+walls pass each other.
 `include_fringe` of `ElectrostaticParams` switches it on, and its part of the
 matrix is `CapacitanceModel.fringe`.
 
@@ -62,7 +61,7 @@ is centered on the wall, goes with the wall.
 
 Walls repeat, and so do cuts. A cut is rounded to a grid of $\Delta = \min(t,
 g_0, g_\text{min}) / 4$, with $g_\text{min}$ the narrowest gap between
-electrodes of different bodies of the group at rest, and solved once for
+electrodes of different bodies of the cluster at rest, and solved once for
 every rounded cut met; a cut that rounding would close, silicon or a gap
 narrower than $\Delta$, keeps its own geometry. The expansion (160) carries
 the rounding of the nearest end of each body to first order, so what the

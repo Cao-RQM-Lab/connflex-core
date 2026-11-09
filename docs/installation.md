@@ -14,7 +14,7 @@ extras:
 | `gds` | gdstk | Reads GDSII files. |
 | `klayout` | klayout | Reads KLayout layouts and cells. GPL-3 licensed. |
 | `gdsfactory` | gdsfactory | Reads gdsfactory components. Includes klayout. |
-| `fast` | numba | Compiles the field kernels, a few times faster per thread. |
+| `fast` | numba | Compiles the field kernels, a few times faster than the numpy code. |
 | `all` | all of the above | |
 
 ```sh

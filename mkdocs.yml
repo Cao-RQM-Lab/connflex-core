@@ -47,7 +47,7 @@ nav:
           - Electrodes and links: theory/electrical.md
           - Plates between device and handle: theory/plates.md
           - Sidewall capacitance: theory/sidewalls.md
-          - Facing plates and the method for each pair: theory/methods.md
+          - Facing plates and method for each pair of nets: theory/methods.md
           - Capacitance of a structure: theory/capacitance.md
       - Electromechanical:
           - Static equilibrium: theory/equilibrium.md

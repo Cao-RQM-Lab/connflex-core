@@ -103,8 +103,10 @@ publishing an entry point in the `connflex_core.adapters` group.
 ## Describe the process
 
 A stack lists the three SOI layers from top down. Thickness is required for
-each; material presets can be overridden field by field. Beam stiffness uses
-the device-layer material; other layers contribute mass only.
+each; material presets can be overridden field by field. Every layer
+contributes mass; beam stiffness and link resistance come from the
+device-layer material, and the box material's permittivity sets the
+capacitance through surviving oxide.
 
 ```python
 stack = cf.Stack(
@@ -155,13 +157,14 @@ structure.stack, structure.params  # layer stack and parameters of the extractio
 structure.to_dict()  # JSON-serializable tree with GeoJSON-style polygons
 ```
 
-Stages follow the [theory of extraction](theory/extraction.md): release holes are filled,
-device and handle layers are healed and simplified, cavities that healing
-closes are filled as well, the holes and the `release` layer give the
-surviving buried oxide, an anchor handle polygon is selected, polygons with no connection to it through the stack are dropped,
-bodies are assembled by overlap through the opened device layer, oxide, and
-handle, and device regions removed by the opening become beams when they
-touch exactly two bodies and their width lies within `beam_width_min` and
+Stages follow the [theory of extraction](theory/extraction.md). Release
+holes are filled, and device and handle layers are healed and simplified;
+cavities that healing closes are filled as well. The holes and the `release`
+layer give the surviving buried oxide. An anchor handle polygon is selected,
+and polygons with no connection to it through the stack are dropped. Bodies
+are assembled by overlap through the opened device layer, oxide, and handle.
+Device regions removed by the opening become beams when they touch exactly
+two bodies and their width lies within `beam_width_min` and
 `beam_width_max`. Each body carries its mass, center of mass, and inertia
 tensor, computed layer by layer from the stack with exact closed-form edge
 integrals and with release openings removed from the device layer;
@@ -288,6 +291,10 @@ definitions are in
 
 ## Capacitance model
 
+By default a field solve puts every processor to work, in child
+interpreters that the first solve starts and that hold the library's imports
+each; [Workers](#workers) tells how to set their number.
+
 ```python
 params = cf.ElectrostaticParams(element_size=2e-6, interaction_distance=30e-6)
 model = structure.capacitance(params)
@@ -336,7 +343,7 @@ gap, a toothed motor its tooth width over the gap at the tips.
 | Feature size | Method | Accuracy against one dense system |
 | --- | --- | --- |
 | below `dense_cutoff`, 10 | field in one dense system | reference |
-| up to `plates_cutoff`, 100 | field in windows | within about 2 percent where the facing walls are no longer than about `interaction_distance`; 3 to 4.5 percent low between pads several times longer than it |
+| up to `plates_cutoff`, 100 | field in windows | within about 2 percent where the facing walls are no longer than a few `interaction_distance`; 3 to 4.5 percent low between pads several times longer than it |
 | from `plates_cutoff` | facing walls as parallel plates | within about 3.5 percent in capacitance and 1 percent in pull and side spring at 100 gaps, better beyond |
 
 Plates cost a small part of a field solution and leave out all fringe
@@ -844,9 +851,13 @@ current at that time, and with the bodies at rest at zero displacement or at
 `start`, an `Equilibrium` or a displacement. To drive a signal on top of a
 bias, start from the equilibrium at that bias with a waveform that equals
 the bias at `times[0]`. Damping is one quality factor for every mode of the
-structure without potentials. The run ends at `times[-1]`, or earlier when the
-narrowest gap between two bodies closes to `contact_clearance` of its width
-at rest; the time of that event is then the last of `run.times`.
+structure without potentials. `method` chooses the integrator: Radau IIA by
+default, or `"bdf"`, backward differentiation formulas, which evaluate the
+capacitance model about half as often per step at lower accuracy per step
+and so take more steps where the motion is fast. The run ends at
+`times[-1]`, or earlier when the narrowest gap between two bodies closes to
+`contact_clearance` of its width at rest; the time of that event is then
+the last of `run.times`.
 
 A sequence of drives is part of the waveforms you pass. The phases of a
 stepper are one waveform per phase, each on in its turn:
@@ -896,8 +907,13 @@ ten times; outputs between steps expand the model at the end of their step
 and cost no evaluation, so the output grid may be as fine as you like. An
 evaluation is fractions of a millisecond with plates to the handle, a few
 milliseconds with the plates method, and as long as the solve at rest with
-the field method. `CapacitanceModel.expand` gives that expansion of any
-evaluated model at a nearby displacement. Formulas are in
+the field method. `CapacitanceModel.expand(displacement)` gives that
+expansion of any evaluated model: `matrix` to second order and `gradient`
+to first in the step from the model's displacement, with the second
+derivatives and the four parts as they were, and the clearance from the
+geometry at the new displacement. Its error grows with the cube of the
+step, so it serves outputs near an evaluated displacement, where `at`
+would solve the field again, and not iteration. Formulas are in
 [transient](theory/transient.md).
 
 ## Workers

@@ -7,11 +7,9 @@ optional release polygons of a `Layout`, the layer `Stack`, and an
 `ExtractionParams`, and `extract` runs it. Its results are the bodies and beams
 of a `Structure`, and the candidates it rejected with the reason for each.
 
-As a self-contained polygon-to-mechanics simulator, connflex-core automatically
-extracts mechanical components given a GDS file (or a number of generic
-polygons). connflex-core targets the silicon-on-insulator (SOI) process and
-expects separate polygon objects for the device, handle, and
-optionally device release hole layers.
+The process is silicon on insulator: a device layer over buried oxide over a
+handle, each layer drawn as its own polygons, with release holes either in a
+layer of their own or as holes in the device polygons.
 
 Let $D$, $H$, and $R$ be the device, handle, and release hole regions,
 respectively. Isotropic expansion and erosion of region $R$ by distance $d$
@@ -54,7 +52,7 @@ The largest handle polygon by area is selected as the anchor for the entire
 structure. connflex-core iterates through all polygons in $D$ and $H$, discarding
 all polygons without a connection to the anchor.
 
-All features of width at most $w_\text{min}$ are removed through an erosion
+All features narrower than $w_\text{min}$ are removed through an erosion
 then an expansion by $w_\text{min}/2$,
 
 $$
@@ -155,7 +153,7 @@ of its area inside and passes as a strip of its mean width.
     polygon by polygon. An opening never leaves its polygon, so the parts of a
     disjoint set stay disjoint and the result is the same as opening the set as
     a whole, without the union that a single buffer over the set performs.
-    Along an edge at an angle to the axes, the mitre buffers leave a vertex a
+    Along an edge at an angle to the axes, the miter buffers leave a vertex a
     few $10^{-15}$ m off the line wherever a feature was removed; vertices
     within $10^{-12}$ m of the line through their neighbors are dropped after
     the opening, so that an outline repeats its edges exactly where its

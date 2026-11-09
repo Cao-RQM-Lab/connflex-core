@@ -10,11 +10,7 @@ motion of the conductors, and the division of a large mesh into windows.
 `sidewall_capacitance` runs it on polygons, and the
 [capacitance model](capacitance.md) on the electrodes of a structure.
 
-Facing sidewalls of device silicon form capacitors across trenches. Where the
-device layer is thick against the width of a trench, the field between
-sidewalls does not vary through the thickness, and capacitance is that of a
-two-dimensional problem in the layout plane times the thickness. This section
-treats the plane problem for a set of conductors: regions bounded by
+The plane problem is posed for a set of conductors: regions bounded by
 polygons, conductor $a$ at potential $V_a$, in a medium of permittivity
 $\varepsilon = \varepsilon_0 \varepsilon_a$. Every charge and capacitance
 here is per unit thickness.

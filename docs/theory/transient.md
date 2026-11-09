@@ -8,8 +8,7 @@ tolerances, the current of each source, the energy ledger that checks the
 integration, the start of a run, and the contact event that ends one early.
 `Structure.transient` runs it and returns a `Transient`.
 
-Under large or switched drive, through resistance, the structure is followed
-in time. The unknowns are the displacement $\mathbf{q}$ and velocity
+The unknowns are the displacement $\mathbf{q}$ and velocity
 $\mathbf{u}$ of the bodies that beams join to the anchor, and the charge
 $\mathbf{Q}_d$ on each node that a source reaches only through resistance.
 With the force of (120) at the potentials of the moment and constant
@@ -153,10 +152,10 @@ $$
 \tau_t\, g_0, \quad \tau_t\, \frac{g_0}{\sqrt{A_B}}, \quad \tau_t\, g_0\, \omega_1, \quad \tau_t\, \frac{g_0}{\sqrt{A_B}}\, \omega_1, \quad \tau_t\, C_{dd} V_0, \quad \tau_t\, \tfrac{1}{2} V_0^2 \sum_k C_{kk}, \tag{146}
 $$
 
-for translations, rotations of a body of area $A_B$, its device silicon or
-its handle silicon when it has none, with $\sqrt{A_B}$ taken no smaller
-than $g_0$, translational and angular velocities, charges, and energies,
-with $g_0$ the gap of the buried oxide, $\omega_1$ the lowest
+for translations, rotations, translational and angular velocities, charges,
+and energies in turn. Here $g_0$ is the gap of the buried oxide, $A_B$ the
+area of the body's device silicon, or of its handle silicon when it has
+none, with $\sqrt{A_B}$ taken no smaller than $g_0$, $\omega_1$ the lowest
 frequency of (38), and $V_0$ the largest source value at the output times
 and breakpoints, at least one volt. The run starts at $\mathbf{q}_0$, rest
 or the displacement given, at zero velocity, with the potentials that

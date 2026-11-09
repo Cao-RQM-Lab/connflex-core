@@ -7,8 +7,7 @@ wires. This page defines both from the polygons of the extraction and gives
 the resistance of each kind of link. `extract` builds them, and they are read
 from `Structure.nets`, `Structure.electrodes`, and `Structure.links`.
 
-The electrical model is a network whose nodes are electrodes and whose
-branches are links. Its conductors are the connected regions of the healed
+The conductors of the network are the connected regions of the healed
 device and handle layers that survive pruning, and nets are the groups of
 conductors joined through vias and through wires: connections made off the
 die, such as wire bonds between pads, bonds to a package, or traces on a
