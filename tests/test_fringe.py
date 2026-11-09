@@ -2,7 +2,8 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
-from shapely import Polygon, box
+import shapely
+from shapely import Polygon, affinity, box
 
 from connflex_core import (
     ElectrostaticParams,
@@ -350,19 +351,29 @@ def _spans_by_overlay(
         ([box(100, 100, 120, 120)], (0.0, 0.0), (1.0, 0.0), True),
     ],
 )
+@pytest.mark.parametrize("turn", [0.0, 1e-3, 7.0])
 def test_silicon_along_a_cut_matches_the_overlay_of_the_line_with_closed_polygons(
     polygons: list[Polygon],
     origin: tuple[float, float],
     direction: tuple[float, float],
     ahead: bool,
+    turn: float,
 ) -> None:
+    """Also with everything turned by ``turn`` degrees about a far point, which puts
+    vertices and edges that lay on the line a rounding off it; the overlay is taken
+    where it is exact, before the turn, as the spans do not change with it."""
     from connflex_core.electrostatics.fringe import Edges
 
     reach = 30.0
-    start, along = np.array([origin]), np.array([direction])
+    about = (100.0, 37.0)
+    turned = [affinity.rotate(polygon, turn, origin=about) for polygon in polygons]
+    point = affinity.rotate(shapely.Point(origin), turn, origin=about)
+    angle = np.deg2rad(turn)
+    rotation = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+    start, along = np.array([[point.x, point.y]]), np.array([rotation @ direction])
     found = [
         (low, high, polygon)
-        for _, low, high, polygon in Edges(polygons).spans(start, along, reach, ahead, 1e-6 * reach)
+        for _, low, high, polygon in Edges(turned).spans(start, along, reach, ahead, 1e-6 * reach)
     ]
     expected = _spans_by_overlay(polygons, np.array(origin), np.array(direction), reach, ahead)
     mine, theirs = _merged(found), _merged(expected)

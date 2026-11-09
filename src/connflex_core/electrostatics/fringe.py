@@ -309,10 +309,12 @@ class Edges:
         of each stretch, in distance along the line from the origin.
 
         The polygons are closed, so an edge along a line is silicon, as the overlay of
-        the line with the polygon has it. A crossing of an edge follows the half-open
-        rule, the line taken to lie a hair on its left so that a vertex on it counts
-        once, and the state of a line just before its start is read from the polygons
-        a hair before and to the left of that point. Envelopes are ``tolerance`` wider
+        the line with the polygon has it. A vertex within a hair of a line is taken to
+        lie on it, so that geometry turned off the axes keeps the edges and vertices
+        that lay on the line. A crossing of an edge follows the half-open rule, the
+        line taken to lie a hair on its left so that a vertex on it counts once, and
+        the state of a line just before its start is read from the polygons a hair
+        before and two to the left of that point. Envelopes are ``tolerance`` wider
         than the lines, so that an edge a line ends on, to rounding, is found.
         """
         far = reach if ahead else 0.0
@@ -328,6 +330,8 @@ class Edges:
         sa, sb = np.einsum("ij,ij->i", ra, left), np.einsum("ij,ij->i", rb, left)
         ta, tb = np.einsum("ij,ij->i", ra, d), np.einsum("ij,ij->i", rb, d)
         nudge = 1e-3 * tolerance  # above rounding, below any feature
+        sa[np.abs(sa) <= nudge] = 0.0
+        sb[np.abs(sb) <= nudge] = 0.0
         before = -reach - nudge
         crosses = (sa > 0.0) != (sb > 0.0)
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -339,7 +343,7 @@ class Edges:
         width = len(self.solids.geometries) + 1
         key = line.astype(np.int64) * width + polygon
         side = np.stack([-direction[:, 1], direction[:, 0]], axis=1)
-        probe = tail - direction * nudge + side * nudge
+        probe = tail - direction * nudge + side * (2 * nudge)
         held_line, held_polygon = self.solids.query(shapely.points(probe), predicate="intersects")
         held = set((held_line.astype(np.int64) * width + held_polygon).tolist())
         spans: list[tuple[int, float, float, int]] = []
