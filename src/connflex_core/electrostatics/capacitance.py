@@ -705,7 +705,7 @@ def _evaluate(
                         full,
                         pool,
                     )
-                if fielded and reused is None and found is not None and found is not group.settled:
+                if fielded and reused is None and found is not None:
                     anchor = _remember(group, full, found, shell, params, structure)
                 settled = found if still and reused is None and found is not None else group.settled
                 groups.append(replace(group, plan=plan, settled=settled))

@@ -147,6 +147,36 @@ def test_expanded_solution_at_a_still_motion_is_not_kept_as_the_rest_field(
     assert rest.sidewall.tolist() == exact.sidewall.tolist()
 
 
+def test_solution_at_a_rise_alone_is_kept_and_its_fringe_not_solved_again(
+    shuttle: Structure, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rise without in-plane travel keeps the sidewalls found at rest and solves the
+    fringe; that pair is kept as a solution, so that the next evaluation near that rise
+    expands it instead of solving the fringe once more."""
+    from connflex_core.electrostatics import capacitance as module
+    from connflex_core.electrostatics.fringe import find_fringe as original
+
+    found: list[int] = []
+
+    def counted(*args: object, **kwargs: object) -> object:
+        found.append(1)
+        return original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(module, "find_fringe", counted)
+    field = replace(FIELD, include_fringe=True, surrogate_tolerance=1e-2)
+    model = shuttle.capacitance(field)
+    assert found == [1]
+    place = np.zeros(len(model.dofs))
+    place[2] = 1.0 * UM
+    risen = model.at(place)
+    assert found == [1, 1]
+    assert risen.clusters[0].anchors == 2
+    again = risen.at(place)
+    assert found == [1, 1]
+    assert again.clusters[0].anchors == 2
+    assert again.fringe.tolist() == risen.fringe.tolist()
+
+
 def test_exact_evaluation_bypasses_surrogate(shuttle: Structure, exact: CapacitanceModel) -> None:
     model = shuttle.capacitance(replace(FIELD, surrogate_tolerance=1e-2))
     place = path()[-1]
