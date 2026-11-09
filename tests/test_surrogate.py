@@ -130,6 +130,23 @@ def test_solution_at_a_kept_motion_replaces_the_kept_one(shuttle: Structure) -> 
     assert model.at(place, exact=True).clusters[0].anchors == kept
 
 
+def test_expanded_solution_at_a_still_motion_is_not_kept_as_the_rest_field(
+    shuttle: Structure, exact: CapacitanceModel
+) -> None:
+    """A surrogate hit at a motion without in-plane travel is an expansion of a kept
+    solution; an exact evaluation at rest afterwards must solve the field or take the
+    solution found at rest, never that expansion."""
+    model = shuttle.capacitance(replace(FIELD, surrogate_tolerance=1e-2))
+    first = np.zeros(len(model.dofs))
+    first[0], first[2] = 0.2 * UM, 1.0 * UM
+    second = np.zeros(len(model.dofs))
+    second[2] = 1.0 * UM
+    moved = model.at(first).at(second)
+    assert moved.clusters[0].anchors == 2  # a hit on the solution at ``first``
+    rest = moved.at(np.zeros(len(model.dofs)), exact=True)
+    assert rest.sidewall.tolist() == exact.sidewall.tolist()
+
+
 def test_exact_evaluation_bypasses_surrogate(shuttle: Structure, exact: CapacitanceModel) -> None:
     model = shuttle.capacitance(replace(FIELD, surrogate_tolerance=1e-2))
     place = path()[-1]
