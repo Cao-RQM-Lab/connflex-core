@@ -315,7 +315,7 @@ which are solved once.
 | Symbol | Meaning | In the code |
 | --- | --- | --- |
 | $\mathbf{m}$, $\rho(\mathbf{m}, \mathbf{m}')$ | motion of the bodies of a cluster and the distance between two motions | internal to `electrostatics.capacitance` |
-| $r_a$, $\tau_c$ | radius of a kept solution and the tolerance it aims at | `Cluster.anchors` counts kept solutions; `ElectrostaticParams.surrogate_tolerance` |
+| $r_a$, $\tau_c$ | radius of a kept solution and the tolerance it aims at | `Cluster.kept` counts kept solutions; `ElectrostaticParams.surrogate_tolerance` |
 | $0.5$ in (150) | factor on the radius | `electrostatics.capacitance.SAFETY` |
 | $G_p$, $R_K$, $K$ | periodic kernel, its remainder, and the copies taken exactly | `electrostatics.periodic`, `electrostatics.periodic.IMAGES` |
 | $\mathbf{t}$, $n_p$ | period of a row and the fewest cells that make one | `ElectrostaticParams.periodic_min_cells`; rows counted in `Cluster.windows` |

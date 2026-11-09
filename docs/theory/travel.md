@@ -68,8 +68,8 @@ overhang of the bar does, and with $d_i$ of 60 micrometers both stay within
 
 !!! note "Cost of the check"
     Checking (164) takes one query of a tree of element centers per window.
-    A surrogate's expansion, (149), checks nothing; its anchors are field
-    solutions, each with the sets of its moment.
+    A surrogate's expansion, (149), checks nothing; the solutions it keeps are
+    field solutions, each with the sets of its moment.
 
 !!! note "Rows that turn"
     Rows that turn are not followed beyond (154): an arc of teeth is no row

@@ -492,7 +492,7 @@ def test_report_lists_capacitance_by_pair_part_net_and_cluster(
             "elements": cluster.elements,
             "windows": 1,
             "asymmetry": cluster.asymmetry,
-            "anchors": 0,
+            "kept": 0,
             "sections": 0,
             "interactions": [
                 {

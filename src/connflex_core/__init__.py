@@ -19,7 +19,12 @@ from connflex_core.electrical.drivers import (
 )
 from connflex_core.electrical.electrodes import Electrode, Link
 from connflex_core.electrical.nets import Conductor, Connection, Nets, Via, Wire, find_nets
-from connflex_core.electrostatics.capacitance import CapacitanceModel, Cluster, HessianBlock
+from connflex_core.electrostatics.capacitance import (
+    CapacitanceModel,
+    Cluster,
+    HessianBlock,
+    Interaction,
+)
 from connflex_core.electrostatics.facing import FacingWalls
 from connflex_core.electrostatics.plates import Plate
 from connflex_core.electrostatics.sidewalls import SidewallCapacitance, sidewall_capacitance
@@ -58,6 +63,7 @@ __all__ = [
     "ExtractionParams",
     "FacingWalls",
     "HessianBlock",
+    "Interaction",
     "Layer",
     "LayerMap",
     "Layout",

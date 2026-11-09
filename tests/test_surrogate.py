@@ -79,7 +79,7 @@ def test_surrogate_follows_field_solution_within_its_tolerance(
     solution keeps gradient and capacitance within the tolerance, which is a target the
     radius rule aims at, from fewer solutions the looser the tolerance."""
     truths = [exact.at(place) for place in path()]
-    anchors = {}
+    kept = {}
     for tolerance in (1e-2, 3e-4):
         model = shuttle.capacitance(replace(FIELD, surrogate_tolerance=tolerance))
         worst = 0.0
@@ -91,10 +91,10 @@ def test_surrogate_follows_field_solution_within_its_tolerance(
                 relative(found.matrix, truth.matrix),
             )
             assert found.clearance == pytest.approx(truth.clearance)
-        anchors[tolerance] = found.clusters[0].anchors
+        kept[tolerance] = found.clusters[0].kept
         assert worst < tolerance
-    assert 1 <= anchors[1e-2] < anchors[3e-4] < len(path())
-    assert exact.clusters[0].anchors == 0
+    assert 1 <= kept[1e-2] < kept[3e-4] < len(path())
+    assert exact.clusters[0].kept == 0
 
 
 def test_surrogate_holds_its_tolerance_after_rise_and_tilt(shuttle: Structure) -> None:
@@ -121,13 +121,13 @@ def test_surrogate_holds_its_tolerance_after_rise_and_tilt(shuttle: Structure) -
 
 def test_solution_at_a_kept_motion_replaces_the_kept_one(shuttle: Structure) -> None:
     model = shuttle.capacitance(replace(FIELD, surrogate_tolerance=1e-2))
-    assert model.clusters[0].anchors == 1
+    assert model.clusters[0].kept == 1
     rest = np.zeros(len(model.dofs))
-    assert model.at(rest, exact=True).clusters[0].anchors == 1
+    assert model.at(rest, exact=True).clusters[0].kept == 1
     place = path()[-1]
-    kept = model.at(place).clusters[0].anchors
-    assert model.at(place, exact=True).clusters[0].anchors == kept
-    assert model.at(place, exact=True).clusters[0].anchors == kept
+    kept = model.at(place).clusters[0].kept
+    assert model.at(place, exact=True).clusters[0].kept == kept
+    assert model.at(place, exact=True).clusters[0].kept == kept
 
 
 def test_expanded_solution_at_a_still_motion_is_not_kept_as_the_rest_field(
@@ -142,7 +142,7 @@ def test_expanded_solution_at_a_still_motion_is_not_kept_as_the_rest_field(
     second = np.zeros(len(model.dofs))
     second[2] = 1.0 * UM
     moved = model.at(first).at(second)
-    assert moved.clusters[0].anchors == 2  # a hit on the solution at ``first``
+    assert moved.clusters[0].kept == 2  # a hit on the solution at ``first``
     rest = moved.at(np.zeros(len(model.dofs)), exact=True)
     assert rest.sidewall.tolist() == exact.sidewall.tolist()
 
@@ -170,10 +170,10 @@ def test_solution_at_a_rise_alone_is_kept_and_its_fringe_not_solved_again(
     place[2] = 1.0 * UM
     risen = model.at(place)
     assert found == [1, 1]
-    assert risen.clusters[0].anchors == 2
+    assert risen.clusters[0].kept == 2
     again = risen.at(place)
     assert found == [1, 1]
-    assert again.clusters[0].anchors == 2
+    assert again.clusters[0].kept == 2
     assert again.fringe.tolist() == risen.fringe.tolist()
 
 
@@ -218,7 +218,7 @@ def test_transient_with_surrogate_settles_with_few_field_solutions(soft: Structu
     assert run.displacement[-1] == pytest.approx(
         rest.displacement, rel=1e-4, abs=1e-4 * rest.displacement[0]
     )
-    assert run.model.clusters[0].anchors < run.evaluations / 20
+    assert run.model.clusters[0].kept < run.evaluations / 20
 
 
 def test_surrogate_tolerance_is_checked() -> None:
@@ -235,7 +235,7 @@ def test_surrogate_hit_reuses_the_mapped_hessian_blocks(shuttle: Structure) -> N
     place = path()[-2]
     first = model.at(place)
     second = model.at(place * 1.001)
-    assert second.clusters[0].anchors == first.clusters[0].anchors
+    assert second.clusters[0].kept == first.clusters[0].kept
     assert len(second.blocks) == len(first.blocks) > 0
     assert all(
         mine.values is theirs.values

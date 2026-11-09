@@ -434,7 +434,7 @@ the nearest earlier solution of it, expanded to second order in the motion
 of its bodies, as long as that expansion stays within the tolerance in
 capacitance and its gradient; elsewhere it is solved anew and the new
 solution kept. Its fringe is kept and expanded with it. The radius around each solution follows from how well it
-predicted the next one. `model.clusters[k].anchors` counts the solutions a
+predicted the next one. `model.clusters[k].kept` counts the solutions a
 cluster holds, and `model.at(displacement, exact=True)` solves anew
 regardless. `equilibrium` solves its result anew, so its stiffness and
 model are exact at a displacement that converged on the expanded forces,
@@ -447,7 +447,7 @@ plates method are cheap and always evaluated exactly.
 ```python
 model = structure.capacitance(cf.ElectrostaticParams(..., surrogate_tolerance=1e-4))
 run = structure.transient(model, sources, times, options)
-run.model.clusters[0].anchors  # field solutions the run needed
+run.model.clusters[0].kept  # field solutions the run needed
 ```
 
 `to_dict` gives a tree for review. It lists every pair of electrodes with

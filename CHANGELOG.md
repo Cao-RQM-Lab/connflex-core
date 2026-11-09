@@ -16,7 +16,7 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Documentation page "Assumptions and limits": every assumption,
   idealization, and left-out effect of each stage, with what it costs and
   how to check it.
-- `anchors` and `sections` of each cluster in `CapacitanceModel.to_dict`.
+- `kept` and `sections` of each cluster in `CapacitanceModel.to_dict`.
 - `TransientOptions.method`: `"radau"`, the Radau IIA integrator as before, or
   `"bdf"`, backward differentiation formulas of variable order up to 5, which
   evaluate the capacitance model about half as often per step at lower
@@ -49,6 +49,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `Cluster.anchors` and the `anchors` entry of `CapacitanceModel.to_dict`
+  are `kept`, the field solutions a cluster keeps for reuse, so that
+  "anchor" names the anchor body alone. `Interaction`, the feature size and
+  method of a pair of nets in `Cluster.interactions`, is importable from
+  `connflex_core`.
 - The silicon along each fringe cut is read off the polygon edges in a
   spatial index, by the half-open crossing rule with edges along the line
   counted as silicon, instead of an overlay of the line with each polygon;
@@ -177,7 +182,7 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   not grow it, so rise and tilt no longer widen a radius that then reuses a
   solution for in-plane steps beyond `surrogate_tolerance`.
 - A field solution at a motion already kept by the surrogate replaces the
-  kept one instead of being kept twice; `Cluster.anchors` counts distinct
+  kept one instead of being kept twice; `Cluster.kept` counts distinct
   motions.
 - Rows of identical cells are found on combs at any angle to the layout axes
   and at any pitch: the period is the translation as drawn rather than rounded

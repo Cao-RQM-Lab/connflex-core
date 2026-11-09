@@ -75,7 +75,7 @@ class Cluster:
             position in ``electrodes``.
         interactions: Feature size and method of each pair of nets whose electrodes in
             the cluster lie within ``interaction_distance`` of each other.
-        anchors: Field solutions of it that the surrogate holds, equation (148); 0 when
+        kept: Field solutions of it that the surrogate holds, equation (148); 0 when
             ``surrogate_tolerance`` is None or no pair is solved by the field method.
         sections: Distinct cross-sections that the cuts across its walls took for the
             fringe, equation (160); 0 without ``include_fringe``.
@@ -87,7 +87,7 @@ class Cluster:
     asymmetry: float
     walls: FacingWalls
     interactions: tuple[Interaction, ...]
-    anchors: int = 0
+    kept: int = 0
     sections: int = 0
 
 
@@ -224,7 +224,9 @@ class CapacitanceModel:
     others at zero, so ``-matrix[a, b]`` is the capacitance between two electrodes.
 
     Attributes:
-        matrix: Sum of ``oxide``, ``released``, ``sidewall``, and ``fringe``.
+        matrix: Sum of ``oxide``, ``released``, ``sidewall``, and ``fringe`` as
+            evaluated; ``expand`` carries it to a nearby displacement and leaves the
+            parts as they were.
         oxide: Part through surviving buried oxide, between device and handle electrodes.
         released: Part across released gaps between device and handle electrodes.
         sidewall: Part between sidewalls of device electrodes in the layout plane.
@@ -384,8 +386,8 @@ class CapacitanceModel:
         ``pairs`` lists every two electrodes with capacitance between them: its oxide,
         released, sidewall, and fringe parts and their total in farads, their nets, and the
         change of the total with the six degrees of freedom of each body that changes
-        it. ``clusters`` lists the electrodes, elements, windows, asymmetry, anchors,
-        sections, and interactions of each cluster; ``net_matrix``, ``dofs``,
+        it. ``clusters`` lists the electrodes, elements, windows, asymmetry, kept
+        solutions, sections, and interactions of each cluster; ``net_matrix``, ``dofs``,
         ``displacement``, ``clearance``, ``closest``, and ``unassigned_area`` are as on
         the model.
         """
@@ -417,7 +419,7 @@ class CapacitanceModel:
                     "elements": cluster.elements,
                     "windows": cluster.windows,
                     "asymmetry": cluster.asymmetry,
-                    "anchors": cluster.anchors,
+                    "kept": cluster.kept,
                     "sections": cluster.sections,
                     "interactions": [
                         {
