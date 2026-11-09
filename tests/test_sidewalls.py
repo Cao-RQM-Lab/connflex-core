@@ -243,6 +243,26 @@ def test_window_that_is_a_translate_takes_the_solution_of_its_original(
         assert found == pytest.approx(expected, rel=1e-9, abs=1e-12 * np.max(abs(expected)))
 
 
+def test_field_of_a_window_is_solved_once_however_its_search_ends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A window whose overlap search settles before the widest overlap keeps the
+    derivatives of the solve that settled it, instead of solving the same field once
+    more for them."""
+    conductors = interleaved()
+    original = windows.solve_window
+    solved: list[bytes] = []
+
+    def counted(mesh: Mesh, *rest: Any) -> Any:
+        solved.append(mesh.start.tobytes() + rest[1].tobytes())
+        return original(mesh, *rest)
+
+    monkeypatch.setattr(windows, "solve_window", counted)
+    found = sidewall_capacitance(conductors, in_windows(conductors), workers=1)
+    assert found.windows >= 8
+    assert len(solved) == len(set(solved))
+
+
 def test_derivatives_of_charge_on_some_elements_are_exact() -> None:
     """A window counts charge on its core alone; elements keep their places as bodies move."""
     squares = [MultiPolygon([um(box(0, 0, 10, 10))]), MultiPolygon([um(box(12, -2, 20, 9))])]

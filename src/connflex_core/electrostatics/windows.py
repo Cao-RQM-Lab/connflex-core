@@ -115,7 +115,7 @@ class _Solved:
     """Charge on the core of a window per volt on each of its conductors, in an order
     that translates share, and its derivatives about the corner of the core, which are
     the same for every translate; found under ``lock`` when the window that solved the
-    field did not know it was its last."""
+    field, for a wider one to follow, turned out to be a translate's last."""
 
     capacitance: Array
     charge: Array
@@ -255,7 +255,7 @@ def solve_windows(
 
     def solve(inside: Index, core: Index, last: bool) -> tuple[_Window, _Solved]:
         """Window of ``inside`` and its field, with derivatives when ``last`` says that
-        no wider window will replace it."""
+        it may be the window kept: the widest, or one that may settle the search."""
         corner = center[core].min(axis=0)
         order, present, moving, kinds, key = canonical(mesh, inside, body, corner, {})
         elements = inside[order]
@@ -267,30 +267,30 @@ def solve_windows(
         overlap = FIRST_OVERLAP * size if reach is None else min(FIRST_OVERLAP * size, reach)
         held: tuple[_Window, _Solved] | None = None
         share = np.zeros((conductors, conductors))
-        smallest, taken = True, 0.0
+        taken = 0.0
         if windows is not None:
             elements = follow(number if keys is None else keys[number], core, windows)
             if len(elements):
                 held = solve(elements, core, True)
+        inside = around(tree, center, core, overlap)
         while windows is None:
-            inside = around(tree, center, core, overlap)
             if len(inside) > limit:
-                if smallest:
-                    raise ValueError(
-                        f"a window needs {len(inside)} boundary elements, more than "
-                        f"max_elements = {limit}: raise max_elements or element_size, or "
-                        f"lower window_elements"
-                    )
-                break
-            smallest = False
+                raise ValueError(
+                    f"a window needs {len(inside)} boundary elements, more than "
+                    f"max_elements = {limit}: raise max_elements or element_size, or "
+                    f"lower window_elements"
+                )
             if held is None:
                 taken = overlap
             present = np.unique(mesh.conductor[inside])
             before, share = share, np.zeros((conductors, conductors))
             settled = False
             widest = len(inside) == count or (reach is not None and overlap >= reach)
+            wider = overlap if widest else 2 * overlap if reach is None else min(2 * overlap, reach)
+            beyond = inside if widest else around(tree, center, core, wider)
+            last = widest or len(beyond) > limit  # no wider window will be solved
             if useful(present, core):
-                found = solve(inside, core, widest)
+                found = solve(inside, core, last or held is not None)
                 ordered = found[0].present
                 share[np.ix_(ordered, ordered)] = found[1].capacitance
                 settled = held is not None and bool(
@@ -298,9 +298,9 @@ def solve_windows(
                 )
                 held = found
                 taken = overlap
-            if settled or widest:
+            if settled or last:
                 break
-            overlap = 2 * overlap if reach is None else min(2 * overlap, reach)
+            overlap, inside = wider, beyond
         if held is None:
             return _Found(taken, np.zeros(0, dtype=np.intp), None)
         window, solved = held
