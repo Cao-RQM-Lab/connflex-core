@@ -47,6 +47,86 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   interpreter's lock; the numpy code remains the fallback, and
   `connflex_core.electrostatics.pairs.COMPILED` tells which is in use.
 
+### Changed
+
+- The silicon along each fringe cut is read off the polygon edges in a
+  spatial index, by the half-open crossing rule with edges along the line
+  counted as silicon, instead of an overlay of the line with each polygon;
+  the cuts are the same and large outlines with many vertices cut several
+  times faster.
+- An evaluation at a displacement solves the sidewall field of a cluster only
+  where one of its bodies has moved in the plane; a cluster with none moved
+  keeps the solution found at rest, which rise and tilt do not change. The
+  final exact evaluation of an equilibrium and models without a surrogate
+  solved every cluster again.
+- Assembly of a dense field system integrates each unordered pair of elements
+  once and mirrors the value, since the matrix is symmetric; the two entries
+  of a pair differed by rounding before, so results move by that much.
+- Transient outputs between steps come from the model evaluated at the end
+  of their step, expanded at the output's displacement, instead of a field
+  evaluation at every output time; `Transient.evaluations` counts the
+  integration alone and a finer output grid costs only its samples. The
+  model of the result is still evaluated at the last time.
+- Clearance at a displacement skips the geometry that a bound on the motion
+  rules out: how far a rigid motion carries any point of an electrode bounds
+  how far each gap can have closed, so pairs that cannot be the narrowest,
+  clusters whose electrodes cannot touch, and pairs that cannot have come
+  within the interaction distance are passed over, and the pairs that no
+  cluster measures are found once at rest instead of at every evaluation. The
+  values do not change.
+- The second derivative of a kept field solution, which its expansion leaves
+  as it is, is mapped onto the degrees of freedom once and shared by every
+  evaluation that expands it, instead of being mapped again at each.
+- `Plate.jacobian`, the map from the degrees of freedom of its two bodies to
+  travel, rise, and slopes at its origin, is built once per plate instead of
+  twice per evaluation, where it was most of the cost of a plate.
+- The theory of operation is split into pages by block: layout and beams,
+  mechanics, electrodes and links, plates, sidewall capacitance, facing
+  plates and the method for each pair, capacitance of a structure, static
+  equilibrium, small signal, transient, field solutions over travel, fringe,
+  windows and rows over travel, and symbols, under an overview that maps pages to equations and entry
+  points. Equation numbers are unchanged and run in one sequence across the
+  pages. Each page opens with what it computes and ends with its symbols
+  against their names in the code, and the implementation notes are titled by
+  subject.
+- The usage page opens with a table of tasks against its sections, and the
+  home page describes each page.
+- A beam candidate with less than `STRAIGHT_FILL` = 0.9 of its area in the
+  straight strip of its mean width along the chord between its attachments,
+  as a folded or stepped flexure has, is rejected with that reason instead
+  of becoming a straight beam along that chord. Slanted ends and mild tapers
+  pass.
+- The surrogate's radius factor, `SAFETY` in equation (150), is 0.5 instead
+  of 0.8: at 0.8 the gradient error reached 1.4 times `surrogate_tolerance`
+  on a comb closing its side gaps, at 0.5 it stays within 0.6 of it, from
+  about a third more field solutions at 1e-3. The tolerance is documented as
+  a target the radius rule aims at, not a bound.
+- Window planning counts the elements of a trial window through the index of
+  element centers rather than by testing every element of the mesh.
+- Hessian blocks are mapped onto body degrees of freedom by matrix products
+  rather than by an `einsum` over six indices.
+- The handle slab of a cross-section reaches four device thicknesses past the
+  cut, from one: the excess to the handle was about 5 percent short of its
+  settled value at one thickness. The theory page restates the fringe table
+  and the comb example with the new values and the slab's convergence.
+- Cross-section faces are meshed at the box height only where they pass the
+  wall or the edge of a block, and coarsen to an eighth of the device
+  thickness away from them; the handle slab is so meshed under every block
+  edge. A cut with a thin box under a thick layer takes a few hundred
+  elements instead of thousands, at a few tenths of a percent of its excess.
+- Fringe cuts are keyed on a grid of a quarter of the smallest of device
+  thickness, released gap, and narrowest sidewall gap of their group, from a
+  sixteenth of the smaller of the first two; their expansion carries the
+  rounding of the nearest ends to first order, so fewer distinct
+  cross-sections are solved at a cost of second order in the capacitance and
+  of about first order in force and stiffness, which the theory page states.
+
+### Removed
+
+- `Material.torsion_model`: it accepted one value and nothing read it; the
+  torsion constant is that of a solid rectangle, equation (20), with the
+  short-beam correction of `torsion_beta`.
+
 ### Fixed
 
 - The torque of a row of identical cells, taken from a window, was not the
@@ -102,7 +182,7 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Rows of identical cells are found on combs at any angle to the layout axes
   and at any pitch: the period is the translation as drawn rather than rounded
   to a grid, and the body opening drops the vertices a few femtometers off a
-  straight edge that mitre buffers leave at an angle, which also cut boundary
+  straight edge that miter buffers leave at an angle, which also cut boundary
   elements there.
 - Rows of identical cells are found on a comb whose fingers stand on both
   sides of a spine wherever it is drawn: the elements of a cell are ordered by
@@ -132,87 +212,6 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Two consecutive outline vertices within `1e-6` of `element_size` of each
   other, as healing can leave them, no longer make a boundary element of that
   length, whose row of the field matrix was noise.
-
-### Removed
-
-- `Material.torsion_model`: it accepted one value and nothing read it; the
-  torsion constant is that of a solid rectangle, equation (20), with the
-  short-beam correction of `torsion_beta`.
-
-### Changed
-
-- The silicon along each fringe cut is read off the polygon edges in a
-  spatial index, by the half-open crossing rule with edges along the line
-  counted as silicon, instead of an overlay of the line with each polygon;
-  the cuts are the same and large outlines with many vertices cut several
-  times faster.
-- An evaluation at a displacement solves the sidewall field of a cluster only
-  where one of its bodies has moved in the plane; a cluster with none moved
-  keeps the solution found at rest, which rise and tilt do not change. The
-  final exact evaluation of an equilibrium and models without a surrogate
-  solved every cluster again.
-- Assembly of a dense field system integrates each unordered pair of elements
-  once and mirrors the value, since the matrix is symmetric; the two entries
-  of a pair differed by rounding before, so results move by that much.
-- Transient outputs between steps come from the model evaluated at the end
-  of their step, expanded at the output's displacement, instead of a field
-  evaluation at every output time; `Transient.evaluations` counts the
-  integration alone and a finer output grid costs only its samples. The
-  model of the result is still evaluated at the last time.
-- Clearance at a displacement skips the geometry that a bound on the motion
-  rules out: how far a rigid motion carries any point of an electrode bounds
-  how far each gap can have closed, so pairs that cannot be the narrowest,
-  clusters whose electrodes cannot touch, and pairs that cannot have come
-  within the interaction distance are passed over, and the pairs that no
-  cluster measures are found once at rest instead of at every evaluation. The
-  values do not change.
-- The second derivative of a kept field solution, which its expansion leaves
-  as it is, is mapped onto the degrees of freedom once and shared by every
-  evaluation that expands it, instead of being mapped again at each.
-- `Plate.jacobian`, the map from the degrees of freedom of its two bodies to
-  travel, rise, and slopes at its origin, is built once per plate instead of
-  twice per evaluation, where it was most of the cost of a plate.
-
-- The theory of operation is split into pages by block: layout and beams,
-  mechanics, electrodes and links, plates, sidewall capacitance, facing
-  plates and the method for each pair, capacitance of a structure, static
-  equilibrium, small signal, transient, field solutions over travel, fringe,
-  windows and rows over travel, and symbols, under an overview that maps pages to equations and entry
-  points. Equation numbers are unchanged and run in one sequence across the
-  pages. Each page opens with what it computes and ends with its symbols
-  against their names in the code, and the implementation notes are titled by
-  subject.
-- The usage page opens with a table of tasks against its sections, and the
-  home page describes each page.
-- A beam candidate with less than `STRAIGHT_FILL` = 0.9 of its area in the
-  straight strip of its mean width along the chord between its attachments,
-  as a folded or stepped flexure has, is rejected with that reason instead
-  of becoming a straight beam along that chord. Slanted ends and mild tapers
-  pass.
-- The surrogate's radius factor, `SAFETY` in equation (150), is 0.5 instead
-  of 0.8: at 0.8 the gradient error reached 1.4 times `surrogate_tolerance`
-  on a comb closing its side gaps, at 0.5 it stays within 0.6 of it, from
-  about a third more field solutions at 1e-3. The tolerance is documented as
-  a target the radius rule aims at, not a bound.
-- Window planning counts the elements of a trial window through the index of
-  element centers rather than by testing every element of the mesh.
-- Hessian blocks are mapped onto body degrees of freedom by matrix products
-  rather than by an `einsum` over six indices.
-- The handle slab of a cross-section reaches four device thicknesses past the
-  cut, from one: the excess to the handle was about 5 percent short of its
-  settled value at one thickness. The theory page restates the fringe table
-  and the comb example with the new values and the slab's convergence.
-- Cross-section faces are meshed at the box height only where they pass the
-  wall or the edge of a block, and coarsen to an eighth of the device
-  thickness away from them; the handle slab is so meshed under every block
-  edge. A cut with a thin box under a thick layer takes a few hundred
-  elements instead of thousands, at a few tenths of a percent of its excess.
-- Fringe cuts are keyed on a grid of a quarter of the smallest of device
-  thickness, released gap, and narrowest sidewall gap of their group, from a
-  sixteenth of the smaller of the first two; their expansion carries the
-  rounding of the nearest ends to first order, so fewer distinct
-  cross-sections are solved at a cost of second order in the capacitance and
-  of about first order in force and stiffness, which the theory page states.
 
 ## [0.2.0] - 2026-11-06
 
@@ -302,9 +301,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   electrodes across it. `Plate.extent` and `Plate.lowest` give the gap of a
   plate at its closest corner.
 - `Structure.small_signal`, `SmallSignal`, and `SmallSignalOptions`: linear
-  model about a stable equilibrium for small potentials at ports: `Electrode`
-  objects, held by sources, and never integers, which nets also are. Resonant frequencies and mode shapes under
-  bias, transduction of each mode at each node, node capacitance with
+  model about a stable equilibrium for small potentials at ports, which are
+  `Electrode` objects as sources hold them, never integers, which would name
+  nets. Resonant frequencies and mode shapes under bias, transduction of each mode at each node, node capacitance with
   floating nets eliminated, and conductance of links with resistance, so
   electrodes behind resistive beams are inner nodes. `admittance` between
   ports and `displacement` for a drive at frequencies the caller gives,
