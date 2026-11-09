@@ -166,6 +166,7 @@ class _Run:
 
     def switch_to(self, time: float) -> None:
         """Set the conductance of the network with switches as they are at ``time``."""
+        self.moment = time
         self.conductance = self.links + sum(
             (stamp for stamp, switch in self.resistors if switch is None or switch.closed_at(time)),
             np.zeros_like(self.links),
@@ -478,11 +479,11 @@ def transient(
     breaks = sorted(
         {float(point) for points in changes for point in points if stamps[0] < point < stamps[-1]}
     )
-    frames: list[tuple[float, Array, CapacitanceModel]] = []
+    frames = _Frames(run, system.dofs)
     contact: tuple[int, int] | None = None
     steps = 0
     with stage("transient", progress, total=len(stamps)) as current:
-        frames.append((float(stamps[0]), y, run.at(start_place)))
+        frames.add(float(stamps[0]), y, run.at(start_place))
         current.advance()
         pending = 1
         edges = [float(stamps[0]), *breaks, float(stamps[-1])]
@@ -502,7 +503,7 @@ def transient(
                     if tries > RETRIES:
                         stopped = run.at(state_before[: run.count])
                         contact = stopped.closest or (-1, -1)
-                        frames.append((before, state_before, stopped))
+                        frames.add(before, state_before, stopped)
                         current.advance()
                         break
                     limit = last / 4**tries
@@ -517,24 +518,24 @@ def transient(
                 if here.clearance <= options.contact_clearance:
                     moment = _contact_time(run, dense, before, solver.t, options.contact_clearance)
                     while pending < len(stamps) and stamps[pending] < moment:
-                        frames.append((float(stamps[pending]), dense(stamps[pending]), here))
+                        frames.add(float(stamps[pending]), dense(stamps[pending]), here)
                         current.advance()
                         pending += 1
                     final = dense(moment)
                     closed = run.at(final[: run.count])
-                    frames.append((moment, final, closed))
+                    frames.add(moment, final, closed)
                     contact = closed.closest or (-1, -1)
                     current.advance()
                     break
                 while pending < len(stamps) and stamps[pending] <= solver.t:
-                    frames.append((float(stamps[pending]), dense(stamps[pending]), here))
+                    frames.add(float(stamps[pending]), dense(stamps[pending]), here)
                     current.advance()
                     pending += 1
             if contact is not None:
                 break
             y = solver.y
         current.count(steps=steps, evaluations=run.evaluations)
-    return _assemble(run, system.dofs, frames, contact, steps, stored, structure)
+    return frames.result(contact, steps, stored)
 
 
 def _solver(
@@ -685,68 +686,80 @@ def _origin(
     return np.where(kept, place, 0.0)
 
 
-def _assemble(
-    run: _Run,
-    dofs: tuple[Dof, ...],
-    frames: list[tuple[float, Array, CapacitanceModel]],
-    contact: tuple[int, int] | None,
-    steps: int,
-    stored: Mapping[int, float],
-    structure: Structure,
-) -> Transient:
-    """Result over ``frames`` of time, state, and the model evaluated within the step
-    that holds the time, expanded at the state's displacement."""
-    n = run.count
-    columns: dict[str, list[Any]] = {key: [] for key in ("place", "speed", "volts", "charge")}
-    extra: dict[str, list[float]] = {
-        key: [] for key in ("kinetic", "strain", "field", "damped", "lost", "supplied", "gap")
-    }
-    currents = []
-    for time, y, model in frames:
+class _Frames:
+    """Rows of the result, taken as the run reaches each output time, from the state
+    there and the model evaluated within the step that holds the time, expanded at
+    the state's displacement; no model is held beyond its step."""
+
+    def __init__(self, run: _Run, dofs: tuple[Dof, ...]) -> None:
+        self.run, self.dofs = run, dofs
+        self.times: list[float] = []
+        self.columns: dict[str, list[Any]] = {
+            key: [] for key in ("place", "speed", "volts", "charge", "current")
+        }
+        self.extra: dict[str, list[float]] = {
+            key: [] for key in ("kinetic", "strain", "field", "damped", "lost", "supplied", "gap")
+        }
+        self.y: Array | None = None
+
+    def add(self, time: float, y: Array, model: CapacitanceModel) -> None:
+        """Row at ``time`` from state ``y`` and ``model``; the network is left as it was."""
+        run, n = self.run, self.run.count
+        moment = run.moment
         run.switch_to(time)
         now = run.state(time, y, run.near(y[:n], model))
-        place = np.zeros(len(dofs))
-        speed = np.zeros(len(dofs))
+        run.switch_to(moment)
+        place = np.zeros(len(self.dofs))
+        speed = np.zeros(len(self.dofs))
         place[run.kept], speed[run.kept] = y[:n], y[n : 2 * n]
-        columns["place"].append(place)
-        columns["speed"].append(speed)
-        columns["volts"].append(now.electrodes)
-        columns["charge"].append(now.here.matrix @ now.electrodes)
-        currents.append(now.current)
-        extra["kinetic"].append(0.5 * float(y[n : 2 * n] @ run.mass @ y[n : 2 * n]))
-        extra["strain"].append(0.5 * float(y[:n] @ run.spring @ y[:n]))
-        extra["field"].append(0.5 * float(now.potentials @ now.joined @ now.potentials))
-        extra["damped"].append(float(y[-3]))
-        extra["lost"].append(float(y[-2]))
-        extra["supplied"].append(float(y[-1]))
-        extra["gap"].append(now.here.clearance)
-    last = run.at(frames[-1][1][:n])
-    return Transient(
-        times=np.array([time for time, _, _ in frames]),
-        displacement=np.array(columns["place"]),
-        velocity=np.array(columns["speed"]),
-        potentials=np.array(columns["volts"]),
-        charge=np.array(columns["charge"]),
-        current=np.array(currents).reshape(len(frames), len(run.order)),
-        clearance=np.array(extra["gap"]),
-        energy=Energy(
-            kinetic=np.array(extra["kinetic"]),
-            strain=np.array(extra["strain"]),
-            electrostatic=np.array(extra["field"]),
-            damped=np.array(extra["damped"]),
-            resistive=np.array(extra["lost"]),
-            supplied=np.array(extra["supplied"]),
-        ),
-        contact=contact,
-        dofs=dofs,
-        loose=tuple(
-            sorted({body for (body, _), keep in zip(dofs, run.kept, strict=True) if not keep})
-        ),
-        floating=tuple(sorted(stored)),
-        steps=steps,
-        evaluations=run.evaluations,
-        model=last,
-    )
+        self.times.append(time)
+        self.columns["place"].append(place)
+        self.columns["speed"].append(speed)
+        self.columns["volts"].append(now.electrodes)
+        self.columns["charge"].append(now.here.matrix @ now.electrodes)
+        self.columns["current"].append(now.current)
+        self.extra["kinetic"].append(0.5 * float(y[n : 2 * n] @ run.mass @ y[n : 2 * n]))
+        self.extra["strain"].append(0.5 * float(y[:n] @ run.spring @ y[:n]))
+        self.extra["field"].append(0.5 * float(now.potentials @ now.joined @ now.potentials))
+        self.extra["damped"].append(float(y[-3]))
+        self.extra["lost"].append(float(y[-2]))
+        self.extra["supplied"].append(float(y[-1]))
+        self.extra["gap"].append(now.here.clearance)
+        self.y = y
+
+    def result(
+        self, contact: tuple[int, int] | None, steps: int, stored: Mapping[int, float]
+    ) -> Transient:
+        run, columns, extra = self.run, self.columns, self.extra
+        assert self.y is not None
+        return Transient(
+            times=np.array(self.times),
+            displacement=np.array(columns["place"]),
+            velocity=np.array(columns["speed"]),
+            potentials=np.array(columns["volts"]),
+            charge=np.array(columns["charge"]),
+            current=np.array(columns["current"]).reshape(len(self.times), len(run.order)),
+            clearance=np.array(extra["gap"]),
+            energy=Energy(
+                kinetic=np.array(extra["kinetic"]),
+                strain=np.array(extra["strain"]),
+                electrostatic=np.array(extra["field"]),
+                damped=np.array(extra["damped"]),
+                resistive=np.array(extra["lost"]),
+                supplied=np.array(extra["supplied"]),
+            ),
+            contact=contact,
+            dofs=self.dofs,
+            loose=tuple(
+                sorted(
+                    {body for (body, _), keep in zip(self.dofs, run.kept, strict=True) if not keep}
+                )
+            ),
+            floating=tuple(sorted(stored)),
+            steps=steps,
+            evaluations=run.evaluations,
+            model=run.at(self.y[: run.count]),
+        )
 
 
 def _stamp(size: int, ends: list[int], value: float) -> Array:

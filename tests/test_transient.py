@@ -1,5 +1,7 @@
+import weakref
 from dataclasses import replace
 from functools import partial
+from typing import Any
 
 import numpy as np
 import pytest
@@ -9,6 +11,7 @@ from numpy.typing import NDArray
 from shapely import box
 
 from connflex_core import (
+    CapacitanceModel,
     Capacitor,
     CurrentSource,
     ElectrostaticParams,
@@ -509,6 +512,38 @@ def test_outputs_between_steps_cost_no_evaluation_and_agree_across_grids(
     assert many.charge[::10] == pytest.approx(few.charge, rel=1e-9, abs=1e-30)
     assert many.clearance[::10] == pytest.approx(few.clearance, rel=1e-9)
     assert np.max(abs(many.energy.imbalance)) < 1e-6 * many.energy.supplied[-1]
+
+
+def test_a_run_holds_no_more_models_than_its_cache_however_fine_its_outputs(
+    plate: Structure, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each output row is taken when the run reaches its time, so the frames hold no
+    model per step: however many steps and outputs, the models alive at once are those
+    of the cache and the step in hand."""
+    from connflex_core.coupled import transient as module
+
+    original = module._Run.at
+    seen: list[weakref.ref[CapacitanceModel]] = []
+    most = 0
+
+    def counted(self: Any, place: Any) -> Any:
+        nonlocal most
+        model = original(self, place)
+        if all(ref() is not model for ref in seen):
+            seen.append(weakref.ref(model))
+        most = max(most, sum(ref() is not None for ref in seen))
+        return model
+
+    monkeypatch.setattr(module._Run, "at", counted)
+    _, _, natural = plate_mode(plate)
+    model = plate.capacitance(HANDLE_ALONE)
+    pad = plate.electrode_at((-300 * UM, 0.0), "device")
+    period = 2 * np.pi / natural
+    step = PiecewiseLinear([0.0, 1e-3 * period], [0.0, 30.0])
+    times = np.linspace(0.0, 10 * period, 401)
+    run = plate.transient(model, [Source(pad, step)], times, TransientOptions(quality_factor=5.0))
+    assert run.steps > 2 * module.CACHE
+    assert most <= module.CACHE + 4
 
 
 def test_bdf_integrator_settles_like_radau_with_fewer_evaluations(plate: Structure) -> None:
