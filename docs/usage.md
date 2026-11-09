@@ -909,18 +909,23 @@ blocks of rows of one dense system.
 take `workers=`, the number of workers that run them: every processor of the
 machine by default, and `workers=1` runs everything in the calling thread
 and process. The field of each window and each cross-section is solved in a
-child process, an interpreter running the library's worker loop, because the numpy work around the kernels holds the interpreter's lock and
-threads could not share the machine; the first call that needs them starts
-as many children as there are workers, which takes about a second, and the
-interpreter keeps them until it exits. Each child holds the library's
-imports, on the order of a hundred megabytes. Searching windows, cutting the
-fringe lines, and assembling the blocks of one dense system stay in threads,
-in shapely and compiled code that release the lock. Scripts need no
+child process, an interpreter running the library's worker loop, because
+the numpy work around the kernels holds the interpreter's lock and threads
+could not share the machine. Children start as pieces call for them, up to
+the number of workers, about a second each, and the interpreter keeps them
+until it exits. Each child holds the library's imports, on the order of a
+hundred megabytes. Searching windows, cutting the fringe lines, and
+assembling the blocks of one dense system stay in threads, in shapely and
+compiled code that release the lock. Scripts need no
 `if __name__ == "__main__"` guard: the children import the library, never
-the script. Sums are taken in a fixed order, so the count changes results
-only within rounding, by which of two translated windows solves their shared
-field first, and a model keeps the count it was built with for its
-evaluation at displaced bodies unless an analysis passes another.
+the script. An interrupt from the terminal stops the analysis in the
+calling process; pieces not yet started are dropped, the children ignore
+the interrupt and stay for the next call, and one whose reply the
+interrupt left unread is replaced. Sums are taken in a fixed order, so the
+count changes results only within rounding, by which of two translated
+windows solves their shared field first, and a model keeps the count it was
+built with for its evaluation at displaced bodies unless an analysis passes
+another.
 
 ```python
 model = structure.capacitance(params, workers=8)

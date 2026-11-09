@@ -1,5 +1,6 @@
 import os
 import pickle
+import signal
 import sys
 import threading
 import time
@@ -217,3 +218,46 @@ def test_close_forgets_its_children_and_the_pool_starts_anew() -> None:
     _POOL.close()
     assert (_POOL.alive, _POOL.idle) == (0, [])
     assert workers.apply(_where, (2,))[1] == 4
+
+
+def test_children_killed_while_idle_are_replaced() -> None:
+    from connflex_core.workers import _POOL
+
+    workers = Workers(2)
+    workers.solve(_where_after_a_moment, [(0,), (1,)])
+    for child in _POOL.idle:
+        child.kill()
+    assert [square for _, square in workers.solve(_where, [(2,), (3,)])] == [4, 9]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="signals of a terminal are POSIX")
+def test_an_interrupt_from_the_terminal_leaves_idle_children_alive() -> None:
+    """A terminal sends its interrupt to the parent and its children alike; the
+    children leave it to the parent and stay for the next call."""
+    from connflex_core.workers import _POOL
+
+    workers = Workers(2)
+    first = {pid for pid, _ in workers.solve(_where_after_a_moment, [(0,), (1,)])}
+    for child in _POOL.idle:
+        os.kill(child.process.pid, signal.SIGINT)
+    time.sleep(0.2)
+    assert all(child.alive() for child in _POOL.idle)
+    second = {pid for pid, _ in workers.solve(_where_after_a_moment, [(0,), (1,)])}
+    assert second == first
+
+
+def test_interrupt_of_the_calling_thread_cancels_pieces_not_yet_started() -> None:
+    ran: list[int] = []
+
+    def piece(k: int) -> int:
+        ran.append(k)
+        time.sleep(0.05)
+        return k
+
+    def interrupt() -> None:
+        raise _Interrupted
+
+    with pytest.raises(_Interrupted):
+        Workers(2).run([partial(piece, k) for k in range(8)], interrupt)
+    time.sleep(0.2)
+    assert len(ran) < 8

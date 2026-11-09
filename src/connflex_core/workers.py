@@ -5,6 +5,7 @@ from __future__ import annotations
 import atexit
 import os
 import pickle
+import signal
 import struct
 import subprocess
 import sys
@@ -49,12 +50,15 @@ class Workers:
                 if done is not None:
                     done()
             return results
-        with ThreadPoolExecutor(min(self.count, len(pieces))) as pool:
+        pool = ThreadPoolExecutor(min(self.count, len(pieces)))
+        try:
             futures = [pool.submit(_inside, piece) for piece in pieces]
             for _ in as_completed(futures):
                 if done is not None:
                     done()
             return [future.result() for future in futures]
+        finally:  # after an interrupt, pieces not yet started stay so
+            pool.shutdown(wait=False, cancel_futures=True)
 
     def apply(self, function: Callable[..., T], arguments: tuple[Any, ...]) -> T:
         """``function(*arguments)`` in a child process, or in this one with one worker.
@@ -282,6 +286,7 @@ def serve() -> None:
     half of ``Workers``, which ``python -m connflex_core._serve`` starts."""
     inbox, outbox = sys.stdin.buffer, sys.stdout.buffer
     sys.stdout = sys.stderr  # nothing a piece prints may reach the pipe
+    signal.signal(signal.SIGINT, signal.SIG_IGN)  # the parent handles interrupts of its terminal
     sys.path[:] = _receive(inbox)
     while True:
         try:
